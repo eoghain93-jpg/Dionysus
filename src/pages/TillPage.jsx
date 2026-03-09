@@ -7,6 +7,7 @@ import { useSyncStore } from '../stores/syncStore'
 import CategoryFilter from '../components/till/CategoryFilter'
 import ProductGrid from '../components/till/ProductGrid'
 import OrderPanel from '../components/till/OrderPanel'
+import MemberLookup from '../components/till/MemberLookup'
 
 export default function TillPage() {
   const [products, setProducts] = useState([])
@@ -62,6 +63,7 @@ export default function TillPage() {
     <div className="flex h-full min-h-0">
       <div className="flex-1 flex flex-col overflow-hidden">
         <div className="p-4 space-y-3 overflow-auto flex-1">
+          <MemberLookup />
           <CategoryFilter active={category} onChange={setCategory} />
           {loading
             ? <div className="text-slate-400 text-sm">Loading products...</div>
