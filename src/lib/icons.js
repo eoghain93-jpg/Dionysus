@@ -15,8 +15,9 @@ export {
   Search,          // Search inputs
   ScanLine,        // Barcode scan
   Nfc,             // NFC tap
-  AlertTriangle,   // Low stock warning
-  CheckCircle,     // Success
+  AlertTriangle,   // Low stock warning (below par)
+  AlertCircle,     // OK stock (at/near par)
+  CheckCircle,     // Success / Good stock
   ChevronRight,    // Navigation
   RefreshCw,       // Sync
   LogOut,          // Clear member
