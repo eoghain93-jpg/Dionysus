@@ -1,7 +1,19 @@
+import { Routes, Route } from 'react-router-dom'
+import Layout from './components/Layout'
+import TillPage from './pages/TillPage'
+import StockPage from './pages/StockPage'
+import MembersPage from './pages/MembersPage'
+import ReportsPage from './pages/ReportsPage'
+
 export default function App() {
   return (
-    <div className="min-h-screen bg-slate-900 text-white flex items-center justify-center">
-      <h1 className="text-4xl font-bold text-blue-400">Club EPOS</h1>
-    </div>
+    <Layout>
+      <Routes>
+        <Route path="/" element={<TillPage />} />
+        <Route path="/stock" element={<StockPage />} />
+        <Route path="/members" element={<MembersPage />} />
+        <Route path="/reports" element={<ReportsPage />} />
+      </Routes>
+    </Layout>
   )
 }
