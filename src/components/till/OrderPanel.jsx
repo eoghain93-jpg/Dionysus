@@ -47,7 +47,7 @@ export default function OrderPanel({ onCheckout }) {
                 <button
                   onClick={() => updateQuantity(item.product_id, item.quantity - 1)}
                   aria-label="Decrease quantity"
-                  className="w-8 h-8 rounded-lg bg-slate-700 hover:bg-slate-600 active:scale-95
+                  className="w-11 h-11 rounded-lg bg-slate-700 hover:bg-slate-600 active:scale-95
                     text-white flex items-center justify-center transition-all duration-150 cursor-pointer"
                 >
                   <Minus size={14} aria-hidden="true" />
@@ -56,7 +56,7 @@ export default function OrderPanel({ onCheckout }) {
                 <button
                   onClick={() => updateQuantity(item.product_id, item.quantity + 1)}
                   aria-label="Increase quantity"
-                  className="w-8 h-8 rounded-lg bg-slate-700 hover:bg-slate-600 active:scale-95
+                  className="w-11 h-11 rounded-lg bg-slate-700 hover:bg-slate-600 active:scale-95
                     text-white flex items-center justify-center transition-all duration-150 cursor-pointer"
                 >
                   <Plus size={14} aria-hidden="true" />

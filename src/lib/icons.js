@@ -22,4 +22,5 @@ export {
   LogOut,          // Clear member
   Edit2,           // Edit action
   Trash2,          // Delete action
+  Camera,          // QR scan fallback
 } from 'lucide-react'

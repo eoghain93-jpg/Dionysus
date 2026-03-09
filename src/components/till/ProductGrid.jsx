@@ -14,7 +14,8 @@ export default function ProductGrid({ products }) {
             onClick={() => addItem(product)}
             className="bg-slate-800 hover:bg-slate-700 active:bg-blue-700 active:scale-95
               rounded-xl p-3 text-left transition-all duration-150 flex flex-col gap-1
-              relative cursor-pointer min-h-[80px]"
+              relative cursor-pointer min-h-[80px] focus:outline-none focus:ring-2
+              focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617]"
           >
             {isLowStock && (
               <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-amber-400" aria-label="Low stock" />

@@ -1,13 +1,19 @@
 import { useState, useEffect, useRef } from 'react'
 import { Search, ScanLine } from 'lucide-react'
+import { Camera, X } from '../../lib/icons'
+import { Html5QrcodeScanner } from 'html5-qrcode'
 import { findMemberByNumber } from '../../lib/members'
 import { useTillStore } from '../../stores/tillStore'
 
 export default function MemberLookup() {
   const [query, setQuery] = useState('')
   const [error, setError] = useState(null)
+  const [qrActive, setQrActive] = useState(false)
   const { activeMember, setActiveMember } = useTillStore()
   const inputRef = useRef(null)
+  const scannerRef = useRef(null)
+
+  const hasNfc = typeof NDEFReader !== 'undefined'
 
   // Barcode scanner: USB HID sends characters then Enter key
   // Capture fast bursts (< 100ms between chars) as a scan
@@ -61,6 +67,40 @@ export default function MemberLookup() {
     }
   }, [])
 
+  // Camera QR scanner — start/stop based on qrActive state
+  useEffect(() => {
+    if (!qrActive) return
+
+    const scanner = new Html5QrcodeScanner(
+      'qr-reader',
+      { fps: 10, qrbox: { width: 250, height: 250 } },
+      /* verbose= */ false
+    )
+    scannerRef.current = scanner
+
+    scanner.render(
+      (decodedText) => {
+        stopScanner()
+        handleLookup(decodedText)
+      },
+      (errorMessage) => {
+        // scan errors are expected while scanning — ignore
+      }
+    )
+
+    return () => {
+      stopScanner()
+    }
+  }, [qrActive])
+
+  function stopScanner() {
+    if (scannerRef.current) {
+      scannerRef.current.clear().catch(() => {})
+      scannerRef.current = null
+    }
+    setQrActive(false)
+  }
+
   async function handleLookup(value) {
     setError(null)
     const member = await findMemberByNumber(value.trim())
@@ -107,7 +147,23 @@ export default function MemberLookup() {
           <ScanLine size={16} aria-hidden="true" />
           <span className="hidden sm:inline">Find</span>
         </button>
+        {!hasNfc && (
+          <button
+            type="button"
+            onClick={() => qrActive ? stopScanner() : setQrActive(true)}
+            aria-label={qrActive ? 'Stop QR scanning' : 'Scan QR code'}
+            className="px-4 min-h-[44px] bg-slate-800 hover:bg-slate-700 text-slate-300
+              hover:text-white rounded-xl text-sm transition-colors duration-200 cursor-pointer
+              flex items-center gap-1.5 border border-slate-700 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+          >
+            {qrActive ? <X size={16} aria-hidden="true" /> : <Camera size={16} aria-hidden="true" />}
+            <span className="hidden sm:inline">{qrActive ? 'Stop scanning' : 'Scan QR'}</span>
+          </button>
+        )}
       </div>
+      {qrActive && (
+        <div id="qr-reader" className="mt-2 rounded-xl overflow-hidden" />
+      )}
       {error && (
         <p id="member-lookup-error" className="text-red-400 text-xs pl-1" role="alert">{error}</p>
       )}
