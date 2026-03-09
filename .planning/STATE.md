@@ -2,7 +2,7 @@
 
 ## Current Phase
 
-Phase 2: Stock & Members UI
+Phase 3: Reports, Seed & Build
 
 ## Status
 
@@ -12,19 +12,7 @@ In Progress
 
 - ✓ Phase 0: Foundation (pre-GSD, Tasks 0–9)
 - ✓ Phase 1: Till UI (Tasks 10–12 + gap fixes)
-
-## Foundation (pre-GSD, all complete)
-
-- ✓ Design system (OLED dark, fonts, Lucide icons)
-- ✓ All dependencies installed
-- ✓ Tailwind + PWA + Vitest configured
-- ✓ Supabase schema deployed
-- ✓ Supabase client + Dexie offline DB
-- ✓ App shell (routing, nav, layout, StatusBar)
-- ✓ Zustand stores (till, sync)
-- ✓ Product data layer
-- ✓ Member data layer
-- 17 tests passing
+- ✓ Phase 2: Stock & Members UI (Tasks 13–14)
 
 ## Phase 1 Completion (TILL-01 to TILL-12 — all ✓)
 
@@ -38,8 +26,24 @@ In Progress
 - ✓ TILL-11: Void order
 - ✓ TILL-12: Offline queue via Dexie, syncs on reconnect
 
+## Phase 2 Completion (STOCK-01..05 + MEM-01..07 — all ✓)
+
+- ✓ STOCK-01: Stock list with RAG badge (colour + icon + text)
+- ✓ STOCK-02: Wastage/spillage modal → logStockMovement
+- ✓ STOCK-03: Restock modal → logStockMovement
+- ✓ STOCK-04: Add product form (all fields)
+- ✓ STOCK-05: Edit product form (pre-populated)
+- ✓ MEM-01: Searchable member list
+- ✓ MEM-02: Tab balance shown when > 0
+- ✓ MEM-03: Renewal alert (Clock icon + "Renewal due" text) within 30 days
+- ✓ MEM-04: Full member profile (details, tier, spend history, favourite drinks)
+- ✓ MEM-05: Settle tab by cash or card
+- ✓ MEM-06: Add new member form
+- ✓ MEM-07: Edit member form (pre-populated)
+- 42 tests passing
+
 ## Next Action
 
-Execute Phase 2: Stock & Members UI
-- Plan A: Stock management page (StockList, StockMovementModal, ProductFormModal)
-- Plan B: Members page (MemberList, MemberProfile, MemberFormModal, SettleTabModal)
+Execute Phase 3: Reports, Seed & Build
+- Plan A: Reports page (DailySummary, BusiestHours chart, TopProducts, CSV export)
+- Plan B: Seed data + PWA icons + production build
