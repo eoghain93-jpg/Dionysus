@@ -31,4 +31,6 @@ export {
   Mail,            // Email field
   Calendar,        // Renewal date
   Star,            // Membership tier
+  Download,        // Export CSV
+  TrendingUp,      // Top products
 } from 'lucide-react'
