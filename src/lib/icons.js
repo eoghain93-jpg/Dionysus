@@ -24,4 +24,11 @@ export {
   Edit2,           // Edit action
   Trash2,          // Delete action
   Camera,          // QR scan fallback
+  Clock,           // Renewal due alert
+  Pencil,          // Edit member
+  UserPlus,        // Add member
+  Phone,           // Phone field
+  Mail,            // Email field
+  Calendar,        // Renewal date
+  Star,            // Membership tier
 } from 'lucide-react'
