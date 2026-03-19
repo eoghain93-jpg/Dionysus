@@ -4,7 +4,10 @@ import Stripe from 'https://esm.sh/stripe@14'
 
 serve(async (req) => {
   const body = await req.text()
-  const signature = req.headers.get('stripe-signature')!
+  const signature = req.headers.get('stripe-signature')
+  if (!signature) {
+    return new Response('Missing stripe-signature header', { status: 400 })
+  }
 
   const stripe = new Stripe(Deno.env.get('STRIPE_SECRET_KEY')!, { apiVersion: '2023-10-16' })
 
@@ -42,14 +45,14 @@ serve(async (req) => {
     return new Response('DB error', { status: 500 })
   }
 
-  const { data: member } = await supabase
-    .from('members')
-    .select('tab_balance')
-    .eq('id', member_id)
-    .single()
-
-  const newBalance = Math.max(0, (member?.tab_balance ?? 0) - amount)
-  await supabase.from('members').update({ tab_balance: newBalance }).eq('id', member_id)
+  const { error: balanceError } = await supabase.rpc('decrement_tab_balance', {
+    p_member_id: member_id,
+    p_amount: amount,
+  })
+  if (balanceError) {
+    console.error('Failed to decrement tab balance:', balanceError)
+    return new Response('DB error', { status: 500 })
+  }
 
   return new Response('OK', { status: 200 })
 })

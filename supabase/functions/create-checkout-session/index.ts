@@ -9,7 +9,10 @@ serve(async (req) => {
 
   const authHeader = req.headers.get('Authorization')
   if (!authHeader) {
-    return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 })
+    return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+      status: 401,
+      headers: { 'Content-Type': 'application/json' },
+    })
   }
 
   const supabase = createClient(
@@ -37,24 +40,39 @@ serve(async (req) => {
     return new Response(JSON.stringify({ error: 'No outstanding tab balance' }), { status: 400 })
   }
 
-  const stripe = new Stripe(Deno.env.get('STRIPE_SECRET_KEY')!, { apiVersion: '2023-10-16' })
-  const memberAppUrl = Deno.env.get('MEMBER_APP_URL')!
+  const memberAppUrl = Deno.env.get('MEMBER_APP_URL')
+  if (!memberAppUrl) {
+    return new Response(JSON.stringify({ error: 'MEMBER_APP_URL not configured' }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' },
+    })
+  }
 
-  const session = await stripe.checkout.sessions.create({
-    payment_method_types: ['card'],
-    mode: 'payment',
-    line_items: [{
-      price_data: {
-        currency: 'gbp',
-        product_data: { name: `Tab payment — ${member.name}` },
-        unit_amount: Math.round(member.tab_balance * 100),
-      },
-      quantity: 1,
-    }],
-    metadata: { member_id: member.id },
-    success_url: `${memberAppUrl}/tab?payment=success`,
-    cancel_url: `${memberAppUrl}/tab?payment=cancelled`,
-  })
+  const stripe = new Stripe(Deno.env.get('STRIPE_SECRET_KEY')!, { apiVersion: '2023-10-16' })
+
+  let session
+  try {
+    session = await stripe.checkout.sessions.create({
+      payment_method_types: ['card'],
+      mode: 'payment',
+      line_items: [{
+        price_data: {
+          currency: 'gbp',
+          product_data: { name: `Tab payment — ${member.name}` },
+          unit_amount: Math.round(member.tab_balance * 100),
+        },
+        quantity: 1,
+      }],
+      metadata: { member_id: member.id },
+      success_url: `${memberAppUrl}/tab?payment=success`,
+      cancel_url: `${memberAppUrl}/tab?payment=cancelled`,
+    })
+  } catch (err) {
+    return new Response(JSON.stringify({ error: 'Payment provider error' }), {
+      status: 502,
+      headers: { 'Content-Type': 'application/json' },
+    })
+  }
 
   return new Response(JSON.stringify({ url: session.url }), {
     status: 200,

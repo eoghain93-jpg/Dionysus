@@ -6,11 +6,29 @@ serve(async (req) => {
     return new Response('Method not allowed', { status: 405 })
   }
 
-  const { member_id, email } = await req.json()
-
-  if (!member_id || !email) {
-    return new Response(JSON.stringify({ error: 'member_id and email required' }), {
+  let member_id: string, email: string
+  try {
+    const body = await req.json()
+    member_id = body.member_id
+    email = body.email
+  } catch {
+    return new Response(JSON.stringify({ error: 'Invalid JSON body' }), {
       status: 400,
+      headers: { 'Content-Type': 'application/json' },
+    })
+  }
+
+  if (!member_id || !email || !email.includes('@')) {
+    return new Response(JSON.stringify({ error: 'member_id and valid email required' }), {
+      status: 400,
+      headers: { 'Content-Type': 'application/json' },
+    })
+  }
+
+  const memberAppUrl = Deno.env.get('MEMBER_APP_URL')
+  if (!memberAppUrl) {
+    return new Response(JSON.stringify({ error: 'MEMBER_APP_URL not configured' }), {
+      status: 500,
       headers: { 'Content-Type': 'application/json' },
     })
   }
@@ -22,7 +40,7 @@ serve(async (req) => {
 
   const { data: authData, error: inviteError } = await supabase.auth.admin.inviteUserByEmail(
     email,
-    { redirectTo: Deno.env.get('MEMBER_APP_URL') + '/auth/callback' }
+    { redirectTo: memberAppUrl + '/auth/callback' }
   )
 
   if (inviteError) {

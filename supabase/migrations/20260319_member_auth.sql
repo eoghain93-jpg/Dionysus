@@ -57,3 +57,13 @@ create policy "Member read own order items" on order_items
       select id from members where auth_user_id = auth.uid()
     )
   ));
+
+-- Atomic tab balance decrement (prevents race conditions on concurrent webhook calls)
+create or replace function decrement_tab_balance(p_member_id uuid, p_amount numeric)
+returns void language plpgsql security definer as $$
+begin
+  update members
+  set tab_balance = greatest(0, tab_balance - p_amount)
+  where id = p_member_id;
+end;
+$$;
