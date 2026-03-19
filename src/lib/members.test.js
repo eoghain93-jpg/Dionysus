@@ -12,10 +12,6 @@ vi.mock('./db', () => ({
   db: { members: { put: vi.fn() } },
 }))
 
-vi.mock('../stores/syncStore', () => ({
-  useSyncStore: { getState: () => ({ isOnline: true }) },
-}))
-
 describe('upsertMember', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -37,6 +33,8 @@ describe('upsertMember', () => {
     supabase.functions.invoke.mockResolvedValue({ error: null })
 
     await upsertMember({ name: 'Test', email: 'test@test.com' })
+    // Allow the fire-and-forget promise to resolve
+    await new Promise(resolve => setTimeout(resolve, 0))
 
     expect(supabase.functions.invoke).toHaveBeenCalledWith('invite-member', {
       body: { member_id: 'uuid-1', email: 'test@test.com' },
@@ -59,6 +57,8 @@ describe('upsertMember', () => {
     supabase.functions.invoke.mockResolvedValue({ error: null })
 
     await upsertMember({ name: 'NoEmail' })
+    // Flush microtask queue for consistency with fire-and-forget pattern
+    await new Promise(resolve => setTimeout(resolve, 0))
 
     expect(supabase.functions.invoke).not.toHaveBeenCalled()
   })
