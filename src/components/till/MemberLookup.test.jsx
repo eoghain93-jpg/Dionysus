@@ -1,7 +1,26 @@
 import { render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
+import { vi } from 'vitest'
 import MemberLookup from './MemberLookup'
 import { useTillStore } from '../../stores/tillStore'
+
+vi.mock('../../lib/supabase', () => ({
+  supabase: {
+    from: vi.fn(),
+    auth: { getSession: vi.fn() },
+  },
+}))
+
+vi.mock('../../lib/members', () => ({
+  findMemberByNumber: vi.fn().mockResolvedValue(null),
+}))
+
+vi.mock('html5-qrcode', () => ({
+  Html5QrcodeScanner: vi.fn().mockImplementation(() => ({
+    render: vi.fn(),
+    clear: vi.fn().mockResolvedValue(undefined),
+  })),
+}))
 
 beforeEach(() => useTillStore.setState({ orderItems: [], activeMember: null }))
 
