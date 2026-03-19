@@ -48,6 +48,11 @@ export async function upsertMember(member) {
     const { data, error } = await supabase.from('members').insert(fields).select().single()
     if (error) throw error
     await db.members.put(data)
+    if (data.email) {
+      await supabase.functions.invoke('invite-member', {
+        body: { member_id: data.id, email: data.email },
+      })
+    }
     return data
   }
 }
