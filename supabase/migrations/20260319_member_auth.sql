@@ -6,33 +6,33 @@ create unique index if not exists members_auth_user_id_idx on members(auth_user_
 
 -- Track Stripe tab payments (top-ups from companion app)
 create table if not exists tab_payments (
-  id uuid primary key default uuid_generate_v4(),
+  id uuid primary key default gen_random_uuid(),
   member_id uuid not null references members(id),
   amount numeric(10,2) not null,
   stripe_payment_intent_id text unique not null,
   created_at timestamptz default now()
 );
 
+-- FK indexes for efficient lookups
+create index if not exists orders_member_id_idx on orders(member_id);
+create index if not exists tab_payments_member_id_idx on tab_payments(member_id);
+
+-- Explicit RLS enable (service_role bypasses RLS by default; enabling here
+-- ensures member-facing policies are evaluated for authenticated users)
+alter table members enable row level security;
+alter table orders enable row level security;
 alter table tab_payments enable row level security;
 
 -- RLS: members can only read their own member row
 drop policy if exists "Allow all" on members;
-create policy "Staff full access" on members
-  for all
-  using (auth.role() = 'service_role')
-  with check (auth.role() = 'service_role');
-
+drop policy if exists "Member read own row" on members;
 create policy "Member read own row" on members
   for select
   using (auth_user_id = auth.uid());
 
 -- RLS: members can only read their own orders
 drop policy if exists "Allow all" on orders;
-create policy "Staff full access" on orders
-  for all
-  using (auth.role() = 'service_role')
-  with check (auth.role() = 'service_role');
-
+drop policy if exists "Member read own orders" on orders;
 create policy "Member read own orders" on orders
   for select
   using (member_id = (
@@ -40,25 +40,16 @@ create policy "Member read own orders" on orders
   ));
 
 -- RLS: members can only read their own tab_payments
+drop policy if exists "Member read own payments" on tab_payments;
 create policy "Member read own payments" on tab_payments
   for select
   using (member_id = (
     select id from members where auth_user_id = auth.uid()
   ));
 
--- Service role full access on tab_payments
-create policy "Staff full access" on tab_payments
-  for all
-  using (auth.role() = 'service_role')
-  with check (auth.role() = 'service_role');
-
 -- RLS: order_items — members can read items for their own orders
 drop policy if exists "Allow all" on order_items;
-create policy "Staff full access" on order_items
-  for all
-  using (auth.role() = 'service_role')
-  with check (auth.role() = 'service_role');
-
+drop policy if exists "Member read own order items" on order_items;
 create policy "Member read own order items" on order_items
   for select
   using (order_id in (
