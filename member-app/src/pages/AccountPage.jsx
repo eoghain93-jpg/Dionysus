@@ -14,7 +14,7 @@ export default function AccountPage() {
         <Row label="Email" value={member.email} />
         <Row label="Membership No." value={member.membership_number} />
         {member.membership_tier && (
-          <Row label="Tier" value={member.membership_tier} />
+          <Row label="Tier" value={member.membership_tier.charAt(0).toUpperCase() + member.membership_tier.slice(1)} />
         )}
       </div>
 

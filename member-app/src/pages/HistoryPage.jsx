@@ -6,47 +6,64 @@ export default function HistoryPage() {
   const { member } = useAuthStore()
   const [entries, setEntries] = useState([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
 
   useEffect(() => {
     if (!member) return
     async function load() {
-      const [ordersResult, paymentsResult] = await Promise.all([
-        supabase.from('orders')
-          .select('id, total_amount, created_at, payment_method')
-          .eq('member_id', member.id)
-          .order('created_at', { ascending: false })
-          .limit(50),
-        supabase.from('tab_payments')
-          .select('id, amount, created_at')
-          .eq('member_id', member.id)
-          .order('created_at', { ascending: false })
-          .limit(50),
-      ])
+      try {
+        const [ordersResult, paymentsResult] = await Promise.all([
+          supabase.from('orders')
+            .select('id, total_amount, created_at, payment_method')
+            .eq('member_id', member.id)
+            .order('created_at', { ascending: false })
+            .limit(50),
+          supabase.from('tab_payments')
+            .select('id, amount, created_at')
+            .eq('member_id', member.id)
+            .order('created_at', { ascending: false })
+            .limit(50),
+        ])
 
-      const purchases = (ordersResult.data ?? []).map(o => ({
-        id: o.id,
-        type: 'purchase',
-        label: o.payment_method === 'tab' ? 'Tab purchase' : 'Purchase',
-        amount: -o.total_amount,
-        date: o.created_at,
-      }))
+        if (ordersResult.error) throw ordersResult.error
+        if (paymentsResult.error) throw paymentsResult.error
 
-      const payments = (paymentsResult.data ?? []).map(p => ({
-        id: p.id,
-        type: 'payment',
-        label: 'Tab payment',
-        amount: p.amount,
-        date: p.created_at,
-      }))
+        const purchases = (ordersResult.data ?? []).map(o => ({
+          id: o.id,
+          type: 'purchase',
+          label: o.payment_method === 'tab' ? 'Tab purchase' : 'Purchase',
+          amount: -o.total_amount,
+          date: o.created_at,
+        }))
 
-      const combined = [...purchases, ...payments].sort(
-        (a, b) => new Date(b.date) - new Date(a.date)
-      )
-      setEntries(combined)
-      setLoading(false)
+        const payments = (paymentsResult.data ?? []).map(p => ({
+          id: p.id,
+          type: 'payment',
+          label: 'Tab payment',
+          amount: p.amount,
+          date: p.created_at,
+        }))
+
+        const combined = [...purchases, ...payments].sort(
+          (a, b) => new Date(b.date) - new Date(a.date)
+        )
+        setEntries(combined)
+      } catch (err) {
+        setError(err.message ?? 'Failed to load history. Please try again.')
+      } finally {
+        setLoading(false)
+      }
     }
     load()
   }, [member])
+
+  if (error) {
+    return (
+      <div className="bg-slate-900 min-h-screen p-4 flex items-center justify-center">
+        <p className="text-red-400 text-sm text-center">{error}</p>
+      </div>
+    )
+  }
 
   if (loading) {
     return (
