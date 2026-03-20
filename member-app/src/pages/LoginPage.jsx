@@ -5,7 +5,7 @@ export default function LoginPage() {
         <div className="w-16 h-16 bg-blue-600 rounded-full flex items-center justify-center mx-auto mb-6">
           <span className="text-2xl">🎫</span>
         </div>
-        <h1 className="text-white text-2xl font-bold mb-3">Club Member</h1>
+        <h1 className="text-white text-2xl font-bold mb-3">Fairmile</h1>
         <p className="text-slate-400 text-sm leading-relaxed">
           Check your email for your membership invite link. Tap it to access your digital card and tab.
         </p>

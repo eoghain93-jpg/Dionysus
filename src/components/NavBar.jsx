@@ -15,7 +15,7 @@ export default function NavBar() {
       <nav className="hidden md:flex flex-col w-20 lg:w-52 bg-slate-900 border-r border-slate-800 min-h-screen p-3 gap-1 shrink-0">
         <div className="px-3 py-5 hidden lg:block">
           <span className="text-white font-bold text-lg" style={{ fontFamily: "'Playfair Display SC', serif" }}>
-            Club EPOS
+            Dionysus
           </span>
         </div>
         {links.map(({ to, label, Icon }) => (

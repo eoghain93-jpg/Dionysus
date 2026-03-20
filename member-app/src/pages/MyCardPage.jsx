@@ -11,7 +11,7 @@ export default function MyCardPage() {
   return (
     <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center p-6 gap-8">
       <div className="bg-gradient-to-br from-blue-800 to-slate-800 rounded-3xl p-8 w-full max-w-sm shadow-2xl">
-        <div className="text-slate-400 text-xs uppercase tracking-widest mb-6">Club Membership</div>
+        <div className="text-slate-400 text-xs uppercase tracking-widest mb-6">Fairmile Sports & Social Club</div>
         <div className="text-white text-2xl font-bold mb-1">{member.name}</div>
         <div className="text-blue-300 text-sm mb-8">{tierLabel}</div>
         <div className="bg-white rounded-2xl p-4 flex items-center justify-center mb-6">

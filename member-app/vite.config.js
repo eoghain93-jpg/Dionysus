@@ -15,9 +15,9 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       manifest: {
-        name: 'Club Member',
-        short_name: 'Member',
-        description: 'Your club membership card and tab',
+        name: 'Fairmile',
+        short_name: 'Fairmile',
+        description: 'Fairmile Sports & Social Club membership',
         theme_color: '#1e3a5f',
         background_color: '#0f172a',
         display: 'standalone',

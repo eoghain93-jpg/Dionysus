@@ -11,9 +11,9 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.ico', 'apple-touch-icon.png'],
       manifest: {
-        name: 'Club EPOS',
-        short_name: 'EPOS',
-        description: 'Pub & Members Club Point of Sale',
+        name: 'Dionysus',
+        short_name: 'Dionysus',
+        description: 'Dionysus Club Point of Sale',
         theme_color: '#1e3a5f',
         background_color: '#0f172a',
         display: 'standalone',
