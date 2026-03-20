@@ -1,6 +1,10 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import Stripe from 'https://esm.sh/stripe@14'
 
+// NOTE: This endpoint is intentionally public (no auth). It has no rate limiting — this is a known
+// limitation. Stripe does not charge for abandoned sessions, but volume abuse is possible. Consider
+// adding platform-level throttling via Supabase dashboard before public launch.
+
 serve(async (req) => {
   if (req.method !== 'POST') {
     return new Response('Method not allowed', { status: 405 })
@@ -12,7 +16,7 @@ serve(async (req) => {
     name = body.name?.trim()
     email = body.email?.trim()
     phone = body.phone?.trim()
-  } catch {
+  } catch (err) {
     return new Response(JSON.stringify({ error: 'Invalid JSON body' }), {
       status: 400,
       headers: { 'Content-Type': 'application/json' },
@@ -34,7 +38,15 @@ serve(async (req) => {
     })
   }
 
-  const stripe = new Stripe(Deno.env.get('STRIPE_SECRET_KEY')!, { apiVersion: '2023-10-16' })
+  const stripeSecretKey = Deno.env.get('STRIPE_SECRET_KEY')
+  if (!stripeSecretKey) {
+    return new Response(JSON.stringify({ error: 'STRIPE_SECRET_KEY not configured' }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' },
+    })
+  }
+
+  const stripe = new Stripe(stripeSecretKey, { apiVersion: '2023-10-16' })
 
   let session
   try {
@@ -53,7 +65,7 @@ serve(async (req) => {
       success_url: `${memberAppUrl}/join?status=success`,
       cancel_url: `${memberAppUrl}/join?status=cancelled`,
     })
-  } catch {
+  } catch (err) {
     return new Response(JSON.stringify({ error: 'Payment provider error' }), {
       status: 502,
       headers: { 'Content-Type': 'application/json' },
