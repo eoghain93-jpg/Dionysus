@@ -23,17 +23,58 @@ serve(async (req) => {
   }
 
   const session = event.data.object as Stripe.Checkout.Session
+
+  const supabase = createClient(
+    Deno.env.get('SUPABASE_URL')!,
+    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+  )
+
+  if (session.metadata?.type === 'membership') {
+    const { name, email, phone } = session.metadata
+
+    const { count } = await supabase
+      .from('members')
+      .select('id', { count: 'exact', head: true })
+    const membership_number = `M${String((count ?? 0) + 1).padStart(4, '0')}`
+
+    const { data: member, error: insertError } = await supabase
+      .from('members')
+      .insert({ name, email, phone, active: true, membership_number, tab_balance: 0 })
+      .select('id')
+      .single()
+
+    if (insertError || !member) {
+      console.error('Failed to create member:', insertError)
+      return new Response('DB error', { status: 500 })
+    }
+
+    const memberAppUrl = Deno.env.get('MEMBER_APP_URL') ?? ''
+    const { data: authData, error: inviteError } = await supabase.auth.admin.inviteUserByEmail(
+      email,
+      { redirectTo: memberAppUrl + '/auth/callback' }
+    )
+
+    if (inviteError) {
+      console.error('Failed to invite member:', inviteError)
+      // Member row was created — don't fail the webhook. Invite can be resent.
+      return new Response('OK', { status: 200 })
+    }
+
+    await supabase
+      .from('members')
+      .update({ auth_user_id: authData.user.id })
+      .eq('id', member.id)
+
+    return new Response('OK', { status: 200 })
+  }
+
+  // Tab top-up (existing logic)
   const member_id = session.metadata?.member_id
   const amount = (session.amount_total ?? 0) / 100
 
   if (!member_id || amount <= 0) {
     return new Response('Invalid session metadata', { status: 400 })
   }
-
-  const supabase = createClient(
-    Deno.env.get('SUPABASE_URL')!,
-    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-  )
 
   const { error: paymentError } = await supabase.rpc('record_tab_payment', {
     p_member_id: member_id,
