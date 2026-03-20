@@ -1,3 +1,5 @@
+import { Link } from 'react-router-dom'
+
 export default function LoginPage() {
   return (
     <div className="min-h-screen bg-slate-900 flex items-center justify-center p-6">
@@ -11,9 +13,9 @@ export default function LoginPage() {
         </p>
         <p className="text-slate-500 text-xs mt-6">
           Not a member yet?{' '}
-          <a href="/join" className="text-blue-400 hover:text-blue-300 underline">
+          <Link to="/join" className="text-blue-400 hover:text-blue-300 underline">
             Join for £50
-          </a>
+          </Link>
         </p>
       </div>
     </div>
