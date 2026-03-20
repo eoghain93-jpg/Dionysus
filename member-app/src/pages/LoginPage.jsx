@@ -10,7 +10,10 @@ export default function LoginPage() {
           Check your email for your membership invite link. Tap it to access your digital card and tab.
         </p>
         <p className="text-slate-500 text-xs mt-6">
-          Don't have a link? Contact the club.
+          Not a member yet?{' '}
+          <a href="/join" className="text-blue-400 hover:text-blue-300 underline">
+            Join for £50
+          </a>
         </p>
       </div>
     </div>
