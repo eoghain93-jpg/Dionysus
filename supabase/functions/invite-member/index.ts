@@ -6,6 +6,33 @@ serve(async (req) => {
     return new Response('Method not allowed', { status: 405 })
   }
 
+  // NOTE: This function should only be called from the EPOS backend.
+  // It validates the Supabase JWT to prevent public exploitation.
+  // For additional security, consider restricting to staff-role JWTs only.
+
+  // Verify the request carries a valid Supabase JWT
+  const authHeader = req.headers.get('Authorization')
+  if (!authHeader?.startsWith('Bearer ')) {
+    return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+      status: 401,
+      headers: { 'Content-Type': 'application/json' },
+    })
+  }
+
+  // Verify the JWT is valid (not expired, not tampered)
+  const anonClient = createClient(
+    Deno.env.get('SUPABASE_URL')!,
+    Deno.env.get('SUPABASE_ANON_KEY')!,
+    { global: { headers: { Authorization: authHeader } } }
+  )
+  const { error: jwtError } = await anonClient.auth.getUser()
+  if (jwtError) {
+    return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+      status: 401,
+      headers: { 'Content-Type': 'application/json' },
+    })
+  }
+
   let member_id: string, email: string
   try {
     const body = await req.json()

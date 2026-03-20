@@ -67,3 +67,29 @@ begin
   where id = p_member_id;
 end;
 $$;
+
+-- Atomic: record payment AND decrement balance in a single transaction
+-- Prevents partial-failure state where Stripe retries but unique constraint blocks re-insert
+create or replace function record_tab_payment(
+  p_member_id uuid,
+  p_amount numeric,
+  p_stripe_payment_intent_id text
+) returns void language plpgsql security definer as $$
+begin
+  insert into tab_payments (member_id, amount, stripe_payment_intent_id)
+  values (p_member_id, p_amount, p_stripe_payment_intent_id)
+  on conflict (stripe_payment_intent_id) do nothing;
+
+  -- Only decrement if this payment_intent hasn't already been processed
+  -- (on conflict do nothing means no decrement on duplicate)
+  if found then
+    update members
+    set tab_balance = greatest(0, tab_balance - p_amount)
+    where id = p_member_id;
+
+    if not found then
+      raise warning 'Member % not found when decrementing tab balance', p_member_id;
+    end if;
+  end if;
+end;
+$$;

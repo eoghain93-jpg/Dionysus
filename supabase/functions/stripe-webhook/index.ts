@@ -35,22 +35,13 @@ serve(async (req) => {
     Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
   )
 
-  const { error: insertError } = await supabase.from('tab_payments').insert({
-    member_id,
-    amount,
-    stripe_payment_intent_id: session.payment_intent as string,
-  })
-  if (insertError) {
-    console.error('Failed to insert tab_payment:', insertError)
-    return new Response('DB error', { status: 500 })
-  }
-
-  const { error: balanceError } = await supabase.rpc('decrement_tab_balance', {
+  const { error: paymentError } = await supabase.rpc('record_tab_payment', {
     p_member_id: member_id,
     p_amount: amount,
+    p_stripe_payment_intent_id: session.payment_intent as string,
   })
-  if (balanceError) {
-    console.error('Failed to decrement tab balance:', balanceError)
+  if (paymentError) {
+    console.error('Failed to record tab payment:', paymentError)
     return new Response('DB error', { status: 500 })
   }
 
