@@ -32,20 +32,41 @@ serve(async (req) => {
   if (session.metadata?.type === 'membership') {
     const { name, email, phone } = session.metadata
 
-    const { count } = await supabase
+    // Idempotency: check if this email was already processed (Stripe may retry webhooks)
+    const { data: existing } = await supabase
       .from('members')
-      .select('id', { count: 'exact', head: true })
-    const membership_number = `M${String((count ?? 0) + 1).padStart(4, '0')}`
+      .select('id, auth_user_id')
+      .eq('email', email)
+      .maybeSingle()
 
-    const { data: member, error: insertError } = await supabase
-      .from('members')
-      .insert({ name, email, phone, active: true, membership_number, tab_balance: 0 })
-      .select('id')
-      .single()
+    if (existing?.auth_user_id) {
+      // Already fully processed
+      return new Response('OK', { status: 200 })
+    }
 
-    if (insertError || !member) {
-      console.error('Failed to create member:', insertError)
-      return new Response('DB error', { status: 500 })
+    let memberId: string
+
+    if (existing) {
+      // Member row exists but invite/link not yet completed — skip insert
+      memberId = existing.id
+    } else {
+      const { count } = await supabase
+        .from('members')
+        .select('id', { count: 'exact', head: true })
+      const membership_number = `M${String((count ?? 0) + 1).padStart(4, '0')}`
+
+      const { data: member, error: insertError } = await supabase
+        .from('members')
+        .insert({ name, email, phone, active: true, membership_number, tab_balance: 0 })
+        .select('id')
+        .single()
+
+      if (insertError || !member) {
+        console.error('Failed to create member:', insertError)
+        return new Response('DB error', { status: 500 })
+      }
+
+      memberId = member.id
     }
 
     const memberAppUrl = Deno.env.get('MEMBER_APP_URL') ?? ''
@@ -60,10 +81,14 @@ serve(async (req) => {
       return new Response('OK', { status: 200 })
     }
 
-    await supabase
+    const { error: updateError } = await supabase
       .from('members')
       .update({ auth_user_id: authData.user.id })
-      .eq('id', member.id)
+      .eq('id', memberId)
+
+    if (updateError) {
+      console.error('Failed to link auth_user_id to member:', memberId, updateError)
+    }
 
     return new Response('OK', { status: 200 })
   }
