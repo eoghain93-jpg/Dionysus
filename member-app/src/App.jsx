@@ -8,6 +8,7 @@ import MyCardPage from './pages/MyCardPage'
 import MyTabPage from './pages/MyTabPage'
 import HistoryPage from './pages/HistoryPage'
 import AccountPage from './pages/AccountPage'
+import JoinPage from './pages/JoinPage'
 
 export default function App() {
   const { session, loading, init } = useAuthStore()
@@ -30,6 +31,7 @@ export default function App() {
     return (
       <Routes>
         <Route path="/auth/callback" element={<AuthCallbackPage />} />
+        <Route path="/join" element={<JoinPage />} />
         <Route path="*" element={<LoginPage />} />
       </Routes>
     )

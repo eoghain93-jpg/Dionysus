@@ -1,3 +1,5 @@
+import { Link } from 'react-router-dom'
+
 export default function LoginPage() {
   return (
     <div className="min-h-screen bg-slate-900 flex items-center justify-center p-6">
@@ -10,7 +12,10 @@ export default function LoginPage() {
           Check your email for your membership invite link. Tap it to access your digital card and tab.
         </p>
         <p className="text-slate-500 text-xs mt-6">
-          Don't have a link? Contact the club.
+          Not a member yet?{' '}
+          <Link to="/join" className="text-blue-400 hover:text-blue-300 underline">
+            Join for £50
+          </Link>
         </p>
       </div>
     </div>
