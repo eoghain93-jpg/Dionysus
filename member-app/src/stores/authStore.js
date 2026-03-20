@@ -7,15 +7,20 @@ export const useAuthStore = create((set) => ({
   loading: true,
 
   init: async () => {
-    const { data: { session } } = await supabase.auth.getSession()
-    if (session) {
-      const member = await fetchMember(session.user.id)
-      set({ session, member, loading: false })
-    } else {
-      set({ session: null, member: null, loading: false })
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (session) {
+        const member = await fetchMember(session.user.id)
+        set({ session, member, loading: false })
+      } else {
+        set({ session: null, member: null, loading: false })
+      }
+    } finally {
+      // Always clear loading even if getSession() fails
+      set((state) => state.loading ? { loading: false } : {})
     }
 
-    supabase.auth.onAuthStateChange(async (_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
       if (session) {
         const member = await fetchMember(session.user.id)
         set({ session, member })
@@ -23,6 +28,7 @@ export const useAuthStore = create((set) => ({
         set({ session: null, member: null })
       }
     })
+    return subscription
   },
 
   signOut: async () => {

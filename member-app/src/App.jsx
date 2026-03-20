@@ -12,7 +12,11 @@ import AccountPage from './pages/AccountPage'
 export default function App() {
   const { session, loading, init } = useAuthStore()
 
-  useEffect(() => { init() }, [init])
+  useEffect(() => {
+    let subscription
+    init().then((sub) => { subscription = sub })
+    return () => subscription?.unsubscribe()
+  }, [init])
 
   if (loading) {
     return (
