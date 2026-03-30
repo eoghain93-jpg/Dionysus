@@ -42,6 +42,8 @@ const REPORT_DATA = {
     { name: 'Guinness', qty: 42, revenue: 168.00 },
     { name: 'Lager',    qty: 30, revenue: 90.00 },
   ],
+  wastage: [{ name: 'Guinness', quantity: 4, value: 29.60 }],
+  staffDrinks: [{ name: 'Dave', items: 2, value: 13.40 }],
 }
 
 const DATE = '2026-03-30'
@@ -307,6 +309,38 @@ describe('ZReportModal — Close Day', () => {
     fireEvent.click(screen.getByRole('button', { name: /close day/i }))
     await waitFor(() => {
       expect(screen.getByText(/insert failed/i)).toBeInTheDocument()
+    })
+  })
+})
+
+describe('ZReportModal — Wastage & Staff Drinks', () => {
+  it('shows wastage section heading', async () => {
+    render(<ZReportModal date={DATE} onClose={vi.fn()} onDayClose={vi.fn()} />)
+    await waitFor(() => {
+      expect(screen.getByText(/wastage/i)).toBeInTheDocument()
+    })
+  })
+
+  it('shows wastage product and value', async () => {
+    render(<ZReportModal date={DATE} onClose={vi.fn()} onDayClose={vi.fn()} />)
+    await waitFor(() => {
+      expect(screen.getByText('Guinness')).toBeInTheDocument()
+      expect(screen.getByText('£29.60')).toBeInTheDocument()
+    })
+  })
+
+  it('shows staff drinks section heading', async () => {
+    render(<ZReportModal date={DATE} onClose={vi.fn()} onDayClose={vi.fn()} />)
+    await waitFor(() => {
+      expect(screen.getByText(/staff drinks/i)).toBeInTheDocument()
+    })
+  })
+
+  it('shows staff member and value', async () => {
+    render(<ZReportModal date={DATE} onClose={vi.fn()} onDayClose={vi.fn()} />)
+    await waitFor(() => {
+      expect(screen.getByText('Dave')).toBeInTheDocument()
+      expect(screen.getByText('£13.40')).toBeInTheDocument()
     })
   })
 })

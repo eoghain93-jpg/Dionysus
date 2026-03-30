@@ -3,7 +3,7 @@ import { fetchWastageForDate, fetchStaffDrinksForDate } from './stockMovements'
 
 /**
  * Fetch all data needed for a Z report for a given date (YYYY-MM-DD).
- * Returns { salesSummary, topProducts }.
+ * Returns { salesSummary, topProducts, wastage, staffDrinks }.
  */
 export async function fetchZReportData(date) {
   const from = `${date}T00:00:00`

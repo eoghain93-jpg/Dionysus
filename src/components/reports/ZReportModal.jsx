@@ -58,6 +58,14 @@ export default function ZReportModal({ date, onClose, onDayClose }) {
       `Actual Cash,${actualCash.toFixed(2)}`,
       `Variance,${variance.toFixed(2)}`,
     ]
+    if (data.wastage?.length > 0) {
+      lines.push('', 'Wastage', 'Product,Quantity,Value')
+      data.wastage.forEach(w => lines.push(`${w.name},${w.quantity},${w.value.toFixed(2)}`))
+    }
+    if (data.staffDrinks?.length > 0) {
+      lines.push('', 'Staff Drinks', 'Staff,Items,Value')
+      data.staffDrinks.forEach(s => lines.push(`${s.name},${s.items},${s.value.toFixed(2)}`))
+    }
     const csv = lines.join('\n')
     const blob = new Blob([csv], { type: 'text/csv' })
     const url = URL.createObjectURL(blob)
@@ -101,6 +109,8 @@ export default function ZReportModal({ date, onClose, onDayClose }) {
           salesSummary: s,
           topProducts,
           cashReconciliation: reconciliation,
+          wastage: data.wastage ?? [],
+          staffDrinks: data.staffDrinks ?? [],
         },
       })
 
@@ -244,6 +254,44 @@ export default function ZReportModal({ date, onClose, onDayClose }) {
                   )}
                 </div>
               </section>
+
+              {/* Section 4: Wastage */}
+              {data.wastage?.length > 0 && (
+                <section aria-labelledby="z-wastage-heading">
+                  <h3
+                    id="z-wastage-heading"
+                    className="text-sm font-semibold text-slate-400 uppercase tracking-wide mb-3"
+                  >
+                    Wastage
+                  </h3>
+                  <div className="bg-slate-800/60 rounded-xl p-4 space-y-2">
+                    {data.wastage.map((w, i) => (
+                      <Row key={i} label={`${w.name} ×${w.quantity}`}>
+                        <span className="text-red-400 text-sm tabular-nums">{fmt(w.value)}</span>
+                      </Row>
+                    ))}
+                  </div>
+                </section>
+              )}
+
+              {/* Section 5: Staff Drinks */}
+              {data.staffDrinks?.length > 0 && (
+                <section aria-labelledby="z-staff-heading">
+                  <h3
+                    id="z-staff-heading"
+                    className="text-sm font-semibold text-slate-400 uppercase tracking-wide mb-3"
+                  >
+                    Staff Drinks
+                  </h3>
+                  <div className="bg-slate-800/60 rounded-xl p-4 space-y-2">
+                    {data.staffDrinks.map((s, i) => (
+                      <Row key={i} label={<><span>{s.name}</span><span className="text-slate-500 text-xs ml-1">({s.items} item{s.items !== 1 ? 's' : ''})</span></>}>
+                        <span className="text-orange-400 text-sm tabular-nums">{fmt(s.value)}</span>
+                      </Row>
+                    ))}
+                  </div>
+                </section>
+              )}
 
               {/* Section 3: Cash Reconciliation */}
               <section aria-labelledby="z-cash-heading">
