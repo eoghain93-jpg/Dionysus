@@ -4,6 +4,8 @@ import { supabase } from '../lib/supabase'
 import { db } from '../lib/db'
 import { useTillStore } from '../stores/tillStore'
 import { useSyncStore } from '../stores/syncStore'
+import { useSessionStore } from '../stores/sessionStore'
+import PinLoginScreen from '../components/till/PinLoginScreen'
 import CategoryFilter from '../components/till/CategoryFilter'
 import ProductGrid from '../components/till/ProductGrid'
 import OrderPanel from '../components/till/OrderPanel'
@@ -15,6 +17,7 @@ export default function TillPage() {
   const [loading, setLoading] = useState(true)
   const { orderItems, activeMember, clearOrder } = useTillStore()
   const { isOnline } = useSyncStore()
+  const { activeStaff } = useSessionStore()
 
   useEffect(() => {
     fetchProducts().then(setProducts).catch(console.error).finally(() => setLoading(false))
@@ -56,6 +59,8 @@ export default function TillPage() {
 
     clearOrder()
   }, [isOnline, clearOrder])
+
+  if (!activeStaff) { return <PinLoginScreen /> }
 
   const filtered = category === 'all' ? products : products.filter(p => p.category === category)
 
