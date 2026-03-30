@@ -21,8 +21,7 @@ vi.mock('../../lib/supabase', () => ({
 
 // Mock sessionStore
 vi.mock('../../stores/sessionStore', () => ({
-  useSessionStore: vi.fn(),
-  sessionStore: {
+  useSessionStore: {
     getState: vi.fn(() => ({ clearSession: vi.fn() })),
   },
 }))
