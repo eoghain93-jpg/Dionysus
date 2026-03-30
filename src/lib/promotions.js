@@ -64,7 +64,7 @@ export async function deletePromotion(id) {
 }
 
 export async function replacePromotionItems(promotion_id, items) {
-  // Delete all existing items then re-insert — simplest atomic approach
+  // Delete all existing items then re-insert. Not atomic: if insert fails, items are lost.
   const { error: delError } = await supabase
     .from('promotion_items')
     .delete()
@@ -83,6 +83,7 @@ export async function replacePromotionItems(promotion_id, items) {
 }
 
 export async function replacePromotionCategories(promotion_id, categories) {
+  // Delete all existing categories then re-insert. Not atomic: if insert fails, categories are lost.
   const { error: delError } = await supabase
     .from('promotion_categories')
     .delete()
