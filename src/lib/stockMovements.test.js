@@ -17,10 +17,14 @@ import {
 beforeEach(() => vi.clearAllMocks())
 
 describe('logWastage', () => {
-  it('inserts a wastage row', async () => {
-    supabase.from.mockReturnValue({ insert: vi.fn().mockResolvedValue({ error: null }) })
+  it('inserts a wastage row with correct payload', async () => {
+    const insertMock = vi.fn().mockResolvedValue({ error: null })
+    supabase.from.mockReturnValue({ insert: insertMock })
     await logWastage('prod-1', 4, 'till-1')
     expect(supabase.from).toHaveBeenCalledWith('stock_movements')
+    expect(insertMock).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'wastage', product_id: 'prod-1', quantity: 4 })
+    )
   })
 
   it('throws if insert fails', async () => {
