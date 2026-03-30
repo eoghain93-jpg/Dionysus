@@ -1,4 +1,4 @@
-import { useState, useEffect, useId, useRef } from 'react'
+import { useState, useEffect, useCallback, useId, useRef } from 'react'
 import { Delete, X, KeyRound } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 
@@ -41,27 +41,7 @@ export default function SetPinModal({ member, onClose, onSaved }) {
     if (e.target === overlayRef.current) onClose()
   }
 
-  function handleKey(key) {
-    if (saving || success) return
-    setError(null)
-    if (key === 'back') {
-      setDigits(d => d.slice(0, -1))
-    } else if (key === 'clear') {
-      setDigits('')
-    } else {
-      setDigits(d => {
-        const next = d.length < 4 ? d + key : d
-        // Auto-advance when 4th digit is pressed
-        if (next.length === 4) {
-          // Use setTimeout so state updates settle before we advance
-          setTimeout(() => handleFourDigits(next), 0)
-        }
-        return next
-      })
-    }
-  }
-
-  function handleFourDigits(pin) {
+  const handleFourDigits = useCallback((pin) => {
     if (step === 1) {
       setFirstPin(pin)
       setDigits('')
@@ -76,6 +56,25 @@ export default function SetPinModal({ member, onClose, onSaved }) {
         setFirstPin('')
         setStep(1)
       }
+    }
+  }, [step, firstPin, onSaved]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Auto-advance once all 4 digits are entered
+  useEffect(() => {
+    if (digits.length === 4) {
+      handleFourDigits(digits)
+    }
+  }, [digits, handleFourDigits])
+
+  function handleKey(key) {
+    if (saving || success) return
+    setError(null)
+    if (key === 'back') {
+      setDigits(d => d.slice(0, -1))
+    } else if (key === 'clear') {
+      setDigits('')
+    } else {
+      setDigits(d => (d.length < 4 ? d + key : d))
     }
   }
 
