@@ -149,7 +149,7 @@ export default function ReportsPage() {
       </section>
       {showPinGate && (
         <PinGate
-          onSuccess={() => { setShowPinGate(false); setShowZReport(true) }}
+          onConfirm={() => { setShowPinGate(false); setShowZReport(true) }}
           onCancel={() => setShowPinGate(false)}
         />
       )}
