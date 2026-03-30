@@ -5,6 +5,7 @@ import StockPage from './pages/StockPage'
 import MembersPage from './pages/MembersPage'
 import ReportsPage from './pages/ReportsPage'
 import PromosPage from './pages/PromosPage'
+import TabsPage from './pages/TabsPage'
 
 export default function App() {
   return (
@@ -13,6 +14,7 @@ export default function App() {
         <Route path="/" element={<TillPage />} />
         <Route path="/stock" element={<StockPage />} />
         <Route path="/members" element={<MembersPage />} />
+        <Route path="/tabs" element={<TabsPage />} />
         <Route path="/promos" element={<PromosPage />} />
         <Route path="/reports" element={<ReportsPage />} />
       </Routes>
