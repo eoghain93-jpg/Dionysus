@@ -72,7 +72,7 @@ export default function CashPaymentModal({ total, onConfirm, onCancel }) {
           <div className="text-white text-3xl font-bold tracking-wide">
             {formatPence(tenderedPence)}
           </div>
-          {changePence > 0 && (
+          {changePence >= 0 && tenderedPence > 0 && (
             <div className="text-slate-400 text-sm mt-1">
               Change: <span className="text-green-400 font-semibold">{formatPence(changePence)}</span>
             </div>

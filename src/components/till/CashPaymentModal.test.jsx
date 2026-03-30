@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import CashPaymentModal from './CashPaymentModal'
 
@@ -32,6 +32,12 @@ describe('CashPaymentModal', () => {
     render(<CashPaymentModal total={7.50} onConfirm={onConfirm} onCancel={onCancel} />)
     fireEvent.click(screen.getByRole('button', { name: '£5' }))
     expect(screen.getByRole('button', { name: /confirm/i })).toBeDisabled()
+  })
+
+  it('shows £0.00 change on exact tender', () => {
+    render(<CashPaymentModal total={10.00} onConfirm={onConfirm} onCancel={onCancel} />)
+    fireEvent.click(screen.getByRole('button', { name: '£10' }))
+    expect(screen.getByText('£0.00')).toBeInTheDocument()
   })
 
   it('shows correct change when tendered exceeds total', () => {
