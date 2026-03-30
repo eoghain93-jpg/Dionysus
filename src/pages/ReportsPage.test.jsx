@@ -21,11 +21,11 @@ vi.mock('../components/reports/ZReportModal', () => ({
   ),
 }))
 
-// Mock PinGate — immediately calls onSuccess so we can test the full flow
+// Mock PinGate — immediately calls onConfirm so we can test the full flow
 vi.mock('../components/till/PinGate', () => ({
-  default: ({ onSuccess, onCancel }) => (
+  default: ({ onConfirm, onCancel }) => (
     <div data-testid="pin-gate">
-      <button onClick={onSuccess}>Enter PIN</button>
+      <button onClick={onConfirm}>Enter PIN</button>
       <button onClick={onCancel}>Cancel PIN</button>
     </div>
   ),
