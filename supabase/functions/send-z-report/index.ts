@@ -113,7 +113,7 @@ export async function handler(
     },
     body: JSON.stringify({
       from: 'epos@fairmile.club',
-      to: managerEmail,
+      to: managerEmail.split(',').map(e => e.trim()),
       subject: `Z Report — ${body.reportDate}`,
       text: emailText,
     }),
