@@ -13,15 +13,20 @@ const PIN_KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'back', '0', 'cle
  * If both match, calls verify-pin edge function in 'set' mode.
  *
  * Props:
- *   member    — member object (must be membership_tier === 'staff')
- *   onClose   — () => void
- *   onSaved   — () => void, called after PIN is successfully set
+ *   member           — member object (must be membership_tier === 'staff')
+ *   onClose          — () => void
+ *   onSaved          — () => void, called after PIN is successfully set
+ *   requireCurrentPin — boolean (default false). When true, adds a "current PIN" step
+ *                       before the new PIN entry. Pass true from MemberProfile (change flow).
  */
-export default function SetPinModal({ member, onClose, onSaved }) {
+export default function SetPinModal({ member, onClose, onSaved, requireCurrentPin = false }) {
   const titleId = useId()
   const overlayRef = useRef(null)
 
-  const [step, setStep] = useState(1)       // 1 = enter, 2 = confirm
+  // Steps: requireCurrentPin=false → 1=new, 2=confirm
+  //        requireCurrentPin=true  → 0=current, 1=new, 2=confirm
+  const [step, setStep] = useState(requireCurrentPin ? 0 : 1)
+  const [currentPin, setCurrentPin] = useState('')
   const [firstPin, setFirstPin] = useState('')
   const [digits, setDigits] = useState('')
   const [saving, setSaving] = useState(false)
@@ -42,7 +47,12 @@ export default function SetPinModal({ member, onClose, onSaved }) {
   }
 
   const handleFourDigits = useCallback((pin) => {
-    if (step === 1) {
+    if (step === 0) {
+      // Step 0: collected current PIN — advance to new PIN entry
+      setCurrentPin(pin)
+      setDigits('')
+      setStep(1)
+    } else if (step === 1) {
       setFirstPin(pin)
       setDigits('')
       setStep(2)
@@ -54,10 +64,11 @@ export default function SetPinModal({ member, onClose, onSaved }) {
         setError('PINs do not match. Please try again.')
         setDigits('')
         setFirstPin('')
-        setStep(1)
+        setStep(requireCurrentPin ? 0 : 1)
+        setCurrentPin('')
       }
     }
-  }, [step, firstPin, onSaved]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [step, firstPin, requireCurrentPin]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Auto-advance once all 4 digits are entered
   useEffect(() => {
@@ -82,15 +93,16 @@ export default function SetPinModal({ member, onClose, onSaved }) {
     setSaving(true)
     setError(null)
     try {
-      const { data, error: invokeError } = await supabase.functions.invoke('verify-pin', {
-        body: { member_id: member.id, pin, mode: 'set' },
-      })
+      const reqBody = { member_id: member.id, pin, mode: 'set' }
+      if (currentPin) reqBody.current_pin = currentPin
+      const { data, error: invokeError } = await supabase.functions.invoke('verify-pin', { body: reqBody })
 
       if (invokeError || !data?.success) {
         setError('Failed to set PIN. Please try again.')
         setDigits('')
         setFirstPin('')
-        setStep(1)
+        setCurrentPin('')
+        setStep(requireCurrentPin ? 0 : 1)
         return
       }
 
@@ -101,7 +113,8 @@ export default function SetPinModal({ member, onClose, onSaved }) {
       setError('Failed to set PIN. Please try again.')
       setDigits('')
       setFirstPin('')
-      setStep(1)
+      setCurrentPin('')
+      setStep(requireCurrentPin ? 0 : 1)
     } finally {
       setSaving(false)
     }
@@ -145,9 +158,11 @@ export default function SetPinModal({ member, onClose, onSaved }) {
           <p className="text-slate-300 text-sm text-center">
             {success
               ? 'PIN set successfully!'
-              : step === 1
-                ? 'Enter new PIN'
-                : 'Confirm new PIN'}
+              : step === 0
+                ? 'Enter current PIN'
+                : step === 1
+                  ? 'Enter new PIN'
+                  : 'Confirm new PIN'}
           </p>
 
           {/* PIN dot display */}

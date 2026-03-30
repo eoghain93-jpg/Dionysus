@@ -260,6 +260,7 @@ export default function MemberProfile({ member, onClose, onEdit, onSettleTab }) 
           member={member}
           onClose={() => setSetPinOpen(false)}
           onSaved={() => setSetPinOpen(false)}
+          requireCurrentPin
         />
       )}
     </div>

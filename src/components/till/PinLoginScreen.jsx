@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Delete, X, Lock } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { useSessionStore } from '../../stores/sessionStore'
+import SetPinModal from '../members/SetPinModal'
 
 const PIN_KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'back', '0', 'clear']
 
@@ -13,6 +14,7 @@ export default function PinLoginScreen() {
   const [verifying, setVerifying] = useState(false)
   const [error, setError] = useState(null)
   const [fetchError, setFetchError] = useState(null)
+  const [showSetPin, setShowSetPin] = useState(false)
 
   const { setActiveStaff } = useSessionStore()
 
@@ -68,6 +70,9 @@ export default function PinLoginScreen() {
       }
       if (data.valid) {
         setActiveStaff(data.member)
+      } else if (data.reason === 'no_pin') {
+        setDigits('')
+        setShowSetPin(true)
       } else {
         setError('Incorrect PIN. Please try again.')
         setDigits('')
@@ -80,8 +85,20 @@ export default function PinLoginScreen() {
     }
   }
 
+  const selectedMember = staffList.find(s => s.id === selectedId) ?? null
+
   return (
     <div className="fixed inset-0 bg-slate-900 flex items-center justify-center z-50 p-4">
+      {showSetPin && selectedMember && (
+        <SetPinModal
+          member={selectedMember}
+          onClose={() => setShowSetPin(false)}
+          onSaved={() => {
+            setShowSetPin(false)
+            setError(null)
+          }}
+        />
+      )}
       <div className="w-full max-w-sm space-y-6">
         <div className="text-center space-y-2">
           <div className="flex items-center justify-center">

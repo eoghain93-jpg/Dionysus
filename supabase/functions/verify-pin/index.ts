@@ -56,26 +56,38 @@ serve(async (req) => {
 
   // --- SET MODE ---
   if (mode === 'set') {
-    // Require a valid Supabase JWT — anonymous callers must not be able to overwrite PINs
-    const authHeader = req.headers.get('Authorization')
-    if (!authHeader?.startsWith('Bearer ')) {
+    // Fetch current record first so we can enforce bootstrap protection:
+    // unauthenticated callers may only set a PIN when none exists yet.
+    const { data: existing } = await supabase
+      .from('members')
+      .select('pin_hash, membership_tier')
+      .eq('id', member_id)
+      .single()
+
+    // Only staff-tier members can have PINs
+    if (!existing || existing.membership_tier !== 'staff') {
       return new Response(
         JSON.stringify({ error: 'Unauthorized' }),
-        { status: 401, headers: CORS_HEADERS },
+        { status: 403, headers: CORS_HEADERS },
       )
     }
 
-    const userClient = createClient(
-      supabaseUrl,
-      Deno.env.get('SUPABASE_ANON_KEY')!,
-      { global: { headers: { Authorization: authHeader } } },
-    )
-    const { data: { user }, error: authError } = await userClient.auth.getUser()
-    if (authError || !user) {
-      return new Response(
-        JSON.stringify({ error: 'Unauthorized' }),
-        { status: 401, headers: CORS_HEADERS },
-      )
+    // If a PIN already exists, require the current PIN to be supplied as `current_pin`
+    if (existing.pin_hash) {
+      const { current_pin } = body as { current_pin?: string }
+      if (!current_pin) {
+        return new Response(
+          JSON.stringify({ error: 'current_pin required to change an existing PIN' }),
+          { status: 403, headers: CORS_HEADERS },
+        )
+      }
+      const currentValid = await bcrypt.compare(current_pin, existing.pin_hash)
+      if (!currentValid) {
+        return new Response(
+          JSON.stringify({ error: 'Incorrect current PIN' }),
+          { status: 403, headers: CORS_HEADERS },
+        )
+      }
     }
 
     const hash = await bcrypt.hash(pin)
@@ -120,10 +132,10 @@ serve(async (req) => {
     )
   }
 
-  // No PIN set yet
+  // No PIN set yet — tell the client so it can offer first-time setup
   if (!member.pin_hash) {
     return new Response(
-      JSON.stringify({ valid: false }),
+      JSON.stringify({ valid: false, reason: 'no_pin' }),
       { status: 200, headers: CORS_HEADERS },
     )
   }
