@@ -134,4 +134,24 @@ describe('TabsPage', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     expect(screen.getByText('Alice')).toBeInTheDocument()
   })
+
+  it('shows an error message when fetchOpenTabs rejects', async () => {
+    fetchOpenTabs.mockRejectedValue(new Error('Network error'))
+    render(<TabsPage />)
+    await waitFor(() => {
+      expect(screen.getByText(/failed to load tabs/i)).toBeInTheDocument()
+      expect(screen.queryByText(/no open tabs/i)).not.toBeInTheDocument()
+    })
+  })
+
+  it('shows an error message when fetchTabOrders rejects inside an expanded row', async () => {
+    fetchTabOrders.mockRejectedValue(new Error('Network error'))
+    render(<TabsPage />)
+    await waitFor(() => screen.getByText('Alice'))
+    fireEvent.click(screen.getByText('Alice'))
+    await waitFor(() => {
+      expect(screen.getByText(/failed to load orders/i)).toBeInTheDocument()
+      expect(screen.queryByText(/no tab orders found/i)).not.toBeInTheDocument()
+    })
+  })
 })

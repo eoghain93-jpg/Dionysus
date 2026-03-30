@@ -7,6 +7,7 @@ import SettleTabModal from '../components/members/SettleTabModal'
 export default function TabsPage() {
   const [tabs, setTabs] = useState([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
   const [expandedId, setExpandedId] = useState(null)
   const [expandedOrders, setExpandedOrders] = useState({})
   const [expandedLoading, setExpandedLoading] = useState({})
@@ -14,9 +15,13 @@ export default function TabsPage() {
 
   const loadTabs = useCallback(() => {
     setLoading(true)
+    setError(null)
     fetchOpenTabs()
       .then(setTabs)
-      .catch(console.error)
+      .catch(err => {
+        console.error(err)
+        setError('Failed to load tabs. Please try again.')
+      })
       .finally(() => setLoading(false))
   }, [])
 
@@ -30,7 +35,10 @@ export default function TabsPage() {
       setExpandedLoading(l => ({ ...l, [id]: true }))
       fetchTabOrders(id)
         .then(orders => setExpandedOrders(o => ({ ...o, [id]: orders })))
-        .catch(console.error)
+        .catch(err => {
+          console.error(err)
+          setExpandedOrders(o => ({ ...o, [id]: { fetchError: true } }))
+        })
         .finally(() => setExpandedLoading(l => ({ ...l, [id]: false })))
     }
   }
@@ -64,6 +72,8 @@ export default function TabsPage() {
       <div className="flex-1 bg-[#0F172A] rounded-2xl border border-slate-700 overflow-hidden">
         {loading ? (
           <p className="text-slate-400 text-sm p-6 text-center">Loading open tabs…</p>
+        ) : error ? (
+          <p className="text-red-400 text-sm p-6 text-center">{error}</p>
         ) : tabs.length === 0 ? (
           <p className="text-slate-400 text-sm p-6 text-center">No open tabs.</p>
         ) : (
@@ -78,7 +88,7 @@ export default function TabsPage() {
                   <div className="flex items-center gap-3 px-4 py-3">
                     <button
                       onClick={() => toggleExpand(member.id)}
-                      className="flex-1 flex items-center gap-3 text-left focus:outline-none"
+                      className="flex-1 flex items-center gap-3 text-left focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617]"
                       aria-expanded={isExpanded}
                     >
                       <ChevronRight
@@ -108,6 +118,8 @@ export default function TabsPage() {
                     <div className="px-4 pb-3 flex flex-col gap-2">
                       {ordersLoading ? (
                         <p className="text-slate-400 text-xs">Loading orders…</p>
+                      ) : orders?.fetchError ? (
+                        <p className="text-red-400 text-xs">Failed to load orders. Please try again.</p>
                       ) : !orders?.length ? (
                         <p className="text-slate-400 text-xs">No tab orders found.</p>
                       ) : (
@@ -148,7 +160,7 @@ export default function TabsPage() {
         <SettleTabModal
           member={settlingMember}
           onClose={() => setSettlingMember(null)}
-          onSettled={() => handleSettled(settlingMember.id)}
+          onSettled={() => { const id = settlingMember.id; handleSettled(id) }}
         />
       )}
     </div>
