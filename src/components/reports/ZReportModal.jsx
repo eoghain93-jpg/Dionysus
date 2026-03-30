@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
 import { fetchZReportData } from '../../lib/zReport'
-import { sessionStore } from '../../stores/sessionStore'
+import { useSessionStore } from '../../stores/sessionStore'
 import { X, Download, Lock, CreditCard, Banknote, Receipt } from '../../lib/icons'
 
 function fmt(n) {
@@ -107,7 +107,7 @@ export default function ZReportModal({ date, onClose, onDayClose }) {
       if (emailErr) throw new Error(emailErr.message)
 
       // 3. Lock the till
-      sessionStore.getState().clearSession()
+      useSessionStore.getState().clearSession()
 
       onDayClose()
     } catch (err) {
