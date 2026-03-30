@@ -1,17 +1,29 @@
+// src/components/till/ProductGrid.jsx
 import { useTillStore } from '../../stores/tillStore'
+import { getPromoPrice } from '../../lib/promos'
 
-export default function ProductGrid({ products }) {
-  const { addItem, activeMember } = useTillStore()
+export default function ProductGrid({ products, now = new Date() }) {
+  const { addItem, activeMember, activePromos } = useTillStore()
 
   return (
     <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2">
       {products.map(product => {
-        const price = activeMember ? product.member_price : product.standard_price
+        const promoPrice = getPromoPrice(product, activePromos, now)
+        const memberPrice = activeMember ? product.member_price : null
+
+        // Display price: lowest of standard, member (if active), promo (if active)
+        const candidates = [product.standard_price]
+        if (memberPrice != null) candidates.push(memberPrice)
+        if (promoPrice != null) candidates.push(promoPrice)
+        const displayPrice = Math.min(...candidates)
+
+        const hasPromo = promoPrice != null && promoPrice === displayPrice
         const isLowStock = product.stock_quantity <= product.par_level
+
         return (
           <button
             key={product.id}
-            onClick={() => addItem(product)}
+            onClick={() => addItem(product, now)}
             className="bg-slate-800 hover:bg-slate-700 active:bg-blue-700 active:scale-95
               rounded-xl p-3 text-left transition-all duration-150 flex flex-col gap-1
               relative cursor-pointer min-h-[80px] focus:outline-none focus:ring-2
@@ -20,9 +32,20 @@ export default function ProductGrid({ products }) {
             {isLowStock && (
               <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-amber-400" aria-label="Low stock" />
             )}
-            <span className="text-white font-medium text-sm leading-tight">{product.name}</span>
+            {hasPromo && (
+              <span
+                className="absolute top-2 left-2 bg-amber-500 text-slate-900 text-[9px] font-bold
+                  uppercase tracking-wide px-1.5 py-0.5 rounded-full leading-none"
+                aria-label="Promotion active"
+              >
+                PROMO
+              </span>
+            )}
+            <span className={`text-white font-medium text-sm leading-tight ${hasPromo ? 'mt-4' : ''}`}>
+              {product.name}
+            </span>
             <span className="text-slate-400 text-xs capitalize">{product.category}</span>
-            <span className="text-blue-400 font-bold text-base mt-auto">£{price.toFixed(2)}</span>
+            <span className="text-blue-400 font-bold text-base mt-auto">£{displayPrice.toFixed(2)}</span>
           </button>
         )
       })}
