@@ -55,7 +55,7 @@ export default function PromoFormModal({ promo, products = [], onClose, onSaved 
     function handleKey(e) { if (e.key === 'Escape' && !saving) onClose() }
     document.addEventListener('keydown', handleKey)
     return () => document.removeEventListener('keydown', handleKey)
-  }, [onClose])
+  }, [onClose, saving])
 
   function handleOverlayClick(e) {
     if (saving) return
