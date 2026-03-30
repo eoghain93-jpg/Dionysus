@@ -22,6 +22,7 @@ describe('fetchOpenTabs', () => {
 
     const result = await fetchOpenTabs()
     expect(supabase.from).toHaveBeenCalledWith('members')
+    expect(chain.select).toHaveBeenCalledWith('id, name, tab_balance, membership_number')
     expect(chain.gt).toHaveBeenCalledWith('tab_balance', 0)
     expect(chain.order).toHaveBeenCalledWith('tab_balance', { ascending: false })
     expect(result).toEqual(members)
@@ -70,6 +71,7 @@ describe('fetchTabOrders', () => {
 
     const result = await fetchTabOrders('m1')
     expect(supabase.from).toHaveBeenCalledWith('orders')
+    expect(chain.select).toHaveBeenCalledWith('id, created_at, total_amount, order_items(id, product_id, quantity, unit_price, products(name))')
     expect(chain.eq).toHaveBeenCalledWith('member_id', 'm1')
     expect(chain.eq).toHaveBeenCalledWith('payment_method', 'tab')
     expect(result).toEqual(orders)
