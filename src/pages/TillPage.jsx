@@ -11,11 +11,15 @@ import CategoryFilter from '../components/till/CategoryFilter'
 import ProductGrid from '../components/till/ProductGrid'
 import OrderPanel from '../components/till/OrderPanel'
 import MemberLookup from '../components/till/MemberLookup'
+import WastageModal from '../components/till/WastageModal'
+import StaffDrinkModal from '../components/till/StaffDrinkModal'
 
 export default function TillPage() {
   const [products, setProducts] = useState([])
   const [category, setCategory] = useState('all')
   const [loading, setLoading] = useState(true)
+  const [showWastage, setShowWastage] = useState(false)
+  const [showStaffDrink, setShowStaffDrink] = useState(false)
   const { orderItems, activeMember, clearOrder, loadPromos } = useTillStore()
   const { isOnline } = useSyncStore()
   const { activeStaff } = useSessionStore()
@@ -77,6 +81,34 @@ export default function TillPage() {
             : filtered.length === 0
               ? <div className="text-slate-400 text-sm">No products in this category</div>
               : <ProductGrid products={filtered} />}
+          <div className="flex gap-2 pt-2">
+            <button
+              onClick={() => setShowWastage(true)}
+              className="flex-1 min-h-[44px] rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 text-sm font-medium cursor-pointer transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617]"
+            >
+              Record Wastage
+            </button>
+            <button
+              onClick={() => setShowStaffDrink(true)}
+              className="flex-1 min-h-[44px] rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 text-sm font-medium cursor-pointer transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617]"
+            >
+              Staff Drink
+            </button>
+          </div>
+          {showWastage && (
+            <WastageModal
+              products={products}
+              onClose={() => setShowWastage(false)}
+              onSaved={() => setShowWastage(false)}
+            />
+          )}
+          {showStaffDrink && (
+            <StaffDrinkModal
+              products={products}
+              onClose={() => setShowStaffDrink(false)}
+              onSaved={() => setShowStaffDrink(false)}
+            />
+          )}
         </div>
       </div>
       <div className="hidden md:flex">
