@@ -1,6 +1,6 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import * as bcrypt from 'https://deno.land/x/bcrypt@v0.4.1/mod.ts'
+import { hashSync, compareSync } from 'https://deno.land/x/bcrypt@v0.4.1/mod.ts'
 
 const CORS_HEADERS = {
   'Content-Type': 'application/json',
@@ -81,7 +81,7 @@ serve(async (req) => {
           { status: 403, headers: CORS_HEADERS },
         )
       }
-      const currentValid = await bcrypt.compare(current_pin, existing.pin_hash)
+      const currentValid = compareSync(current_pin, existing.pin_hash)
       if (!currentValid) {
         return new Response(
           JSON.stringify({ error: 'Incorrect current PIN' }),
@@ -90,7 +90,7 @@ serve(async (req) => {
       }
     }
 
-    const hash = await bcrypt.hash(pin)
+    const hash = hashSync(pin)
     const { error } = await supabase
       .from('members')
       .update({ pin_hash: hash })
@@ -140,7 +140,7 @@ serve(async (req) => {
     )
   }
 
-  const valid = await bcrypt.compare(pin, member.pin_hash)
+  const valid = compareSync(pin, member.pin_hash)
 
   if (valid) {
     return new Response(
