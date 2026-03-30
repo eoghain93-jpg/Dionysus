@@ -1,4 +1,5 @@
 import { supabase } from './supabase'
+import { fetchWastageForDate, fetchStaffDrinksForDate } from './stockMovements'
 
 /**
  * Fetch all data needed for a Z report for a given date (YYYY-MM-DD).
@@ -71,5 +72,10 @@ export async function fetchZReportData(date) {
       .slice(0, 10)
   }
 
-  return { salesSummary, topProducts }
+  const [wastage, staffDrinks] = await Promise.all([
+    fetchWastageForDate(date),
+    fetchStaffDrinksForDate(date),
+  ])
+
+  return { salesSummary, topProducts, wastage, staffDrinks }
 }

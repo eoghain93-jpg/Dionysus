@@ -1,5 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { fetchZReportData } from './zReport'
+import { fetchWastageForDate, fetchStaffDrinksForDate } from './stockMovements'
+
+vi.mock('./stockMovements', () => ({
+  fetchWastageForDate: vi.fn().mockResolvedValue([]),
+  fetchStaffDrinksForDate: vi.fn().mockResolvedValue([]),
+}))
 
 // ---------- Supabase mock ----------
 // We need two independent call chains: one for orders, one for order_items.
@@ -55,6 +61,8 @@ const item3 = { product_id: 'p1', quantity: 2, unit_price: 4.00, products: { nam
 beforeEach(() => {
   ordersData = []
   orderItemsData = []
+  fetchWastageForDate.mockResolvedValue([])
+  fetchStaffDrinksForDate.mockResolvedValue([])
 })
 
 describe('fetchZReportData — salesSummary', () => {
@@ -157,5 +165,25 @@ describe('fetchZReportData — topProducts', () => {
     orderItemsData = [{ product_id: 'p9', quantity: 1, unit_price: 5.00, products: null }]
     const { topProducts } = await fetchZReportData(DATE)
     expect(topProducts[0].name).toBe('Unknown')
+  })
+})
+
+describe('fetchZReportData — wastage and staff drinks', () => {
+  it('includes wastage in the result', async () => {
+    fetchWastageForDate.mockResolvedValue([{ name: 'Guinness', quantity: 4, value: 29.60 }])
+    const result = await fetchZReportData('2026-03-30')
+    expect(result.wastage).toEqual([{ name: 'Guinness', quantity: 4, value: 29.60 }])
+  })
+
+  it('includes staffDrinks in the result', async () => {
+    fetchStaffDrinksForDate.mockResolvedValue([{ name: 'Dave', items: 2, value: 13.40 }])
+    const result = await fetchZReportData('2026-03-30')
+    expect(result.staffDrinks).toEqual([{ name: 'Dave', items: 2, value: 13.40 }])
+  })
+
+  it('returns empty arrays when no wastage or staff drinks', async () => {
+    const result = await fetchZReportData('2026-03-30')
+    expect(result.wastage).toEqual([])
+    expect(result.staffDrinks).toEqual([])
   })
 })
