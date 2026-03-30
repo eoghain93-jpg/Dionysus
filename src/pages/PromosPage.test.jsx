@@ -14,6 +14,7 @@ vi.mock('../lib/promotions', () => ({
   deletePromotion: vi.fn(),
   upsertPromotion: vi.fn(),
   replacePromotionItems: vi.fn(),
+  replacePromotionCategories: vi.fn(),
 }))
 
 import {
@@ -32,6 +33,7 @@ const mockPromos = [
     start_date: null,
     end_date: null,
     promotion_items: [],
+    promotion_categories: [],
   },
   {
     id: 'promo-2',
@@ -43,6 +45,7 @@ const mockPromos = [
     start_date: '2026-04-10',
     end_date: '2026-04-10',
     promotion_items: [],
+    promotion_categories: [],
   },
 ]
 

@@ -52,7 +52,7 @@ export default function PromoFormModal({ promo, products = [], onClose, onSaved 
   useEffect(() => { firstInputRef.current?.focus() }, [])
 
   useEffect(() => {
-    function handleKey(e) { if (e.key === 'Escape') onClose() }
+    function handleKey(e) { if (e.key === 'Escape' && !saving) onClose() }
     document.addEventListener('keydown', handleKey)
     return () => document.removeEventListener('keydown', handleKey)
   }, [onClose])
