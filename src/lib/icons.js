@@ -34,4 +34,6 @@ export {
   Download,        // Export CSV
   TrendingUp,      // Top products
   KeyRound,        // Set PIN
+  Lock,            // Z report Close Day
+  FileText,        // Z report button
 } from 'lucide-react'
