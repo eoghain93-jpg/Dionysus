@@ -54,8 +54,9 @@ export default function TillPage() {
       if (!error) {
         await supabase.from('order_items').insert(items.map(i => ({ ...i, order_id: data.id })))
         if (paymentMethod === 'tab' && currentMember) {
+          const { data: fresh } = await supabase.from('members').select('tab_balance').eq('id', currentMember.id).single()
           await supabase.from('members')
-            .update({ tab_balance: (currentMember.tab_balance || 0) + total })
+            .update({ tab_balance: (fresh?.tab_balance || 0) + total })
             .eq('id', currentMember.id)
         }
       }
