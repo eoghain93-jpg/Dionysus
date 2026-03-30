@@ -29,11 +29,25 @@ interface CashReconciliation {
   variance: number
 }
 
+interface WastageItem {
+  name: string
+  quantity: number
+  value: number
+}
+
+interface StaffDrinkSummary {
+  name: string
+  items: number
+  value: number
+}
+
 interface ZReportBody {
   reportDate: string
   salesSummary: SalesSummary
   topProducts: TopProduct[]
   cashReconciliation: CashReconciliation
+  wastage: WastageItem[]
+  staffDrinks: StaffDrinkSummary[]
 }
 
 function fmt(n: number): string {
@@ -70,8 +84,23 @@ function buildEmailText(body: ZReportBody): string {
     `Expected in Till:  ${fmt(c.expectedInTill)}`,
     `Actual Cash:       ${fmt(c.actualCash)}`,
     `Variance:          ${fmt(c.variance)}`,
-    '',
   ]
+
+  if (body.wastage?.length > 0) {
+    lines.push('', 'WASTAGE', '-'.repeat(40))
+    body.wastage.forEach(w =>
+      lines.push(`${w.name.padEnd(20)} ×${w.quantity}  ${fmt(w.value)}`)
+    )
+  }
+
+  if (body.staffDrinks?.length > 0) {
+    lines.push('', 'STAFF DRINKS', '-'.repeat(40))
+    body.staffDrinks.forEach(s =>
+      lines.push(`${s.name.padEnd(20)} ${s.items} item${s.items !== 1 ? 's' : ''}  ${fmt(s.value)}`)
+    )
+  }
+
+  lines.push('')
   return lines.join('\n')
 }
 
