@@ -340,6 +340,7 @@ describe('ZReportModal — Wastage & Staff Drinks', () => {
     render(<ZReportModal date={DATE} onClose={vi.fn()} onDayClose={vi.fn()} />)
     await waitFor(() => {
       expect(screen.getByText('Dave')).toBeInTheDocument()
+      expect(screen.getByText(/2 items/i)).toBeInTheDocument()
       expect(screen.getByText('£13.40')).toBeInTheDocument()
     })
   })

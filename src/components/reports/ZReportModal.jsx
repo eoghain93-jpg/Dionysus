@@ -255,7 +255,7 @@ export default function ZReportModal({ date, onClose, onDayClose }) {
                 </div>
               </section>
 
-              {/* Section 4: Wastage */}
+              {/* Section 3: Wastage */}
               {data.wastage?.length > 0 && (
                 <section aria-labelledby="z-wastage-heading">
                   <h3
@@ -274,7 +274,7 @@ export default function ZReportModal({ date, onClose, onDayClose }) {
                 </section>
               )}
 
-              {/* Section 5: Staff Drinks */}
+              {/* Section 4: Staff Drinks */}
               {data.staffDrinks?.length > 0 && (
                 <section aria-labelledby="z-staff-heading">
                   <h3
@@ -293,7 +293,7 @@ export default function ZReportModal({ date, onClose, onDayClose }) {
                 </section>
               )}
 
-              {/* Section 3: Cash Reconciliation */}
+              {/* Section 5: Cash Reconciliation */}
               <section aria-labelledby="z-cash-heading">
                 <h3
                   id="z-cash-heading"
