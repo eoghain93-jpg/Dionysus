@@ -54,11 +54,11 @@ function makeDatePromo({ id = 'promo-2', name = 'Event Night', active = true,
 }
 
 function makeItem(product_id, discount_type = 'percentage', discount_value = 20) {
-  return { id: 'item-1', promotion_id: 'promo-1', product_id, discount_type, discount_value }
+  return { id: `${product_id}-item`, promotion_id: 'promo-1', product_id, discount_type, discount_value }
 }
 
 function makeCatItem(category, discount_type = 'percentage', discount_value = 20) {
-  return { id: 'cat-1', promotion_id: 'promo-1', category, discount_type, discount_value }
+  return { id: `${category}-cat`, promotion_id: 'promo-1', category, discount_type, discount_value }
 }
 
 // ---------------------------------------------------------------------------
