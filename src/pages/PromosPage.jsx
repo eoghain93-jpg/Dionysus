@@ -2,11 +2,13 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Plus } from '../lib/icons'
 import { fetchAllPromotions, setPromotionActive } from '../lib/promotions'
+import { fetchProducts } from '../lib/products'
 import PromoList from '../components/promos/PromoList'
 import PromoFormModal from '../components/promos/PromoFormModal'
 
 export default function PromosPage() {
   const [promos, setPromos] = useState([])
+  const [products, setProducts] = useState([])
   const [loading, setLoading] = useState(true)
   const [promoModal, setPromoModal] = useState(undefined) // undefined=closed, null=add, object=edit
 
@@ -16,6 +18,10 @@ export default function PromosPage() {
       .then(setPromos)
       .catch(console.error)
       .finally(() => setLoading(false))
+  }, [])
+
+  useEffect(() => {
+    fetchProducts().then(setProducts).catch(console.error)
   }, [])
 
   useEffect(() => {
@@ -75,6 +81,7 @@ export default function PromosPage() {
       {promoModal !== undefined && (
         <PromoFormModal
           promo={promoModal}
+          products={products}
           onClose={closeModal}
           onSaved={() => {
             closeModal()
