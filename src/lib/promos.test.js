@@ -6,8 +6,8 @@ import { getPromoPrice } from './promos'
 // Helpers
 // ---------------------------------------------------------------------------
 
-function makeProduct(id, standard_price = 5.00, member_price = 4.00) {
-  return { id, name: 'Test Product', standard_price, member_price }
+function makeProduct(id, standard_price = 5.00, member_price = 4.00, category = 'draught') {
+  return { id, name: 'Test Product', standard_price, member_price, category }
 }
 
 /**
@@ -42,19 +42,23 @@ function makeDateOnDate(dateStr, timeStr = '12:00') {
 
 function makeTimePromo({ id = 'promo-1', name = 'Happy Hour', active = true,
   start_time = '17:00', end_time = '19:00',
-  days_of_week = null, items = [] } = {}) {
+  days_of_week = null, items = [], categories = [] } = {}) {
   return { id, name, active, start_time, end_time, days_of_week,
-    start_date: null, end_date: null, promotion_items: items }
+    start_date: null, end_date: null, promotion_items: items, promotion_categories: categories }
 }
 
 function makeDatePromo({ id = 'promo-2', name = 'Event Night', active = true,
-  start_date = '2026-04-01', end_date = '2026-04-01', items = [] } = {}) {
+  start_date = '2026-04-01', end_date = '2026-04-01', items = [], categories = [] } = {}) {
   return { id, name, active, start_time: null, end_time: null,
-    days_of_week: null, start_date, end_date, promotion_items: items }
+    days_of_week: null, start_date, end_date, promotion_items: items, promotion_categories: categories }
 }
 
 function makeItem(product_id, discount_type = 'percentage', discount_value = 20) {
   return { id: 'item-1', promotion_id: 'promo-1', product_id, discount_type, discount_value }
+}
+
+function makeCatItem(category, discount_type = 'percentage', discount_value = 20) {
+  return { id: 'cat-1', promotion_id: 'promo-1', category, discount_type, discount_value }
 }
 
 // ---------------------------------------------------------------------------
@@ -479,5 +483,71 @@ describe('getPromoPrice', () => {
       }
       expect(getPromoPrice(PROD, [promo], makeDate(6, '18:00'))).toBe(4.00) // Saturday
     })
+  })
+})
+
+describe('getPromoPrice — category discounts', () => {
+  // PROD has category 'draught', standard_price 5.00
+
+  it('applies category discount when product category matches', () => {
+    const promo = makeTimePromo({
+      categories: [makeCatItem('draught', 'percentage', 20)],
+    })
+    const now = makeDate(1, '18:00') // within window
+    expect(getPromoPrice(PROD, [promo], now)).toBe(4.00)
+  })
+
+  it('returns null when product category does not match', () => {
+    const promo = makeTimePromo({
+      categories: [makeCatItem('food', 'percentage', 20)],
+    })
+    const now = makeDate(1, '18:00')
+    expect(getPromoPrice(PROD, [promo], now)).toBeNull()
+  })
+
+  it('applies fixed_price category discount', () => {
+    const promo = makeTimePromo({
+      categories: [makeCatItem('draught', 'fixed_price', 3.50)],
+    })
+    const now = makeDate(1, '18:00')
+    expect(getPromoPrice(PROD, [promo], now)).toBe(3.50)
+  })
+
+  it('ignores category discount when price >= standard_price', () => {
+    const promo = makeTimePromo({
+      categories: [makeCatItem('draught', 'fixed_price', 6.00)],
+    })
+    const now = makeDate(1, '18:00')
+    expect(getPromoPrice(PROD, [promo], now)).toBeNull()
+  })
+
+  it('picks lowest price when both item and category discounts apply', () => {
+    // item: 10% off = 4.50, category: 20% off = 4.00 → should pick 4.00
+    const promo = makeTimePromo({
+      items: [makeItem('prod-1', 'percentage', 10)],
+      categories: [makeCatItem('draught', 'percentage', 20)],
+    })
+    const now = makeDate(1, '18:00')
+    expect(getPromoPrice(PROD, [promo], now)).toBe(4.00)
+  })
+
+  it('picks item discount when it is lower than category discount', () => {
+    // item: 30% off = 3.50, category: 10% off = 4.50 → should pick 3.50
+    const promo = makeTimePromo({
+      items: [makeItem('prod-1', 'percentage', 30)],
+      categories: [makeCatItem('draught', 'percentage', 10)],
+    })
+    const now = makeDate(1, '18:00')
+    expect(getPromoPrice(PROD, [promo], now)).toBe(3.50)
+  })
+
+  it('does not apply category discount when promo is outside time window', () => {
+    const promo = makeTimePromo({
+      start_time: '17:00',
+      end_time: '19:00',
+      categories: [makeCatItem('draught', 'percentage', 20)],
+    })
+    const now = makeDate(1, '20:00') // outside window
+    expect(getPromoPrice(PROD, [promo], now)).toBeNull()
   })
 })

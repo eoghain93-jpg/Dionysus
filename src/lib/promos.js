@@ -101,18 +101,22 @@ export function getPromoPrice(product, promos, now = new Date()) {
   for (const promo of promos) {
     if (!isPromoActive(promo, now)) continue
 
+    // Check individual product discounts
     const items = promo.promotion_items ?? []
     for (const item of items) {
       if (item.product_id !== product.id) continue
-
       const price = calcDiscountedPrice(product, item)
-
-      // Promo must be strictly cheaper than standard price
       if (price >= product.standard_price) continue
+      if (lowestPrice === null || price < lowestPrice) lowestPrice = price
+    }
 
-      if (lowestPrice === null || price < lowestPrice) {
-        lowestPrice = price
-      }
+    // Check category discounts
+    const catItems = promo.promotion_categories ?? []
+    for (const catItem of catItems) {
+      if (catItem.category !== product.category) continue
+      const price = calcDiscountedPrice(product, catItem)
+      if (price >= product.standard_price) continue
+      if (lowestPrice === null || price < lowestPrice) lowestPrice = price
     }
   }
 
