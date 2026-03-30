@@ -1,7 +1,7 @@
 // src/components/promos/PromoFormModal.jsx
 import { useState, useEffect, useRef, useId } from 'react'
 import { X, Plus, Trash2 } from '../../lib/icons'
-import { upsertPromotion, replacePromotionItems } from '../../lib/promotions'
+import { upsertPromotion, replacePromotionItems, replacePromotionCategories } from '../../lib/promotions'
 
 const SCHEDULE_TYPES = [
   { value: 'time', label: 'Time window (recurring)' },
@@ -10,6 +10,8 @@ const SCHEDULE_TYPES = [
 ]
 
 const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+
+const CATEGORIES = ['draught', 'bottle', 'spirit', 'soft', 'food', 'other']
 
 function detectScheduleType(promo) {
   if (promo?.start_time) return 'time'
@@ -35,6 +37,13 @@ export default function PromoFormModal({ promo, products = [], onClose, onSaved 
       product_id: i.product_id,
       discount_type: i.discount_type,
       discount_value: String(i.discount_value),
+    })) ?? []
+  )
+  const [categoryItems, setCategoryItems] = useState(
+    promo?.promotion_categories?.map(c => ({
+      category: c.category,
+      discount_type: c.discount_type,
+      discount_value: String(c.discount_value),
     })) ?? []
   )
   const [saving, setSaving] = useState(false)
@@ -70,6 +79,18 @@ export default function PromoFormModal({ promo, products = [], onClose, onSaved 
     setItems(prev => prev.map((item, i) => i === index ? { ...item, [field]: value } : item))
   }
 
+  function addCategoryItem() {
+    setCategoryItems(prev => [...prev, { category: 'draught', discount_type: 'percentage', discount_value: '10' }])
+  }
+
+  function removeCategoryItem(index) {
+    setCategoryItems(prev => prev.filter((_, i) => i !== index))
+  }
+
+  function updateCategoryItem(index, field, value) {
+    setCategoryItems(prev => prev.map((item, i) => i === index ? { ...item, [field]: value } : item))
+  }
+
   async function handleSubmit(e) {
     e.preventDefault()
     setSaving(true)
@@ -96,6 +117,12 @@ export default function PromoFormModal({ promo, products = [], onClose, onSaved 
           discount_value: Number(i.discount_value),
         }))
       await replacePromotionItems(saved.id, itemRows)
+      const catRows = categoryItems.map(c => ({
+        category: c.category,
+        discount_type: c.discount_type,
+        discount_value: Number(c.discount_value),
+      }))
+      await replacePromotionCategories(saved.id, catRows)
       onSaved()
     } catch (err) {
       setError(err.message ?? 'An error occurred. Please try again.')
@@ -324,6 +351,77 @@ export default function PromoFormModal({ promo, products = [], onClose, onSaved 
                   type="button"
                   onClick={() => removeItem(index)}
                   aria-label="Remove product line"
+                  className="text-slate-500 hover:text-red-400 transition-colors min-h-[40px] min-w-[40px] flex items-center justify-center cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 rounded"
+                >
+                  <Trash2 size={14} aria-hidden="true" />
+                </button>
+              </div>
+            ))}
+          </div>
+
+          {/* Category discounts */}
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center justify-between">
+              <span className={labelCls}>Categories &amp; discounts</span>
+              <button
+                type="button"
+                onClick={addCategoryItem}
+                className="flex items-center gap-1 text-xs text-blue-400 hover:text-blue-300 transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 rounded px-1"
+              >
+                <Plus size={12} aria-hidden="true" />
+                Add category
+              </button>
+            </div>
+
+            {categoryItems.length === 0 && (
+              <p className="text-slate-500 text-xs italic">No categories added yet.</p>
+            )}
+
+            {categoryItems.map((item, index) => (
+              <div key={index} className="flex gap-2 items-end">
+                <div className="flex-1 flex flex-col gap-1">
+                  <label className="text-xs text-slate-400">Category</label>
+                  <select
+                    value={item.category}
+                    onChange={e => updateCategoryItem(index, 'category', e.target.value)}
+                    className="bg-[#1E293B] border border-slate-600 rounded-lg px-2 py-2 text-white text-sm min-h-[40px] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617] cursor-pointer"
+                    aria-label={`Category ${index + 1}`}
+                  >
+                    {CATEGORIES.map(cat => (
+                      <option key={cat} value={cat}>{cat.charAt(0).toUpperCase() + cat.slice(1)}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs text-slate-400">Type</label>
+                  <select
+                    value={item.discount_type}
+                    onChange={e => updateCategoryItem(index, 'discount_type', e.target.value)}
+                    className="bg-[#1E293B] border border-slate-600 rounded-lg px-2 py-2 text-white text-sm min-h-[40px] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617] cursor-pointer"
+                    aria-label={`Category discount type ${index + 1}`}
+                  >
+                    <option value="percentage">%</option>
+                    <option value="fixed_price">£</option>
+                  </select>
+                </div>
+                <div className="w-20 flex flex-col gap-1">
+                  <label className="text-xs text-slate-400">Value</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={item.discount_value}
+                    onChange={e => updateCategoryItem(index, 'discount_value', e.target.value)}
+                    required
+                    placeholder="10"
+                    className="bg-[#1E293B] border border-slate-600 rounded-lg px-2 py-2 text-white text-sm min-h-[40px] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617]"
+                    aria-label={`Category discount value ${index + 1}`}
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={() => removeCategoryItem(index)}
+                  aria-label="Remove category line"
                   className="text-slate-500 hover:text-red-400 transition-colors min-h-[40px] min-w-[40px] flex items-center justify-center cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 rounded"
                 >
                   <Trash2 size={14} aria-hidden="true" />
