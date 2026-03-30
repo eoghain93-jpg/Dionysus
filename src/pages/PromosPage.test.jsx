@@ -3,6 +3,10 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor, fireEvent } from '@testing-library/react'
 import PromosPage from './PromosPage'
 
+vi.mock('../lib/products', () => ({
+  fetchProducts: vi.fn().mockResolvedValue([]),
+}))
+
 vi.mock('../lib/promotions', () => ({
   fetchAllPromotions: vi.fn(),
   fetchActivePromotions: vi.fn(),
