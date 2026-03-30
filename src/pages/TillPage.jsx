@@ -95,25 +95,25 @@ export default function TillPage() {
               Staff Drink
             </button>
           </div>
-          {showWastage && (
-            <WastageModal
-              products={products}
-              onClose={() => setShowWastage(false)}
-              onSaved={() => setShowWastage(false)}
-            />
-          )}
-          {showStaffDrink && (
-            <StaffDrinkModal
-              products={products}
-              onClose={() => setShowStaffDrink(false)}
-              onSaved={() => setShowStaffDrink(false)}
-            />
-          )}
         </div>
       </div>
       <div className="hidden md:flex">
         <OrderPanel onCheckout={handleCheckout} />
       </div>
+      {showWastage && (
+        <WastageModal
+          products={products}
+          onClose={() => setShowWastage(false)}
+          onSaved={() => setShowWastage(false)}
+        />
+      )}
+      {showStaffDrink && (
+        <StaffDrinkModal
+          products={products}
+          onClose={() => setShowStaffDrink(false)}
+          onSaved={() => setShowStaffDrink(false)}
+        />
+      )}
     </div>
   )
 }
