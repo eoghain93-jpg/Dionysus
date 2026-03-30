@@ -1,8 +1,8 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Delete } from 'lucide-react'
 
 const QUICK_AMOUNTS = [5, 10, 20, 50]
-const NUMPAD_KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '.', '0', 'back']
+const NUMPAD_KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '00', '0', 'back']
 
 function formatPence(pence) {
   return `£${(pence / 100).toFixed(2)}`
@@ -13,17 +13,22 @@ export default function CashPaymentModal({ total, onConfirm, onCancel }) {
   const [confirmed, setConfirmed] = useState(false)
 
   const totalPence = Math.round(total * 100)
-  const tenderedPence = digits ? parseInt(digits, 10) * 100 : 0
+  const tenderedPence = (Number(digits) || 0) * 100
   const changePence = tenderedPence - totalPence
   const canConfirm = tenderedPence >= totalPence
+
+  useEffect(() => {
+    setConfirmed(false)
+    setDigits('')
+  }, [total])
 
   function handleKey(key) {
     if (key === 'back') {
       setDigits(d => d.slice(0, -1))
-    } else if (key === '.') {
-      // ignore — whole pounds only
+    } else if (key === '00') {
+      setDigits(d => d.length <= 3 ? d + '00' : d)
     } else {
-      setDigits(d => d.length < 4 ? d + key : d)
+      setDigits(d => d.length < 5 ? d + key : d)
     }
   }
 
@@ -104,7 +109,7 @@ export default function CashPaymentModal({ total, onConfirm, onCancel }) {
             onClick={() => setConfirmed(true)}
             disabled={!canConfirm}
             className="bg-emerald-700 hover:bg-emerald-600 disabled:opacity-40 disabled:cursor-not-allowed
-              text-white font-semibold py-3 rounded-xl transition-colors cursor-pointer"
+              text-white font-semibold py-3 rounded-xl transition-colors"
           >
             Confirm
           </button>
