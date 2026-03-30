@@ -4,7 +4,7 @@ import { supabase } from './supabase'
 export async function fetchAllPromotions() {
   const { data, error } = await supabase
     .from('promotions')
-    .select('*, promotion_items(*)')
+    .select('*, promotion_items(*), promotion_categories(*)')
     .order('name')
 
   if (error) throw error
@@ -14,7 +14,7 @@ export async function fetchAllPromotions() {
 export async function fetchActivePromotions() {
   const { data, error } = await supabase
     .from('promotions')
-    .select('*, promotion_items(*)')
+    .select('*, promotion_items(*), promotion_categories(*)')
     .eq('active', true)
     .order('name')
 
@@ -23,13 +23,13 @@ export async function fetchActivePromotions() {
 }
 
 export async function upsertPromotion(promotion) {
-  const { id, promotion_items, ...fields } = promotion
+  const { id, promotion_items, promotion_categories, ...fields } = promotion
   if (id) {
     const { data, error } = await supabase
       .from('promotions')
       .update(fields)
       .eq('id', id)
-      .select('*, promotion_items(*)')
+      .select('*, promotion_items(*), promotion_categories(*)')
       .single()
     if (error) throw error
     return data
@@ -37,7 +37,7 @@ export async function upsertPromotion(promotion) {
     const { data, error } = await supabase
       .from('promotions')
       .insert(fields)
-      .select('*, promotion_items(*)')
+      .select('*, promotion_items(*), promotion_categories(*)')
       .single()
     if (error) throw error
     return data
@@ -76,6 +76,24 @@ export async function replacePromotionItems(promotion_id, items) {
   const rows = items.map(item => ({ ...item, promotion_id }))
   const { data, error } = await supabase
     .from('promotion_items')
+    .insert(rows)
+    .select()
+  if (error) throw error
+  return data
+}
+
+export async function replacePromotionCategories(promotion_id, categories) {
+  const { error: delError } = await supabase
+    .from('promotion_categories')
+    .delete()
+    .eq('promotion_id', promotion_id)
+  if (delError) throw delError
+
+  if (categories.length === 0) return []
+
+  const rows = categories.map(cat => ({ ...cat, promotion_id }))
+  const { data, error } = await supabase
+    .from('promotion_categories')
     .insert(rows)
     .select()
   if (error) throw error
