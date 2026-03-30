@@ -1,6 +1,8 @@
 // src/lib/tabs.js
 import { supabase } from './supabase'
 
+// Tab state is stored as a denormalized `tab_balance` column on the `members` table.
+// A positive balance means the member has an open tab.
 export async function fetchOpenTabs() {
   const { data, error } = await supabase
     .from('members')
@@ -12,6 +14,7 @@ export async function fetchOpenTabs() {
 }
 
 export async function fetchTabOrders(member_id) {
+  if (!member_id) return []
   const { data, error } = await supabase
     .from('orders')
     .select('id, created_at, total_amount, order_items(id, product_id, quantity, unit_price, products(name))')

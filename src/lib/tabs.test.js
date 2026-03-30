@@ -10,8 +10,8 @@ beforeEach(() => vi.clearAllMocks())
 describe('fetchOpenTabs', () => {
   it('returns members with tab_balance > 0 ordered by balance desc', async () => {
     const members = [
-      { id: 'm1', name: 'Alice', tab_balance: 15.50 },
-      { id: 'm2', name: 'Bob', tab_balance: 8.00 },
+      { id: 'm1', name: 'Alice', tab_balance: 15.50, membership_number: 'M0001' },
+      { id: 'm2', name: 'Bob', tab_balance: 8.00, membership_number: 'M0002' },
     ]
     const chain = {
       select: vi.fn().mockReturnThis(),
@@ -74,6 +74,7 @@ describe('fetchTabOrders', () => {
     expect(chain.select).toHaveBeenCalledWith('id, created_at, total_amount, order_items(id, product_id, quantity, unit_price, products(name))')
     expect(chain.eq).toHaveBeenCalledWith('member_id', 'm1')
     expect(chain.eq).toHaveBeenCalledWith('payment_method', 'tab')
+    expect(chain.order).toHaveBeenCalledWith('created_at', { ascending: false })
     expect(result).toEqual(orders)
   })
 
