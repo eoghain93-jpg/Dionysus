@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef, useId } from 'react'
-import { X, Clock, Phone, Mail, Calendar, Star, CreditCard } from '../../lib/icons'
+import { X, Clock, Phone, Mail, Calendar, Star, CreditCard, KeyRound } from '../../lib/icons'
 import { supabase } from '../../lib/supabase'
 import SettleTabModal from './SettleTabModal'
+import SetPinModal from './SetPinModal'
 import { isRenewalDueSoon } from './MemberList'
 
 /**
@@ -20,6 +21,7 @@ export default function MemberProfile({ member, onClose, onEdit, onSettleTab }) 
   const [orders, setOrders] = useState([])
   const [loadingOrders, setLoadingOrders] = useState(true)
   const [settleModalOpen, setSettleModalOpen] = useState(false)
+  const [setPinOpen, setSetPinOpen] = useState(false)
 
   // Focus close button on mount
   useEffect(() => {
@@ -221,6 +223,16 @@ export default function MemberProfile({ member, onClose, onEdit, onSettleTab }) 
               Settle Tab
             </button>
           )}
+          {member.membership_tier === 'staff' && (
+            <button
+              onClick={() => setSetPinOpen(true)}
+              className="flex items-center gap-2 px-4 min-h-[44px] rounded-xl bg-slate-700 hover:bg-slate-600
+                text-white font-semibold text-sm transition-colors cursor-pointer"
+            >
+              <KeyRound size={16} aria-hidden="true" />
+              Set PIN
+            </button>
+          )}
           <button
             onClick={() => onEdit(member)}
             className="flex-1 min-h-[44px] rounded-xl border border-slate-600 text-slate-300 hover:bg-slate-700 hover:text-white transition-colors cursor-pointer text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617]"
@@ -239,6 +251,15 @@ export default function MemberProfile({ member, onClose, onEdit, onSettleTab }) 
             setSettleModalOpen(false)
             onSettleTab()
           }}
+        />
+      )}
+
+      {/* Set PIN modal */}
+      {setPinOpen && (
+        <SetPinModal
+          member={member}
+          onClose={() => setSetPinOpen(false)}
+          onSaved={() => setSetPinOpen(false)}
         />
       )}
     </div>

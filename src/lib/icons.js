@@ -33,4 +33,5 @@ export {
   Star,            // Membership tier
   Download,        // Export CSV
   TrendingUp,      // Top products
+  KeyRound,        // Set PIN
 } from 'lucide-react'
