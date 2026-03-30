@@ -58,6 +58,7 @@ export default function PromoFormModal({ promo, products = [], onClose, onSaved 
   }, [onClose])
 
   function handleOverlayClick(e) {
+    if (saving) return
     if (e.target === overlayRef.current) onClose()
   }
 
@@ -93,6 +94,12 @@ export default function PromoFormModal({ promo, products = [], onClose, onSaved 
 
   async function handleSubmit(e) {
     e.preventDefault()
+    // Validate no duplicate categories
+    const cats = categoryItems.map(c => c.category)
+    if (new Set(cats).size !== cats.length) {
+      setError('Each category can only appear once.')
+      return
+    }
     setSaving(true)
     setError(null)
     try {
@@ -117,11 +124,13 @@ export default function PromoFormModal({ promo, products = [], onClose, onSaved 
           discount_value: Number(i.discount_value),
         }))
       await replacePromotionItems(saved.id, itemRows)
-      const catRows = categoryItems.map(c => ({
-        category: c.category,
-        discount_type: c.discount_type,
-        discount_value: Number(c.discount_value),
-      }))
+      const catRows = categoryItems
+        .filter(c => c.discount_value !== '' && Number(c.discount_value) > 0)
+        .map(c => ({
+          category: c.category,
+          discount_type: c.discount_type,
+          discount_value: Number(c.discount_value),
+        }))
       await replacePromotionCategories(saved.id, catRows)
       onSaved()
     } catch (err) {
@@ -435,7 +444,8 @@ export default function PromoFormModal({ promo, products = [], onClose, onSaved 
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 min-h-[44px] rounded-xl border border-slate-600 text-slate-300 hover:bg-slate-700 hover:text-white transition-colors cursor-pointer text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617]"
+              disabled={saving}
+              className="flex-1 min-h-[44px] rounded-xl border border-slate-600 text-slate-300 hover:bg-slate-700 hover:text-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-pointer text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617]"
             >
               Cancel
             </button>
