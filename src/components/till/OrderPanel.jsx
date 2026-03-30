@@ -1,10 +1,12 @@
 import { useState } from 'react'
 import { Banknote, CreditCard, Receipt, LogOut, Plus, Minus, X, Trash2 } from 'lucide-react'
 import { useTillStore } from '../../stores/tillStore'
+import CashPaymentModal from './CashPaymentModal'
 
 export default function OrderPanel({ onCheckout }) {
   const { orderItems, activeMember, clearMember, updateQuantity, removeItem, getTotal, clearOrder } = useTillStore()
   const [paying, setPaying] = useState(false)
+  const [showCashModal, setShowCashModal] = useState(false)
   const total = getTotal()
 
   async function handleCheckout(method) {
@@ -88,7 +90,7 @@ export default function OrderPanel({ onCheckout }) {
           ].map(({ method, label, Icon, cls, needsMember }) => (
             <button
               key={method}
-              onClick={() => handleCheckout(method)}
+              onClick={() => method === 'cash' ? setShowCashModal(true) : handleCheckout(method)}
               disabled={paying || orderItems.length === 0 || (needsMember && !activeMember)}
               className={`${cls} disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer
                 text-white font-semibold py-3 rounded-xl text-sm transition-colors duration-200
@@ -110,6 +112,13 @@ export default function OrderPanel({ onCheckout }) {
           </button>
         )}
       </div>
+      {showCashModal && (
+        <CashPaymentModal
+          total={total}
+          onConfirm={() => { setShowCashModal(false); handleCheckout('cash') }}
+          onCancel={() => setShowCashModal(false)}
+        />
+      )}
     </div>
   )
 }
