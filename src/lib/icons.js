@@ -36,4 +36,5 @@ export {
   KeyRound,        // Set PIN
   Lock,            // Z report Close Day
   FileText,        // Z report button
+  Tag,             // Promos nav
 } from 'lucide-react'

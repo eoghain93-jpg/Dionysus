@@ -1,6 +1,16 @@
 // src/lib/promotions.js
 import { supabase } from './supabase'
 
+export async function fetchAllPromotions() {
+  const { data, error } = await supabase
+    .from('promotions')
+    .select('*, promotion_items(*)')
+    .order('name')
+
+  if (error) throw error
+  return data ?? []
+}
+
 export async function fetchActivePromotions() {
   const { data, error } = await supabase
     .from('promotions')
