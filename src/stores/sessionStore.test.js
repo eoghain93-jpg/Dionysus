@@ -34,6 +34,11 @@ describe('sessionStore', () => {
     expect(useSessionStore.getState().activeStaff).toBeNull()
   })
 
+  it('setActiveStaff with null input does not corrupt state', () => {
+    useSessionStore.getState().setActiveStaff(null)
+    expect(useSessionStore.getState().activeStaff).toBeNull()
+  })
+
   it('overwriting active staff replaces the previous session', () => {
     useSessionStore.getState().setActiveStaff({ id: 'staff-1', name: 'Alice' })
     useSessionStore.getState().setActiveStaff({ id: 'staff-2', name: 'Bob' })
