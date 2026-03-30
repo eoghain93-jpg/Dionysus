@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { fetchProducts } from '../lib/products'
+import { fetchActivePromotions } from '../lib/promotions'
 import { supabase } from '../lib/supabase'
 import { db } from '../lib/db'
 import { useTillStore } from '../stores/tillStore'
@@ -15,12 +16,13 @@ export default function TillPage() {
   const [products, setProducts] = useState([])
   const [category, setCategory] = useState('all')
   const [loading, setLoading] = useState(true)
-  const { orderItems, activeMember, clearOrder } = useTillStore()
+  const { orderItems, activeMember, clearOrder, loadPromos } = useTillStore()
   const { isOnline } = useSyncStore()
   const { activeStaff } = useSessionStore()
 
   useEffect(() => {
     fetchProducts().then(setProducts).catch(console.error).finally(() => setLoading(false))
+    loadPromos(fetchActivePromotions)
   }, [])
 
   const handleCheckout = useCallback(async (paymentMethod) => {

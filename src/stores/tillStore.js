@@ -1,15 +1,40 @@
+// src/stores/tillStore.js
 import { create } from 'zustand'
+import { getPromoPrice } from '../lib/promos'
 
 export const useTillStore = create((set, get) => ({
   orderItems: [],
   activeMember: null,
+  activePromos: [],
 
   setActiveMember: (member) => set({ activeMember: member }),
   clearMember: () => set({ activeMember: null }),
 
-  addItem: (product) => {
-    const { orderItems, activeMember } = get()
-    const price = activeMember ? product.member_price : product.standard_price
+  loadPromos: async (fetchFn) => {
+    try {
+      const promos = await fetchFn()
+      set({ activePromos: promos })
+    } catch (err) {
+      console.error('Failed to load promotions:', err)
+    }
+  },
+
+  addItem: (product, now = new Date()) => {
+    const { orderItems, activeMember, activePromos } = get()
+
+    const standardPrice = product.standard_price
+    const memberPrice = activeMember ? product.member_price : null
+    const promoPrice = getPromoPrice(product, activePromos, now)
+
+    // Choose the lowest applicable price
+    const candidates = [standardPrice]
+    if (memberPrice != null) candidates.push(memberPrice)
+    if (promoPrice != null) candidates.push(promoPrice)
+    const price = Math.min(...candidates)
+
+    const promo_price_applied = promoPrice != null && price === promoPrice
+    const member_price_applied = memberPrice != null && price === memberPrice && !promo_price_applied
+
     const existing = orderItems.find(i => i.product_id === product.id)
     if (existing) {
       set({
@@ -26,7 +51,8 @@ export const useTillStore = create((set, get) => ({
           name: product.name,
           quantity: 1,
           unit_price: price,
-          member_price_applied: !!activeMember,
+          member_price_applied,
+          promo_price_applied,
           subtotal: price,
         }]
       })
