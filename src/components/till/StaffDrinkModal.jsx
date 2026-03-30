@@ -12,7 +12,7 @@ export default function StaffDrinkModal({ products, onClose, onSaved }) {
 
   async function handleSubmit(e) {
     e.preventDefault()
-    const qty = parseFloat(quantity)
+    const qty = parseInt(quantity, 10)
     if (!qty || qty <= 0) { setError('Enter a valid quantity'); return }
     setSaving(true)
     setError(null)
