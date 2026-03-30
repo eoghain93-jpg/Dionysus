@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Delete, X, ShieldCheck } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { useSessionStore } from '../../stores/sessionStore'
@@ -22,26 +22,7 @@ export default function PinGate({ onConfirm, onCancel, label }) {
 
   const activeStaff = useSessionStore(s => s.activeStaff)
 
-  // Auto-submit when 4 digits entered
-  useEffect(() => {
-    if (digits.length === 4 && activeStaff) {
-      handleVerify(activeStaff.id, digits)
-    }
-  }, [digits])
-
-  function handleKey(key) {
-    if (verifying) return
-    setError(null)
-    if (key === 'back') {
-      setDigits(d => d.slice(0, -1))
-    } else if (key === 'clear') {
-      setDigits('')
-    } else {
-      setDigits(d => d.length < 4 ? d + key : d)
-    }
-  }
-
-  async function handleVerify(memberId, pin) {
+  const handleVerify = useCallback(async (memberId, pin) => {
     setVerifying(true)
     setError(null)
     try {
@@ -66,6 +47,25 @@ export default function PinGate({ onConfirm, onCancel, label }) {
       setDigits('')
     } finally {
       setVerifying(false)
+    }
+  }, [onConfirm])
+
+  // Auto-submit when 4 digits entered
+  useEffect(() => {
+    if (digits.length === 4 && activeStaff) {
+      handleVerify(activeStaff.id, digits)
+    }
+  }, [digits, activeStaff, handleVerify])
+
+  function handleKey(key) {
+    if (verifying) return
+    setError(null)
+    if (key === 'back') {
+      setDigits(d => d.slice(0, -1))
+    } else if (key === 'clear') {
+      setDigits('')
+    } else {
+      setDigits(d => d.length < 4 ? d + key : d)
     }
   }
 

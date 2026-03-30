@@ -89,25 +89,8 @@ describe('PinGate', () => {
     expect(display.querySelectorAll('[data-filled="false"]')).toHaveLength(4)
   })
 
-  // ── Auto-submit ────────────────────────────────────────────────────────────
-  it('auto-submits when 4 digits are entered', async () => {
-    mockInvoke.mockResolvedValue({
-      data: { valid: true, member: ACTIVE_STAFF },
-      error: null,
-    })
-    renderGate()
-    ;['1', '2', '3', '4'].forEach(d =>
-      fireEvent.click(screen.getByRole('button', { name: d }))
-    )
-    await waitFor(() => {
-      expect(mockInvoke).toHaveBeenCalledWith('verify-pin', {
-        body: { member_id: 'staff-1', pin: '1234' },
-      })
-    })
-  })
-
-  // ── Success path ───────────────────────────────────────────────────────────
-  it('calls onConfirm after successful PIN verify', async () => {
+  // ── Auto-submit & success path ─────────────────────────────────────────────
+  it('auto-submits on 4th digit and calls onConfirm on success', async () => {
     const onConfirm = vi.fn()
     mockInvoke.mockResolvedValue({
       data: { valid: true, member: ACTIVE_STAFF },
@@ -117,7 +100,12 @@ describe('PinGate', () => {
     ;['1', '2', '3', '4'].forEach(d =>
       fireEvent.click(screen.getByRole('button', { name: d }))
     )
-    await waitFor(() => expect(onConfirm).toHaveBeenCalledOnce())
+    await waitFor(() => {
+      expect(mockInvoke).toHaveBeenCalledWith('verify-pin', {
+        body: { member_id: 'staff-1', pin: '1234' },
+      })
+      expect(onConfirm).toHaveBeenCalledOnce()
+    })
   })
 
   it('does NOT change the session store on success', async () => {
