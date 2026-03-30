@@ -1,9 +1,11 @@
 import { useState } from 'react'
 import { supabase } from '../lib/supabase'
-import { Download, BarChart2, TrendingUp, Clock } from '../lib/icons'
+import { Download, BarChart2, TrendingUp, Clock, FileText } from '../lib/icons'
 import DailySummary from '../components/reports/DailySummary'
 import BusiestHours from '../components/reports/BusiestHours'
 import TopProducts from '../components/reports/TopProducts'
+import ZReportModal from '../components/reports/ZReportModal'
+import PinGate from '../components/till/PinGate'
 
 function todayISO() {
   return new Date().toISOString().split('T')[0]
@@ -12,6 +14,8 @@ function todayISO() {
 export default function ReportsPage() {
   const [date, setDate] = useState(todayISO())
   const [exporting, setExporting] = useState(false)
+  const [showPinGate, setShowPinGate] = useState(false)
+  const [showZReport, setShowZReport] = useState(false)
 
   async function handleExportCSV() {
     setExporting(true)
@@ -81,6 +85,14 @@ export default function ReportsPage() {
             <Download size={16} aria-hidden="true" />
             {exporting ? 'Exporting…' : 'Export CSV'}
           </button>
+          {/* Z Report */}
+          <button
+            onClick={() => setShowPinGate(true)}
+            className="flex items-center gap-2 px-4 min-h-[44px] rounded-xl bg-red-900/60 hover:bg-red-800 border border-red-700/60 text-white text-sm font-semibold transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 focus:ring-offset-[#020617]"
+          >
+            <FileText size={16} aria-hidden="true" />
+            Z Report
+          </button>
         </div>
       </div>
 
@@ -135,6 +147,20 @@ export default function ReportsPage() {
           <TopProducts />
         </div>
       </section>
+      {showPinGate && (
+        <PinGate
+          onSuccess={() => { setShowPinGate(false); setShowZReport(true) }}
+          onCancel={() => setShowPinGate(false)}
+        />
+      )}
+
+      {showZReport && (
+        <ZReportModal
+          date={date}
+          onClose={() => setShowZReport(false)}
+          onDayClose={() => setShowZReport(false)}
+        />
+      )}
     </div>
   )
 }
