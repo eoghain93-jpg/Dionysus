@@ -2,13 +2,15 @@ import { useState, useEffect, useRef } from 'react'
 import { Search, ScanLine } from 'lucide-react'
 import { Camera, X } from '../../lib/icons'
 import { Html5QrcodeScanner } from 'html5-qrcode'
-import { findMemberByNumber } from '../../lib/members'
+import { findMemberByNumber, searchMembersByName } from '../../lib/members'
 import { useTillStore } from '../../stores/tillStore'
 
 export default function MemberLookup() {
   const [query, setQuery] = useState('')
   const [error, setError] = useState(null)
   const [qrActive, setQrActive] = useState(false)
+  const [suggestions, setSuggestions] = useState([])
+  const debounceRef = useRef(null)
   const { activeMember, setActiveMember } = useTillStore()
   const inputRef = useRef(null)
   const scannerRef = useRef(null)
@@ -101,8 +103,29 @@ export default function MemberLookup() {
     setQrActive(false)
   }
 
+  function handleQueryChange(e) {
+    const val = e.target.value
+    setQuery(val)
+    setError(null)
+    setSuggestions([])
+    clearTimeout(debounceRef.current)
+    // If it looks like a membership number, don't show name suggestions
+    if (!val.trim() || /^M?\d/i.test(val.trim())) return
+    debounceRef.current = setTimeout(async () => {
+      const results = await searchMembersByName(val.trim())
+      setSuggestions(results)
+    }, 250)
+  }
+
+  function handleSelectSuggestion(member) {
+    setActiveMember(member)
+    setQuery('')
+    setSuggestions([])
+  }
+
   async function handleLookup(value) {
     setError(null)
+    setSuggestions([])
     const member = await findMemberByNumber(value.trim())
     if (member) {
       setActiveMember(member)
@@ -114,7 +137,25 @@ export default function MemberLookup() {
 
   async function handleSearch(e) {
     e.preventDefault()
-    if (query.trim()) await handleLookup(query)
+    if (!query.trim()) return
+    // If suggestions are already showing, select the first one
+    if (suggestions.length > 0) {
+      handleSelectSuggestion(suggestions[0])
+      return
+    }
+    // If it looks like a name (not a membership number), search by name
+    if (!/^M?\d/i.test(query.trim())) {
+      const results = await searchMembersByName(query.trim())
+      if (results.length === 1) {
+        handleSelectSuggestion(results[0])
+      } else if (results.length > 1) {
+        setSuggestions(results)
+      } else {
+        setError(`No member found: "${query.trim()}"`)
+      }
+      return
+    }
+    await handleLookup(query)
   }
 
   if (activeMember) return null
@@ -129,8 +170,8 @@ export default function MemberLookup() {
             id="member-lookup"
             ref={inputRef}
             value={query}
-            onChange={e => setQuery(e.target.value)}
-            placeholder="Member number or scan card..."
+            onChange={handleQueryChange}
+            placeholder="Name or member number..."
             className="w-full bg-slate-800 border border-slate-700 rounded-xl pl-9 pr-4 py-2.5 text-white
               placeholder-slate-500 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500
               focus:border-transparent transition-colors duration-200 min-h-[44px]"
@@ -161,6 +202,22 @@ export default function MemberLookup() {
           </button>
         )}
       </div>
+      {suggestions.length > 0 && (
+        <ul className="bg-slate-800 border border-slate-700 rounded-xl overflow-hidden">
+          {suggestions.map(m => (
+            <li key={m.id}>
+              <button
+                type="button"
+                onClick={() => handleSelectSuggestion(m)}
+                className="w-full text-left px-4 py-2.5 text-sm text-white hover:bg-slate-700 flex items-center justify-between"
+              >
+                <span>{m.name}</span>
+                <span className="text-slate-500 text-xs font-mono">{m.membership_number}</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
       {qrActive && (
         <div id="qr-reader" className="mt-2 rounded-xl overflow-hidden" />
       )}
