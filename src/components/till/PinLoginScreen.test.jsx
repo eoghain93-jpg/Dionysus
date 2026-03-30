@@ -185,4 +185,14 @@ describe('PinLoginScreen', () => {
     render(<PinLoginScreen />)
     expect(await screen.findByText(/no staff members/i)).toBeInTheDocument()
   })
+
+  it('shows an error message when the staff fetch fails', async () => {
+    mockFrom.mockReturnValue({
+      select: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      order: vi.fn().mockResolvedValue({ data: null, error: { message: 'Network error' } }),
+    })
+    render(<PinLoginScreen />)
+    expect(await screen.findByRole('alert')).toHaveTextContent(/could not load staff/i)
+  })
 })

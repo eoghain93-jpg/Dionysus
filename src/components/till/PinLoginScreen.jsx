@@ -12,6 +12,7 @@ export default function PinLoginScreen() {
   const [digits, setDigits] = useState('')
   const [verifying, setVerifying] = useState(false)
   const [error, setError] = useState(null)
+  const [fetchError, setFetchError] = useState(null)
 
   const { setActiveStaff } = useSessionStore()
 
@@ -21,11 +22,18 @@ export default function PinLoginScreen() {
       .select('id, name, membership_tier')
       .eq('membership_tier', 'staff')
       .order('name')
-      .then(({ data }) => {
-        setStaffList(data ?? [])
+      .then(({ data, error: fetchErr }) => {
+        if (fetchErr) {
+          setFetchError('Could not load staff list. Please refresh.')
+        } else {
+          setStaffList(data ?? [])
+        }
         setLoadingStaff(false)
       })
-      .catch(() => setLoadingStaff(false))
+      .catch(() => {
+        setFetchError('Could not load staff list. Please refresh.')
+        setLoadingStaff(false)
+      })
   }, [])
 
   useEffect(() => {
@@ -85,6 +93,10 @@ export default function PinLoginScreen() {
 
         {loadingStaff ? (
           <div className="text-slate-400 text-sm text-center">Loading staff…</div>
+        ) : fetchError ? (
+          <p role="alert" className="text-red-400 text-sm text-center bg-red-400/10 px-4 py-2 rounded-xl">
+            {fetchError}
+          </p>
         ) : staffList.length === 0 ? (
           <p className="text-slate-400 text-sm text-center">
             No staff members found. Add a staff member in the Members page.
