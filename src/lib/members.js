@@ -19,6 +19,21 @@ export async function fetchMembers() {
   }
 }
 
+export async function searchMembersByName(name) {
+  const lower = name.toLowerCase()
+  const local = await db.members.filter(m => m.active && m.name.toLowerCase().includes(lower)).toArray()
+  if (local.length > 0) return local
+
+  const { data } = await supabase
+    .from('members')
+    .select('*')
+    .eq('active', true)
+    .ilike('name', `%${name}%`)
+    .order('name')
+    .limit(8)
+  return data ?? []
+}
+
 export async function findMemberByNumber(membership_number) {
   const local = await db.members.where('membership_number').equals(membership_number).first()
   if (local) return local

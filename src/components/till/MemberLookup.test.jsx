@@ -13,6 +13,7 @@ vi.mock('../../lib/supabase', () => ({
 
 vi.mock('../../lib/members', () => ({
   findMemberByNumber: vi.fn().mockResolvedValue(null),
+  searchMembersByName: vi.fn().mockResolvedValue([]),
 }))
 
 vi.mock('html5-qrcode', () => ({
