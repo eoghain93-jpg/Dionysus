@@ -136,3 +136,67 @@ Deno.test('returns 500 if Resend API call fails', async () => {
   const res = await handler(makeRequest(VALID_BODY), stubEnv, mockFetch as typeof fetch)
   assertEquals(res.status, 500)
 })
+
+Deno.test('email includes WASTAGE section when wastage data present', async () => {
+  let capturedText = ''
+  const mockFetch = (_url: string, init: RequestInit) => {
+    capturedText = JSON.parse(init.body as string).text
+    return Promise.resolve(new Response(JSON.stringify({ id: 'x' }), { status: 200 }))
+  }
+  const body = {
+    ...VALID_BODY,
+    wastage: [{ name: 'Guinness', quantity: 4, value: 29.60 }],
+    staffDrinks: [],
+  }
+  await handler(makeRequest(body), stubEnv, mockFetch as typeof fetch)
+  assertEquals(capturedText.includes('WASTAGE'), true)
+  assertEquals(capturedText.includes('Guinness'), true)
+  assertEquals(capturedText.includes('×4'), true)
+  assertEquals(capturedText.includes('£29.60'), true)
+})
+
+Deno.test('email includes STAFF DRINKS section when staff drinks data present', async () => {
+  let capturedText = ''
+  const mockFetch = (_url: string, init: RequestInit) => {
+    capturedText = JSON.parse(init.body as string).text
+    return Promise.resolve(new Response(JSON.stringify({ id: 'x' }), { status: 200 }))
+  }
+  const body = {
+    ...VALID_BODY,
+    wastage: [],
+    staffDrinks: [{ name: 'Dave', items: 2, value: 13.40 }],
+  }
+  await handler(makeRequest(body), stubEnv, mockFetch as typeof fetch)
+  assertEquals(capturedText.includes('STAFF DRINKS'), true)
+  assertEquals(capturedText.includes('Dave'), true)
+  assertEquals(capturedText.includes('2 items'), true)
+  assertEquals(capturedText.includes('£13.40'), true)
+})
+
+Deno.test('email omits wastage and staff drinks sections when arrays are empty', async () => {
+  let capturedText = ''
+  const mockFetch = (_url: string, init: RequestInit) => {
+    capturedText = JSON.parse(init.body as string).text
+    return Promise.resolve(new Response(JSON.stringify({ id: 'x' }), { status: 200 }))
+  }
+  const body = { ...VALID_BODY, wastage: [], staffDrinks: [] }
+  await handler(makeRequest(body), stubEnv, mockFetch as typeof fetch)
+  assertEquals(capturedText.includes('WASTAGE'), false)
+  assertEquals(capturedText.includes('STAFF DRINKS'), false)
+})
+
+Deno.test('staff drinks line uses singular item for count of 1', async () => {
+  let capturedText = ''
+  const mockFetch = (_url: string, init: RequestInit) => {
+    capturedText = JSON.parse(init.body as string).text
+    return Promise.resolve(new Response(JSON.stringify({ id: 'x' }), { status: 200 }))
+  }
+  const body = {
+    ...VALID_BODY,
+    wastage: [],
+    staffDrinks: [{ name: 'Alice', items: 1, value: 4.50 }],
+  }
+  await handler(makeRequest(body), stubEnv, mockFetch as typeof fetch)
+  assertEquals(capturedText.includes('1 item '), true)
+  assertEquals(capturedText.includes('1 items'), false)
+})
