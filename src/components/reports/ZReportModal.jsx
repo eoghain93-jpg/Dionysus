@@ -82,15 +82,15 @@ export default function ZReportModal({ date, onClose, onDayClose }) {
         variance,
       }
 
-      // 1. Insert z_reports row
+      // 1. Upsert z_reports row (idempotent — retry-safe if email failed previously)
       const { error: dbErr } = await supabase
         .from('z_reports')
-        .insert({
+        .upsert({
           report_date: date,
           opening_float: openingFloat,
           actual_cash: actualCash,
           closed_at: new Date().toISOString(),
-        })
+        }, { onConflict: 'report_date' })
 
       if (dbErr) throw new Error(dbErr.message)
 

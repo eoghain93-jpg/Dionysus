@@ -11,7 +11,7 @@ vi.mock('../../lib/zReport', () => ({
 vi.mock('../../lib/supabase', () => ({
   supabase: {
     from: vi.fn(() => ({
-      insert: vi.fn().mockResolvedValue({ error: null }),
+      upsert: vi.fn().mockResolvedValue({ error: null }),
     })),
     functions: {
       invoke: vi.fn().mockResolvedValue({ error: null }),
@@ -246,10 +246,10 @@ describe('ZReportModal — Close Day', () => {
     })
   })
 
-  it('Close Day inserts into z_reports with correct date and floats', async () => {
+  it('Close Day upserts into z_reports with correct date and floats', async () => {
     const { supabase } = await import('../../lib/supabase')
-    const insertMock = vi.fn().mockResolvedValue({ error: null })
-    supabase.from.mockReturnValue({ insert: insertMock })
+    const upsertMock = vi.fn().mockResolvedValue({ error: null })
+    supabase.from.mockReturnValue({ upsert: upsertMock })
 
     render(<ZReportModal date={DATE} onClose={vi.fn()} onDayClose={vi.fn()} />)
     await waitFor(() => screen.getByRole('button', { name: /close day/i }))
@@ -262,12 +262,13 @@ describe('ZReportModal — Close Day', () => {
 
     await waitFor(() => {
       expect(supabase.from).toHaveBeenCalledWith('z_reports')
-      expect(insertMock).toHaveBeenCalledWith(
+      expect(upsertMock).toHaveBeenCalledWith(
         expect.objectContaining({
           report_date: DATE,
           opening_float: 50,
           actual_cash: 165,
-        })
+        }),
+        expect.objectContaining({ onConflict: 'report_date' })
       )
     })
   })
@@ -296,10 +297,10 @@ describe('ZReportModal — Close Day', () => {
     })
   })
 
-  it('Close Day shows error when insert fails', async () => {
+  it('Close Day shows error when upsert fails', async () => {
     const { supabase } = await import('../../lib/supabase')
     supabase.from.mockReturnValue({
-      insert: vi.fn().mockResolvedValue({ error: { message: 'Insert failed' } }),
+      upsert: vi.fn().mockResolvedValue({ error: { message: 'Insert failed' } }),
     })
     render(<ZReportModal date={DATE} onClose={vi.fn()} onDayClose={vi.fn()} />)
     await waitFor(() => screen.getByRole('button', { name: /close day/i }))
