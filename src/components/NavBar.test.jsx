@@ -1,6 +1,11 @@
 import { render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
+import { vi } from 'vitest'
 import NavBar from './NavBar'
+
+vi.mock('./till/SwitchUserModal', () => ({
+  default: () => null,
+}))
 
 describe('NavBar', () => {
   it('renders all navigation links', () => {
