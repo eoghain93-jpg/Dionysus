@@ -24,3 +24,46 @@ export async function fetchTabOrders(member_id) {
   if (error) throw error
   return data ?? []
 }
+
+export async function adjustTabBalance(member_id, amount, reason, staff_id) {
+  const { error: adjError } = await supabase
+    .from('tab_adjustments')
+    .insert({ member_id, amount, reason, staff_id })
+  if (adjError) throw adjError
+
+  const { data: member, error: fetchError } = await supabase
+    .from('members')
+    .select('tab_balance')
+    .eq('id', member_id)
+    .single()
+  if (fetchError) throw fetchError
+
+  const newBalance = Number(member.tab_balance) + amount
+  const { error: updateError } = await supabase
+    .from('members')
+    .update({ tab_balance: Math.max(0, newBalance) })
+    .eq('id', member_id)
+  if (updateError) throw updateError
+}
+
+export async function removeOrderFromTab(order_id, member_id, order_total) {
+  const { error: orderError } = await supabase
+    .from('orders')
+    .update({ payment_method: 'removed' })
+    .eq('id', order_id)
+  if (orderError) throw orderError
+
+  const { data: member, error: fetchError } = await supabase
+    .from('members')
+    .select('tab_balance')
+    .eq('id', member_id)
+    .single()
+  if (fetchError) throw fetchError
+
+  const newBalance = Math.max(0, Number(member.tab_balance) - order_total)
+  const { error: updateError } = await supabase
+    .from('members')
+    .update({ tab_balance: newBalance })
+    .eq('id', member_id)
+  if (updateError) throw updateError
+}

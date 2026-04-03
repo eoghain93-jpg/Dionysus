@@ -1,9 +1,7 @@
 // src/lib/tabs.test.js
-import { describe, it, expect, vi, beforeEach } from 'vitest'
-
 vi.mock('./supabase', () => ({ supabase: { from: vi.fn() } }))
 import { supabase } from './supabase'
-import { fetchOpenTabs, fetchTabOrders } from './tabs'
+import { fetchOpenTabs, fetchTabOrders, adjustTabBalance, removeOrderFromTab } from './tabs'
 
 beforeEach(() => vi.clearAllMocks())
 
@@ -96,5 +94,73 @@ describe('fetchTabOrders', () => {
     }
     supabase.from.mockReturnValue(chain)
     await expect(fetchTabOrders('m1')).rejects.toThrow('DB error')
+  })
+})
+
+describe('adjustTabBalance', () => {
+  it('inserts a tab_adjustments row and updates member balance', async () => {
+    const adjInsert = vi.fn().mockResolvedValue({ error: null })
+    const memberSelect = vi.fn().mockReturnThis()
+    const memberEq = vi.fn().mockReturnThis()
+    const memberSingle = vi.fn().mockResolvedValue({ data: { tab_balance: 20 }, error: null })
+    const memberUpdate = vi.fn().mockReturnThis()
+    const memberEqUpdate = vi.fn().mockResolvedValue({ error: null })
+
+    supabase.from.mockImplementation((table) => {
+      if (table === 'tab_adjustments') return { insert: adjInsert }
+      if (table === 'members') return {
+        select: memberSelect,
+        eq: memberEq,
+        single: memberSingle,
+        update: memberUpdate,
+      }
+      return {}
+    })
+    memberUpdate.mockReturnValue({ eq: memberEqUpdate })
+
+    await adjustTabBalance('member-1', -5, 'wrote off error', 'staff-1')
+
+    expect(adjInsert).toHaveBeenCalledWith({
+      member_id: 'member-1',
+      amount: -5,
+      reason: 'wrote off error',
+      staff_id: 'staff-1',
+    })
+  })
+
+  it('throws if adjustment insert fails', async () => {
+    supabase.from.mockReturnValue({
+      insert: vi.fn().mockResolvedValue({ error: { message: 'db error' } }),
+    })
+    await expect(adjustTabBalance('m1', -5, 'reason', 's1')).rejects.toThrow('db error')
+  })
+})
+
+describe('removeOrderFromTab', () => {
+  it('sets order payment_method to removed and deducts from tab balance', async () => {
+    const orderUpdate = vi.fn().mockReturnThis()
+    const orderEq = vi.fn().mockResolvedValue({ error: null })
+    const memberSelect = vi.fn().mockReturnThis()
+    const memberEq = vi.fn().mockReturnThis()
+    const memberSingle = vi.fn().mockResolvedValue({ data: { tab_balance: 20 }, error: null })
+    const memberUpdate = vi.fn().mockReturnThis()
+    const memberEqUpdate = vi.fn().mockResolvedValue({ error: null })
+
+    supabase.from.mockImplementation((table) => {
+      if (table === 'orders') return { update: orderUpdate, eq: orderEq }
+      if (table === 'members') return {
+        select: memberSelect,
+        eq: memberEq,
+        single: memberSingle,
+        update: memberUpdate,
+      }
+      return {}
+    })
+    orderUpdate.mockReturnValue({ eq: orderEq })
+    memberUpdate.mockReturnValue({ eq: memberEqUpdate })
+
+    await removeOrderFromTab('order-1', 'member-1', 15.50)
+
+    expect(orderUpdate).toHaveBeenCalledWith({ payment_method: 'removed' })
   })
 })
