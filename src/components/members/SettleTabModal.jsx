@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useId } from 'react'
 import { X, CreditCard, Banknote } from '../../lib/icons'
 import { settleTab } from '../../lib/members'
+import CashPaymentModal from '../till/CashPaymentModal'
 
 /**
  * Modal to settle a member's tab.
@@ -17,6 +18,7 @@ export default function SettleTabModal({ member, onClose, onSettled }) {
   const [settling, setSettling] = useState(false)
   const [error, setError] = useState(null)
   const [amount, setAmount] = useState(Number(member.tab_balance).toFixed(2))
+  const [showCashModal, setShowCashModal] = useState(false)
 
   useEffect(() => {
     firstButtonRef.current?.focus()
@@ -38,6 +40,17 @@ export default function SettleTabModal({ member, onClose, onSettled }) {
     const val = parseFloat(amount)
     if (!val || val <= 0) { setError('Enter a valid amount'); return }
     if (val > Number(member.tab_balance)) { setError('Amount exceeds tab balance'); return }
+
+    if (paymentMethod === 'cash') {
+      setError(null)
+      setShowCashModal(true)
+      return
+    }
+
+    await doSettle(val, paymentMethod)
+  }
+
+  async function doSettle(val, paymentMethod) {
     setSettling(true)
     setError(null)
     try {
@@ -140,6 +153,16 @@ export default function SettleTabModal({ member, onClose, onSettled }) {
           </div>
         </div>
       </div>
+      {showCashModal && (
+        <CashPaymentModal
+          total={parseFloat(amount)}
+          onConfirm={() => {
+            setShowCashModal(false)
+            doSettle(parseFloat(amount), 'cash')
+          }}
+          onCancel={() => setShowCashModal(false)}
+        />
+      )}
     </div>
   )
 }
