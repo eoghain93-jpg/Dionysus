@@ -1,11 +1,12 @@
 // src/pages/TabsPage.test.jsx
-import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor, fireEvent } from '@testing-library/react'
 import TabsPage from './TabsPage'
 
 vi.mock('../lib/tabs', () => ({
   fetchOpenTabs: vi.fn(),
   fetchTabOrders: vi.fn(),
+  adjustTabBalance: vi.fn(),
+  removeOrderFromTab: vi.fn(),
 }))
 
 vi.mock('../components/members/SettleTabModal', () => ({
@@ -14,6 +15,16 @@ vi.mock('../components/members/SettleTabModal', () => ({
       <span>Settle {member.name}</span>
       <button onClick={onSettled}>Confirm Settle</button>
       <button onClick={onClose}>Cancel</button>
+    </div>
+  ),
+}))
+
+vi.mock('../components/members/AdjustTabModal', () => ({
+  default: ({ member, onClose, onAdjusted }) => (
+    <div role="dialog" aria-label="adjust-tab">
+      <span>Adjust {member.name}</span>
+      <button onClick={() => onAdjusted(-5)}>Confirm Adjust</button>
+      <button onClick={onClose}>Cancel Adjust</button>
     </div>
   ),
 }))
@@ -153,5 +164,31 @@ describe('TabsPage', () => {
       expect(screen.getByText(/failed to load orders/i)).toBeInTheDocument()
       expect(screen.queryByText(/no tab orders found/i)).not.toBeInTheDocument()
     })
+  })
+
+  it('shows an Adjust button in expanded row', async () => {
+    render(<TabsPage />)
+    await waitFor(() => screen.getByText('Alice'))
+    fireEvent.click(screen.getByText('Alice'))
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /adjust/i })).toBeInTheDocument()
+    })
+  })
+
+  it('opens AdjustTabModal when Adjust is clicked', async () => {
+    render(<TabsPage />)
+    await waitFor(() => screen.getByText('Alice'))
+    fireEvent.click(screen.getByText('Alice'))
+    await waitFor(() => screen.getByRole('button', { name: /adjust/i }))
+    fireEvent.click(screen.getByRole('button', { name: /adjust/i }))
+    expect(screen.getByLabelText('adjust-tab')).toBeInTheDocument()
+  })
+
+  it('shows a Remove button for each order in expanded row', async () => {
+    render(<TabsPage />)
+    await waitFor(() => screen.getByText('Alice'))
+    fireEvent.click(screen.getByText('Alice'))
+    await waitFor(() => screen.getByText('Guinness'))
+    expect(screen.getByRole('button', { name: /remove order/i })).toBeInTheDocument()
   })
 })

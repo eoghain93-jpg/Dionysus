@@ -3,6 +3,8 @@ import { useState, useEffect, useCallback } from 'react'
 import { ChevronRight } from '../lib/icons'
 import { fetchOpenTabs, fetchTabOrders } from '../lib/tabs'
 import SettleTabModal from '../components/members/SettleTabModal'
+import AdjustTabModal from '../components/members/AdjustTabModal'
+import { removeOrderFromTab } from '../lib/tabs'
 
 export default function TabsPage() {
   const [tabs, setTabs] = useState([])
@@ -12,6 +14,8 @@ export default function TabsPage() {
   const [expandedOrders, setExpandedOrders] = useState({})
   const [expandedLoading, setExpandedLoading] = useState({})
   const [settlingMember, setSettlingMember] = useState(null)
+  const [adjustingMember, setAdjustingMember] = useState(null)
+  const [removingOrderId, setRemovingOrderId] = useState(null)
 
   const loadTabs = useCallback(() => {
     setLoading(true)
@@ -46,6 +50,35 @@ export default function TabsPage() {
   function handleSettled(memberId) {
     setSettlingMember(null)
     setTabs(prev => prev.filter(m => m.id !== memberId))
+  }
+
+  function handleAdjusted(member, delta) {
+    setAdjustingMember(null)
+    setTabs(prev => prev.map(m =>
+      m.id === member.id
+        ? { ...m, tab_balance: Math.max(0, Number(m.tab_balance) + delta) }
+        : m
+    ).filter(m => Number(m.tab_balance) > 0))
+  }
+
+  async function handleRemoveOrder(order, member) {
+    setRemovingOrderId(order.id)
+    try {
+      await removeOrderFromTab(order.id, member.id, order.total_amount)
+      setExpandedOrders(prev => ({
+        ...prev,
+        [member.id]: prev[member.id].filter(o => o.id !== order.id),
+      }))
+      setTabs(prev => prev.map(m =>
+        m.id === member.id
+          ? { ...m, tab_balance: Math.max(0, Number(m.tab_balance) - order.total_amount) }
+          : m
+      ).filter(m => Number(m.tab_balance) > 0))
+    } catch (err) {
+      console.error('Failed to remove order:', err)
+    } finally {
+      setRemovingOrderId(null)
+    }
   }
 
   const total = tabs.reduce((sum, m) => sum + Number(m.tab_balance), 0)
@@ -116,6 +149,15 @@ export default function TabsPage() {
                   {/* Expanded order breakdown */}
                   {isExpanded && (
                     <div className="px-4 pb-3 flex flex-col gap-2">
+                      <div className="flex justify-end">
+                        <button
+                          onClick={() => setAdjustingMember(member)}
+                          aria-label={`Adjust tab for ${member.name}`}
+                          className="shrink-0 px-3 min-h-[36px] rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-300 font-bold text-xs transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617]"
+                        >
+                          Adjust
+                        </button>
+                      </div>
                       {ordersLoading ? (
                         <p className="text-slate-400 text-xs">Loading orders…</p>
                       ) : orders?.fetchError ? (
@@ -125,12 +167,25 @@ export default function TabsPage() {
                       ) : (
                         orders.map(order => (
                           <div key={order.id} className="bg-slate-800 rounded-xl p-3">
-                            <p className="text-slate-400 text-xs mb-2">
-                              {new Date(order.created_at).toLocaleString('en-GB', {
-                                day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
-                              })}
-                              <span className="text-white font-bold ml-2">£{Number(order.total_amount).toFixed(2)}</span>
-                            </p>
+                            <div className="flex items-center justify-between mb-2">
+                              <p className="text-slate-400 text-xs">
+                                {new Date(order.created_at).toLocaleString('en-GB', {
+                                  day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
+                                })}
+                                <span className="text-white font-bold ml-2">£{Number(order.total_amount).toFixed(2)}</span>
+                              </p>
+                              {removingOrderId === order.id ? (
+                                <span className="text-slate-500 text-xs">Removing…</span>
+                              ) : (
+                                <button
+                                  onClick={() => handleRemoveOrder(order, member)}
+                                  aria-label="Remove order from tab"
+                                  className="text-red-400 hover:text-red-300 text-xs font-medium cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 rounded px-1"
+                                >
+                                  Remove
+                                </button>
+                              )}
+                            </div>
                             <ul className="flex flex-col gap-1">
                               {order.order_items.map(item => (
                                 <li key={item.id} className="flex justify-between text-xs text-slate-300">
@@ -161,6 +216,15 @@ export default function TabsPage() {
           member={settlingMember}
           onClose={() => setSettlingMember(null)}
           onSettled={() => { const id = settlingMember.id; handleSettled(id) }}
+        />
+      )}
+
+      {/* Adjust modal */}
+      {adjustingMember && (
+        <AdjustTabModal
+          member={adjustingMember}
+          onClose={() => setAdjustingMember(null)}
+          onAdjusted={(delta) => handleAdjusted(adjustingMember, delta)}
         />
       )}
     </div>
