@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { fetchProducts } from '../lib/products'
 import { fetchActivePromotions } from '../lib/promotions'
 import { supabase } from '../lib/supabase'
+import { addToTabBalance } from '../lib/members'
 import { db } from '../lib/db'
 import { useTillStore } from '../stores/tillStore'
 import { useSyncStore } from '../stores/syncStore'
@@ -13,6 +14,7 @@ import OrderPanel from '../components/till/OrderPanel'
 import MemberLookup from '../components/till/MemberLookup'
 import WastageModal from '../components/till/WastageModal'
 import StaffDrinkModal from '../components/till/StaffDrinkModal'
+import CashbackModal from '../components/till/CashbackModal'
 
 export default function TillPage() {
   const [products, setProducts] = useState([])
@@ -20,6 +22,7 @@ export default function TillPage() {
   const [loading, setLoading] = useState(true)
   const [showWastage, setShowWastage] = useState(false)
   const [showStaffDrink, setShowStaffDrink] = useState(false)
+  const [showCashback, setShowCashback] = useState(false)
   const { orderItems, activeMember, clearOrder, loadPromos } = useTillStore()
   const { isOnline } = useSyncStore()
   const { activeStaff } = useSessionStore()
@@ -52,13 +55,12 @@ export default function TillPage() {
     if (isOnline) {
       const { data, error } = await supabase.from('orders').insert(order).select().single()
       if (!error) {
-        await supabase.from('order_items').insert(items.map(i => ({ ...i, order_id: data.id })))
-        if (paymentMethod === 'tab' && currentMember) {
-          const { data: fresh } = await supabase.from('members').select('tab_balance').eq('id', currentMember.id).single()
-          await supabase.from('members')
-            .update({ tab_balance: (fresh?.tab_balance || 0) + total })
-            .eq('id', currentMember.id)
-        }
+        await Promise.all([
+          supabase.from('order_items').insert(items.map(i => ({ ...i, order_id: data.id }))),
+          paymentMethod === 'tab' && currentMember
+            ? addToTabBalance(currentMember.id, total)
+            : Promise.resolve(),
+        ])
       }
     } else {
       await db.pendingOrders.add({ order, items })
@@ -95,6 +97,12 @@ export default function TillPage() {
             >
               Staff Drink
             </button>
+            <button
+              onClick={() => setShowCashback(true)}
+              className="flex-1 min-h-[44px] rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 text-sm font-medium cursor-pointer transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617]"
+            >
+              Cashback
+            </button>
           </div>
         </div>
       </div>
@@ -113,6 +121,12 @@ export default function TillPage() {
           products={products}
           onClose={() => setShowStaffDrink(false)}
           onSaved={() => setShowStaffDrink(false)}
+        />
+      )}
+      {showCashback && (
+        <CashbackModal
+          onClose={() => setShowCashback(false)}
+          onSaved={() => setShowCashback(false)}
         />
       )}
     </div>
