@@ -16,6 +16,7 @@ export default function SettleTabModal({ member, onClose, onSettled }) {
 
   const [settling, setSettling] = useState(false)
   const [error, setError] = useState(null)
+  const [amount, setAmount] = useState(Number(member.tab_balance).toFixed(2))
 
   useEffect(() => {
     firstButtonRef.current?.focus()
@@ -34,10 +35,13 @@ export default function SettleTabModal({ member, onClose, onSettled }) {
   }
 
   async function handleSettle(paymentMethod) {
+    const val = parseFloat(amount)
+    if (!val || val <= 0) { setError('Enter a valid amount'); return }
+    if (val > Number(member.tab_balance)) { setError('Amount exceeds tab balance'); return }
     setSettling(true)
     setError(null)
     try {
-      await settleTab(member.id, member.tab_balance, paymentMethod)
+      await settleTab(member.id, val, paymentMethod)
       onSettled()
     } catch (err) {
       setError(err.message ?? 'Failed to settle tab. Please try again.')
@@ -83,6 +87,22 @@ export default function SettleTabModal({ member, onClose, onSettled }) {
               £{Number(member.tab_balance).toFixed(2)}
             </p>
             <p className="text-slate-400 text-xs mt-1">outstanding tab balance</p>
+          </div>
+
+          <div className="flex flex-col gap-1">
+            <label htmlFor="settle-amount" className="text-slate-400 text-xs text-center">
+              Amount to pay (£)
+            </label>
+            <input
+              id="settle-amount"
+              type="number"
+              min="0.01"
+              step="0.01"
+              max={Number(member.tab_balance)}
+              value={amount}
+              onChange={e => setAmount(e.target.value)}
+              className="bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-white text-center text-xl font-bold focus:outline-none focus:ring-2 focus:ring-blue-500 w-full"
+            />
           </div>
 
           {error && (
