@@ -29,7 +29,8 @@ export default function ZReportModal({ date, onClose, onDayClose }) {
   }, [date])
 
   const cashSales = data?.salesSummary?.cashTotal ?? 0
-  const expectedInTill = openingFloat + cashSales
+  const cashbackTotal = data?.cashbackTotal ?? 0
+  const expectedInTill = openingFloat + cashSales - cashbackTotal
   const variance = actualCash - expectedInTill
 
   async function handleExportCSV() {
@@ -54,6 +55,7 @@ export default function ZReportModal({ date, onClose, onDayClose }) {
       'Cash Reconciliation',
       `Opening Float,${openingFloat.toFixed(2)}`,
       `Cash Sales,${cashSales.toFixed(2)}`,
+      `Cashback Given,-${(data.cashbackTotal ?? 0).toFixed(2)}`,
       `Expected in Till,${expectedInTill.toFixed(2)}`,
       `Actual Cash,${actualCash.toFixed(2)}`,
       `Variance,${variance.toFixed(2)}`,
@@ -168,7 +170,6 @@ export default function ZReportModal({ date, onClose, onDayClose }) {
 
           {data && (
             <>
-              {/* Section 1: Sales Summary */}
               <section aria-labelledby="z-sales-heading">
                 <h3
                   id="z-sales-heading"
@@ -217,7 +218,6 @@ export default function ZReportModal({ date, onClose, onDayClose }) {
                 </div>
               </section>
 
-              {/* Section 2: Top Products */}
               <section aria-labelledby="z-products-heading">
                 <h3
                   id="z-products-heading"
@@ -255,45 +255,24 @@ export default function ZReportModal({ date, onClose, onDayClose }) {
                 </div>
               </section>
 
-              {/* Section 3: Wastage */}
-              {data.wastage?.length > 0 && (
-                <section aria-labelledby="z-wastage-heading">
-                  <h3
-                    id="z-wastage-heading"
-                    className="text-sm font-semibold text-slate-400 uppercase tracking-wide mb-3"
-                  >
-                    Wastage
-                  </h3>
-                  <div className="bg-slate-800/60 rounded-xl p-4 space-y-2">
-                    {data.wastage.map((w, i) => (
-                      <Row key={i} label={`${w.name} ×${w.quantity}`}>
-                        <span className="text-red-400 text-sm tabular-nums">{fmt(w.value)}</span>
-                      </Row>
-                    ))}
-                  </div>
-                </section>
-              )}
+              <ReportSection
+                id="z-wastage-heading"
+                title="Wastage"
+                items={data.wastage}
+                renderLabel={w => `${w.name} ×${w.quantity}`}
+                valueClass="text-red-400"
+              />
 
-              {/* Section 4: Staff Drinks */}
-              {data.staffDrinks?.length > 0 && (
-                <section aria-labelledby="z-staff-heading">
-                  <h3
-                    id="z-staff-heading"
-                    className="text-sm font-semibold text-slate-400 uppercase tracking-wide mb-3"
-                  >
-                    Staff Drinks
-                  </h3>
-                  <div className="bg-slate-800/60 rounded-xl p-4 space-y-2">
-                    {data.staffDrinks.map((s, i) => (
-                      <Row key={i} label={<><span>{s.name}</span><span className="text-slate-500 text-xs ml-1">({s.items} item{s.items !== 1 ? 's' : ''})</span></>}>
-                        <span className="text-orange-400 text-sm tabular-nums">{fmt(s.value)}</span>
-                      </Row>
-                    ))}
-                  </div>
-                </section>
-              )}
+              <ReportSection
+                id="z-staff-heading"
+                title="Staff Drinks"
+                items={data.staffDrinks}
+                renderLabel={s => (
+                  <><span>{s.name}</span><span className="text-slate-500 text-xs ml-1">({s.items} item{s.items !== 1 ? 's' : ''})</span></>
+                )}
+                valueClass="text-orange-400"
+              />
 
-              {/* Section 5: Cash Reconciliation */}
               <section aria-labelledby="z-cash-heading">
                 <h3
                   id="z-cash-heading"
@@ -329,6 +308,12 @@ export default function ZReportModal({ date, onClose, onDayClose }) {
                   <Row label="Cash Sales">
                     <span className="text-white text-sm tabular-nums">{fmt(cashSales)}</span>
                   </Row>
+
+                  {/* Cashback given */}
+                  <div className="flex justify-between text-sm">
+                    <span className="text-slate-400">Cashback Given</span>
+                    <span className="text-red-400">-{fmt(cashbackTotal)}</span>
+                  </div>
 
                   {/* Expected in till */}
                   <Row label="Expected in Till">
@@ -412,5 +397,23 @@ function Row({ label, children }) {
       <span className="text-slate-400 text-sm">{label}</span>
       {children}
     </div>
+  )
+}
+
+function ReportSection({ id, title, items, renderLabel, valueClass }) {
+  if (!items?.length) return null
+  return (
+    <section aria-labelledby={id}>
+      <h3 id={id} className="text-sm font-semibold text-slate-400 uppercase tracking-wide mb-3">
+        {title}
+      </h3>
+      <div className="bg-slate-800/60 rounded-xl p-4 space-y-2">
+        {items.map((item, i) => (
+          <Row key={i} label={renderLabel(item)}>
+            <span className={`${valueClass} text-sm tabular-nums`}>{fmt(item.value)}</span>
+          </Row>
+        ))}
+      </div>
+    </section>
   )
 }
