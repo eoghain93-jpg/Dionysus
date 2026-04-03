@@ -1131,7 +1131,376 @@ git commit -m "feat: add partial payment amount input to SettleTabModal"
 
 ---
 
-## Task 13: Run Full Test Suite
+## Task 13: Cash Change on Tab Settlement — SettleTabModal
+
+**Files:**
+- Modify: `src/components/members/SettleTabModal.jsx`
+
+When staff tap **Settle by Cash**, show `CashPaymentModal` with the settlement amount as the total. On confirm, call `settleTab`. The existing `CashPaymentModal` component is imported unchanged.
+
+**Step 1: Add import**
+
+In `SettleTabModal.jsx`, add at the top:
+
+```js
+import { useState } from 'react'  // already imported
+import CashPaymentModal from '../till/CashPaymentModal'
+```
+
+**Step 2: Add cash modal state**
+
+After the existing `settling` and `error` state, add:
+
+```js
+const [showCashModal, setShowCashModal] = useState(false)
+const [pendingPaymentMethod, setPendingPaymentMethod] = useState(null)
+```
+
+**Step 3: Update handleSettle to intercept cash**
+
+Replace the cash button's `onClick` so it opens the cash modal instead of settling immediately:
+
+```js
+async function handleSettle(paymentMethod) {
+  const val = parseFloat(amount)
+  if (!val || val <= 0) { setError('Enter a valid amount'); return }
+  if (val > Number(member.tab_balance)) { setError('Amount exceeds tab balance'); return }
+
+  if (paymentMethod === 'cash') {
+    setPendingPaymentMethod('cash')
+    setShowCashModal(true)
+    return
+  }
+
+  await doSettle(val, paymentMethod)
+}
+
+async function doSettle(val, paymentMethod) {
+  setSettling(true)
+  setError(null)
+  try {
+    await settleTab(member.id, val, paymentMethod)
+    onSettled()
+  } catch (err) {
+    setError(err.message ?? 'Failed to settle tab. Please try again.')
+    setSettling(false)
+  }
+}
+```
+
+**Step 4: Add CashPaymentModal to JSX**
+
+At the bottom of the modal's JSX (inside the outer wrapper, alongside the existing content):
+
+```jsx
+{showCashModal && (
+  <CashPaymentModal
+    total={parseFloat(amount)}
+    onConfirm={() => {
+      setShowCashModal(false)
+      doSettle(parseFloat(amount), 'cash')
+    }}
+    onCancel={() => {
+      setShowCashModal(false)
+      setPendingPaymentMethod(null)
+    }}
+  />
+)}
+```
+
+**Step 5: Verify manually**
+
+On Tabs page, settle a tab by cash. Confirm:
+- Tapping Settle by Cash opens the cash numpad
+- Quick amounts (£5, £10, £20, £50) are available
+- Change is shown in green
+- Tapping Done processes the payment and updates the tab
+
+**Step 6: Commit**
+
+```bash
+git add src/components/members/SettleTabModal.jsx
+git commit -m "feat: show cash change calculator when settling tab by cash"
+```
+
+---
+
+## Task 14: User Switching — SwitchUserModal
+
+**Files:**
+- Create: `src/components/till/SwitchUserModal.jsx`
+
+This modal shows all staff as large tappable buttons. Selecting one reveals the PIN numpad inline. Reuses the `verify-pin` edge function and PIN numpad pattern from `PinLoginScreen`.
+
+**Step 1: Write the implementation**
+
+```jsx
+import { useState, useEffect } from 'react'
+import { X, Delete } from 'lucide-react'
+import { supabase } from '../../lib/supabase'
+import { useSessionStore } from '../../stores/sessionStore'
+
+const PIN_KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'back', '0', 'clear']
+
+function initials(name) {
+  return name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()
+}
+
+export default function SwitchUserModal({ onClose }) {
+  const { setActiveStaff } = useSessionStore()
+  const [staffList, setStaffList] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [selected, setSelected] = useState(null) // { id, name }
+  const [digits, setDigits] = useState('')
+  const [verifying, setVerifying] = useState(false)
+  const [error, setError] = useState(null)
+
+  useEffect(() => {
+    supabase
+      .from('members')
+      .select('id, name')
+      .eq('membership_tier', 'staff')
+      .order('name')
+      .then(({ data }) => { setStaffList(data ?? []); setLoading(false) })
+  }, [])
+
+  useEffect(() => {
+    if (digits.length === 4 && selected) handleVerify()
+  }, [digits, selected])
+
+  function handleKey(key) {
+    if (verifying) return
+    setError(null)
+    if (key === 'back') setDigits(d => d.slice(0, -1))
+    else if (key === 'clear') setDigits('')
+    else setDigits(d => d.length < 4 ? d + key : d)
+  }
+
+  function selectStaff(member) {
+    setSelected(member)
+    setDigits('')
+    setError(null)
+  }
+
+  async function handleVerify() {
+    setVerifying(true)
+    setError(null)
+    try {
+      const { data } = await supabase.functions.invoke('verify-pin', {
+        body: { member_id: selected.id, pin: digits },
+      })
+      if (data?.valid) {
+        setActiveStaff(data.member)
+        onClose()
+      } else {
+        setError('Incorrect PIN')
+        setDigits('')
+      }
+    } catch {
+      setError('Something went wrong')
+      setDigits('')
+    } finally {
+      setVerifying(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+      <div className="w-full max-w-sm bg-[#0F172A] border border-slate-700 rounded-2xl shadow-xl flex flex-col">
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-slate-700">
+          <h2 className="text-lg font-bold text-white" style={{ fontFamily: "'Playfair Display SC', serif" }}>
+            Switch User
+          </h2>
+          <button
+            onClick={onClose}
+            aria-label="Close"
+            className="text-slate-400 hover:text-white cursor-pointer min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <X size={20} aria-hidden="true" />
+          </button>
+        </div>
+
+        <div className="px-5 py-5 flex flex-col gap-4">
+          {loading ? (
+            <p className="text-slate-400 text-sm text-center">Loading staff…</p>
+          ) : !selected ? (
+            /* Staff selection */
+            <div className="flex flex-col gap-2">
+              {staffList.map(member => (
+                <button
+                  key={member.id}
+                  onClick={() => selectStaff(member)}
+                  className="flex items-center gap-3 px-4 min-h-[56px] rounded-xl bg-slate-800 hover:bg-slate-700 text-left cursor-pointer transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <span className="w-9 h-9 rounded-full bg-blue-600 flex items-center justify-center text-white text-sm font-bold shrink-0">
+                    {initials(member.name)}
+                  </span>
+                  <span className="text-white font-medium">{member.name}</span>
+                </button>
+              ))}
+            </div>
+          ) : (
+            /* PIN entry */
+            <>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => { setSelected(null); setDigits(''); setError(null) }}
+                  className="text-slate-400 hover:text-white text-sm cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 rounded px-1"
+                >
+                  ← Back
+                </button>
+                <span className="text-white font-medium">{selected.name}</span>
+              </div>
+
+              <div aria-label="PIN display" className="flex justify-center gap-4">
+                {[0, 1, 2, 3].map(i => (
+                  <span
+                    key={i}
+                    className={`w-4 h-4 rounded-full transition-colors duration-150 ${i < digits.length ? 'bg-white' : 'bg-slate-600'}`}
+                    aria-hidden="true"
+                  />
+                ))}
+              </div>
+
+              {error && (
+                <p role="alert" className="text-red-400 text-sm text-center bg-red-400/10 px-3 py-2 rounded-lg">
+                  {error}
+                </p>
+              )}
+
+              <div className="grid grid-cols-3 gap-2">
+                {PIN_KEYS.map(key => (
+                  <button
+                    key={key}
+                    onClick={() => handleKey(key)}
+                    disabled={verifying}
+                    aria-label={key === 'back' ? 'Backspace' : key === 'clear' ? 'Clear PIN' : key}
+                    className="bg-slate-800 hover:bg-slate-700 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold py-4 rounded-2xl text-xl transition-all cursor-pointer flex items-center justify-center border border-slate-700"
+                  >
+                    {key === 'back' && <Delete size={20} aria-hidden="true" />}
+                    {key === 'clear' && <X size={20} aria-hidden="true" />}
+                    {key !== 'back' && key !== 'clear' && key}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+```
+
+**Step 2: Commit**
+
+```bash
+git add src/components/till/SwitchUserModal.jsx
+git commit -m "feat: add SwitchUserModal with staff list and PIN numpad"
+```
+
+---
+
+## Task 15: User Switching — NavBar User Pill (Desktop) + Mobile Badge
+
+**Files:**
+- Modify: `src/components/NavBar.jsx`
+
+**Step 1: Add import and modal**
+
+Add at the top of `NavBar.jsx`:
+
+```js
+import { useState } from 'react'
+import { ArrowLeftRight } from 'lucide-react'
+import { useSessionStore } from '../stores/sessionStore'
+import SwitchUserModal from './till/SwitchUserModal'
+```
+
+Add inside the `NavBar` component function:
+
+```js
+const { activeStaff } = useSessionStore()
+const [showSwitch, setShowSwitch] = useState(false)
+
+function initials(name) {
+  return name?.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase() ?? '?'
+}
+```
+
+**Step 2: Add user pill to desktop sidebar**
+
+Inside the desktop `<nav>` (after the links map, before closing `</nav>`):
+
+```jsx
+{activeStaff && (
+  <div className="mt-auto pt-3 border-t border-slate-800">
+    <button
+      onClick={() => setShowSwitch(true)}
+      className="w-full flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium
+        text-slate-400 hover:bg-slate-800 hover:text-white transition-colors duration-200 cursor-pointer
+        focus:outline-none focus:ring-2 focus:ring-blue-500"
+      aria-label="Switch user"
+    >
+      <span className="w-7 h-7 rounded-full bg-blue-600 flex items-center justify-center text-white text-xs font-bold shrink-0">
+        {initials(activeStaff.name)}
+      </span>
+      <span className="hidden lg:block truncate flex-1 text-left">{activeStaff.name}</span>
+      <ArrowLeftRight size={14} className="hidden lg:block shrink-0" aria-hidden="true" />
+    </button>
+  </div>
+)}
+```
+
+**Step 3: Add mobile badge**
+
+Inside the mobile bottom nav `<nav>`, add a fixed badge above it. Place this just before the closing `</>` of the fragment:
+
+```jsx
+{activeStaff && (
+  <button
+    onClick={() => setShowSwitch(true)}
+    aria-label={`Logged in as ${activeStaff.name}. Tap to switch user.`}
+    className="md:hidden fixed top-8 right-3 z-40 w-11 h-11 rounded-full bg-blue-600 hover:bg-blue-500
+      flex items-center justify-center text-white text-sm font-bold shadow-lg cursor-pointer
+      focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617]"
+  >
+    {initials(activeStaff.name)}
+  </button>
+)}
+```
+
+**Step 4: Add modal**
+
+Just before the closing `</>` of the fragment:
+
+```jsx
+{showSwitch && <SwitchUserModal onClose={() => setShowSwitch(false)} />}
+```
+
+**Step 5: Verify manually**
+
+On desktop (1920×1080):
+- Bottom of sidebar shows staff initials + name + swap icon
+- Clicking opens SwitchUserModal
+- Selecting a staff member and entering correct PIN switches the active user
+- Sidebar updates to show the new user's name
+
+On mobile:
+- Blue initials badge visible top-right
+- Tap opens SwitchUserModal
+
+**Step 6: Commit**
+
+```bash
+git add src/components/NavBar.jsx
+git commit -m "feat: add user switching pill to sidebar and mobile badge"
+```
+
+---
+
+## Task 16: Run Full Test Suite
 
 **Step 1: Run all tests**
 
@@ -1151,3 +1520,4 @@ If any tests fail, fix them before the next step.
 git add -p
 git commit -m "fix: resolve any test failures from feature integration"
 ```
+

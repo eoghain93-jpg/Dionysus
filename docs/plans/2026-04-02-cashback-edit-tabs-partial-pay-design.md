@@ -110,3 +110,35 @@ New functions in `src/lib/tabs.js` (or `members.js`):
 - Currently always sets `tab_balance: 0`
 - Change to: `tab_balance: currentBalance - amount`
 - Re-fetch current balance before update (pattern already used in `addToTabBalance`)
+
+### Cash payment flow
+
+When staff tap **Settle by Cash**, show `CashPaymentModal` (already used on the till) with the settlement amount as the total. Staff enter cash tendered, see change due, tap Done → `settleTab` is called. The existing `CashPaymentModal` component is reused unchanged.
+
+---
+
+## 5. User Switching
+
+Staff need to switch who is logged in without a full lock screen.
+
+### Trigger UI
+
+- **Desktop sidebar**: A user pill pinned to the bottom of the sidebar. Shows a circle with the staff member's initials + their name + a subtle swap icon.
+- **Mobile**: A circular initials badge (44px) fixed top-right of the screen, below the StatusBar.
+
+### SwitchUserModal
+
+A compact modal (not full-screen) that:
+1. Shows all staff as large tappable name buttons
+2. Tapping a name reveals the PIN numpad inline (same numpad pattern as `PinLoginScreen`)
+3. Successful PIN → `setActiveStaff(member)` → modal closes
+
+Reuses the existing `verify-pin` edge function and staff fetch from `members` where `membership_tier = 'staff'`.
+
+---
+
+## 6. Scrollbar Fix (already shipped)
+
+**Root cause:** `min-h-screen` on the outer layout div and the sidebar nav allowed total height to exceed the viewport on 1080p fullscreen (StatusBar height pushed content over 100vh).
+
+**Fix applied:** `Layout.jsx` changed to `h-screen overflow-hidden`; `min-h-screen` removed from sidebar nav. Committed in `a61ae52`.
