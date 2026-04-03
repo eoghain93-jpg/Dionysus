@@ -74,10 +74,31 @@ export async function upsertMember(member) {
   }
 }
 
+export async function addToTabBalance(member_id, amount) {
+  const { data: member } = await supabase
+    .from('members')
+    .select('tab_balance')
+    .eq('id', member_id)
+    .single()
+  await supabase
+    .from('members')
+    .update({ tab_balance: (member?.tab_balance || 0) + amount })
+    .eq('id', member_id)
+}
+
 export async function settleTab(member_id, amount, payment_method) {
+  // Re-fetch current balance to avoid stale-read overwrite
+  const { data: member, error: fetchError } = await supabase
+    .from('members')
+    .select('tab_balance')
+    .eq('id', member_id)
+    .single()
+  if (fetchError) throw fetchError
+
+  const newBalance = Math.max(0, Number(member.tab_balance) - amount)
   const { error } = await supabase
     .from('members')
-    .update({ tab_balance: 0 })
+    .update({ tab_balance: newBalance })
     .eq('id', member_id)
   if (error) throw error
 
