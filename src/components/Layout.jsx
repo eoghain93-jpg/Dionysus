@@ -13,7 +13,7 @@ export default function Layout({ children }) {
   }, [setOnline])
 
   return (
-    <div className="flex min-h-screen bg-[#020617] flex-col">
+    <div className="flex h-screen overflow-hidden bg-[#020617] flex-col">
       <StatusBar />
       <div className="flex flex-1 overflow-hidden">
         <NavBar />
