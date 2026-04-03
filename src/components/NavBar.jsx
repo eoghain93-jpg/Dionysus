@@ -1,5 +1,8 @@
+import { useState } from 'react'
 import { NavLink } from 'react-router-dom'
-import { ShoppingCart, Package, Users, BarChart2, Tag, Receipt } from 'lucide-react'
+import { ShoppingCart, Package, Users, BarChart2, Tag, Receipt, ArrowLeftRight } from 'lucide-react'
+import { useSessionStore } from '../stores/sessionStore'
+import SwitchUserModal from './till/SwitchUserModal'
 
 const links = [
   { to: '/', label: 'Till', Icon: ShoppingCart },
@@ -11,6 +14,13 @@ const links = [
 ]
 
 export default function NavBar() {
+  const { activeStaff } = useSessionStore()
+  const [showSwitch, setShowSwitch] = useState(false)
+
+  function initials(name) {
+    return name?.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase() ?? '?'
+  }
+
   return (
     <>
       {/* Sidebar — tablet/desktop */}
@@ -37,6 +47,23 @@ export default function NavBar() {
             <span className="hidden lg:block">{label}</span>
           </NavLink>
         ))}
+        {activeStaff && (
+          <div className="mt-auto pt-3 border-t border-slate-800">
+            <button
+              onClick={() => setShowSwitch(true)}
+              className="w-full flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium
+                text-slate-400 hover:bg-slate-800 hover:text-white transition-colors duration-200 cursor-pointer
+                focus:outline-none focus:ring-2 focus:ring-blue-500"
+              aria-label="Switch user"
+            >
+              <span className="w-7 h-7 rounded-full bg-blue-600 flex items-center justify-center text-white text-xs font-bold shrink-0">
+                {initials(activeStaff.name)}
+              </span>
+              <span className="hidden lg:block truncate flex-1 text-left">{activeStaff.name}</span>
+              <ArrowLeftRight size={14} className="hidden lg:block shrink-0" aria-hidden="true" />
+            </button>
+          </div>
+        )}
       </nav>
 
       {/* Bottom tab bar — mobile */}
@@ -58,6 +85,20 @@ export default function NavBar() {
           </NavLink>
         ))}
       </nav>
+
+      {activeStaff && (
+        <button
+          onClick={() => setShowSwitch(true)}
+          aria-label={`Logged in as ${activeStaff.name}. Tap to switch user.`}
+          className="md:hidden fixed top-8 right-3 z-40 w-11 h-11 rounded-full bg-blue-600 hover:bg-blue-500
+            flex items-center justify-center text-white text-sm font-bold shadow-lg cursor-pointer
+            focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617]"
+        >
+          {initials(activeStaff.name)}
+        </button>
+      )}
+
+      {showSwitch && <SwitchUserModal onClose={() => setShowSwitch(false)} />}
     </>
   )
 }
