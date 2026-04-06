@@ -2,13 +2,41 @@
 @import "tailwindcss";
 
 :root {
+  /* Base surfaces */
   --color-bg: #020617;
   --color-surface: #0F172A;
   --color-surface-2: #1E293B;
-  --color-cta: #22C55E;
+  --color-surface-3: #334155;
+
+  /* Text */
   --color-text: #F8FAFC;
   --color-muted: #94A3B8;
+
+  /* Brand */
+  --color-cta: #22C55E;
   --color-accent: #3B82F6;
+
+  /* Semantic payment buttons */
+  --color-btn-cash: #15803D;
+  --color-btn-cash-hover: #16A34A;
+  --color-btn-card: #1D4ED8;
+  --color-btn-card-hover: #2563EB;
+  --color-btn-tab: #7E22CE;
+  --color-btn-tab-hover: #9333EA;
+
+  /* Semantic status */
+  --color-success: #4ADE80;
+  --color-warning: #FBBF24;
+  --color-danger: #F87171;
+  --color-danger-bg: rgba(127, 29, 29, 0.6);
+  --color-danger-border: rgba(185, 28, 28, 0.6);
+
+  /* Nav */
+  --color-nav-bg: #0F172A;
+  --color-nav-border: #1E293B;
+  --color-nav-active-bg: #1D4ED8;
+  --color-nav-active-text: #FFFFFF;
+  --color-nav-idle-text: #64748B;
 }
 
 body {
@@ -22,6 +50,11 @@ body {
 h1, h2, h3 {
   font-family: 'Playfair Display SC', serif;
   line-height: 1.3;
+}
+
+/* Display font utility — for brand name, labels not using h1-h3 */
+.font-display {
+  font-family: 'Playfair Display SC', serif;
 }
 
 /* Accessible focus rings */

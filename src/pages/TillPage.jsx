@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
+import { ShoppingCart } from 'lucide-react'
 import { fetchProducts } from '../lib/products'
 import { fetchActivePromotions } from '../lib/promotions'
 import { supabase } from '../lib/supabase'
@@ -25,7 +26,8 @@ export default function TillPage() {
   const [showWastage, setShowWastage] = useState(false)
   const [showStaffDrink, setShowStaffDrink] = useState(false)
   const [showCashback, setShowCashback] = useState(false)
-  const { orderItems, activeMember, clearOrder, loadPromos } = useTillStore()
+  const [showMobileOrder, setShowMobileOrder] = useState(false)
+  const { orderItems, activeMember, clearOrder, loadPromos, getTotal } = useTillStore()
   const { isOnline } = useSyncStore()
   const { activeStaff } = useSessionStore()
 
@@ -33,6 +35,11 @@ export default function TillPage() {
     fetchProducts().then(setProducts).catch(console.error).finally(() => setLoading(false))
     loadPromos(fetchActivePromotions)
   }, [])
+
+  // Auto-close mobile order sheet after checkout clears the cart
+  useEffect(() => {
+    if (orderItems.length === 0) setShowMobileOrder(false)
+  }, [orderItems.length])
 
   const handleCheckout = useCallback(async (paymentMethod) => {
     const total = useTillStore.getState().getTotal()
@@ -90,11 +97,20 @@ export default function TillPage() {
         <div className="p-4 space-y-3 overflow-auto flex-1">
           <MemberLookup />
           <CategoryFilter active={category} onChange={setCategory} />
-          {loading
-            ? <div className="text-slate-400 text-sm">Loading products...</div>
-            : filtered.length === 0
-              ? <div className="text-slate-400 text-sm">No products in this category</div>
-              : <ProductGrid products={filtered} />}
+          {loading ? (
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2">
+              {Array.from({ length: 10 }).map((_, i) => (
+                <div
+                  key={i}
+                  className="bg-slate-800 rounded-xl min-h-[80px] animate-pulse motion-reduce:animate-none"
+                />
+              ))}
+            </div>
+          ) : filtered.length === 0 ? (
+            <div className="text-slate-400 text-sm">No products in this category</div>
+          ) : (
+            <ProductGrid products={filtered} />
+          )}
           <div className="flex gap-2 pt-2">
             <button
               onClick={() => setShowWastage(true)}
@@ -120,6 +136,36 @@ export default function TillPage() {
       <div className="hidden md:flex">
         <OrderPanel onCheckout={handleCheckout} />
       </div>
+
+      {/* Mobile: floating order button */}
+      {orderItems.length > 0 && (
+        <button
+          onClick={() => setShowMobileOrder(true)}
+          aria-label={`View order — ${orderItems.length} item${orderItems.length > 1 ? 's' : ''}, £${getTotal().toFixed(2)}`}
+          className="md:hidden fixed bottom-20 right-4 z-30 flex items-center gap-2
+            bg-blue-600 hover:bg-blue-500 active:scale-95 text-white font-semibold
+            px-4 py-3 rounded-2xl shadow-xl transition-all duration-150 cursor-pointer
+            focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-2 focus:ring-offset-[#020617]"
+        >
+          <ShoppingCart size={18} aria-hidden="true" />
+          <span>{orderItems.length}</span>
+          <span className="text-blue-200 font-normal">·</span>
+          <span>£{getTotal().toFixed(2)}</span>
+        </button>
+      )}
+
+      {/* Mobile: order bottom sheet */}
+      {showMobileOrder && (
+        <div className="md:hidden fixed inset-0 z-50" role="dialog" aria-modal="true" aria-label="Order">
+          <div
+            className="absolute inset-0 bg-black/70"
+            onClick={() => setShowMobileOrder(false)}
+          />
+          <div className="absolute inset-x-0 bottom-0 max-h-[85dvh] overflow-auto rounded-t-2xl">
+            <OrderPanel onCheckout={handleCheckout} onClose={() => setShowMobileOrder(false)} />
+          </div>
+        </div>
+      )}
       {showWastage && (
         <WastageModal
           products={products}

@@ -81,7 +81,6 @@ export default function StockMovementModal({ product, type, onClose, onSaved }) 
           <h2
             id={titleId}
             className="text-lg font-bold text-white"
-            style={{ fontFamily: "'Playfair Display SC', serif" }}
           >
             {typeLabel}
           </h2>

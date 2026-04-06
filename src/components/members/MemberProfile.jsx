@@ -94,7 +94,6 @@ export default function MemberProfile({ member, onClose, onEdit, onSettleTab }) 
           <h2
             id={titleId}
             className="text-lg font-bold text-white"
-            style={{ fontFamily: "'Playfair Display SC', serif" }}
           >
             {member.name}
           </h2>
@@ -190,7 +189,6 @@ export default function MemberProfile({ member, onClose, onEdit, onSettleTab }) 
           <div>
             <h3
               className="text-sm font-semibold text-slate-300 mb-2"
-              style={{ fontFamily: "'Playfair Display SC', serif" }}
             >
               Recent Purchases
             </h3>

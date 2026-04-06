@@ -34,7 +34,7 @@ export default function ProductGrid({ products, now = new Date() }) {
             )}
             {hasPromo && (
               <span
-                className="absolute top-2 left-2 bg-amber-500 text-slate-900 text-[9px] font-bold
+                className="absolute top-2 left-2 bg-amber-500 text-slate-900 text-[10px] font-bold
                   uppercase tracking-wide px-1.5 py-0.5 rounded-full leading-none"
                 aria-label="Promotion active"
               >

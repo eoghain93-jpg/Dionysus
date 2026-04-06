@@ -53,7 +53,6 @@ export default function AdjustTabModal({ member, onClose, onAdjusted }) {
           <h2
             id={titleId}
             className="text-lg font-bold text-white"
-            style={{ fontFamily: "'Playfair Display SC', serif" }}
           >
             Adjust Tab — {member.name}
           </h2>

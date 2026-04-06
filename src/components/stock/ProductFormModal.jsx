@@ -97,7 +97,6 @@ export default function ProductFormModal({ product, onClose, onSaved }) {
           <h2
             id={titleId}
             className="text-lg font-bold text-white"
-            style={{ fontFamily: "'Playfair Display SC', serif" }}
           >
             {isEditing ? 'Edit Product' : 'Add Product'}
           </h2>

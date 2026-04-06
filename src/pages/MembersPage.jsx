@@ -84,7 +84,6 @@ export default function MembersPage() {
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <h1
           className="text-2xl font-bold text-white"
-          style={{ fontFamily: "'Playfair Display SC', serif" }}
         >
           Members
         </h1>

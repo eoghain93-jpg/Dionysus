@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Printer } from 'lucide-react'
+import { Printer, Check } from 'lucide-react'
 import { getPrinterIp, printReceipt, openDrawer } from '../lib/starPrinter'
 
 export default function SettingsPage() {
@@ -76,7 +76,9 @@ export default function SettingsPage() {
             </button>
           </div>
           {saveStatus === 'saved' && (
-            <p className="text-emerald-400 text-xs">Saved ✓</p>
+            <p role="alert" className="text-emerald-400 text-xs flex items-center gap-1">
+              <Check size={12} aria-hidden="true" /> Saved
+            </p>
           )}
         </div>
 
@@ -90,13 +92,15 @@ export default function SettingsPage() {
               Test Connection
             </button>
             {testStatus === 'success' && (
-              <p className="text-emerald-400 text-xs">Test print sent</p>
+              <p role="alert" className="text-emerald-400 text-xs flex items-center gap-1">
+                <Check size={12} aria-hidden="true" /> Test print sent
+              </p>
             )}
             {testStatus === 'error' && (
-              <p className="text-red-400 text-xs">Connection failed — check IP and printer power</p>
+              <p role="alert" className="text-red-400 text-xs">Connection failed — check IP and printer power</p>
             )}
             {testStatus === 'simulation' && (
-              <p className="text-slate-400 text-xs">Simulation mode — no IP configured</p>
+              <p role="alert" className="text-slate-400 text-xs">Simulation mode — no IP configured</p>
             )}
           </div>
 
@@ -109,10 +113,12 @@ export default function SettingsPage() {
               Open Drawer
             </button>
             {drawerStatus === 'success' && (
-              <p className="text-emerald-400 text-xs">Drawer opened</p>
+              <p role="alert" className="text-emerald-400 text-xs flex items-center gap-1">
+                <Check size={12} aria-hidden="true" /> Drawer opened
+              </p>
             )}
             {drawerStatus === 'error' && (
-              <p className="text-red-400 text-xs">Failed to open drawer</p>
+              <p role="alert" className="text-red-400 text-xs">Failed to open drawer</p>
             )}
           </div>
         </div>

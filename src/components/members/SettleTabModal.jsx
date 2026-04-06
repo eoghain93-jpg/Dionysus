@@ -79,7 +79,6 @@ export default function SettleTabModal({ member, onClose, onSettled }) {
           <h2
             id={titleId}
             className="text-lg font-bold text-white"
-            style={{ fontFamily: "'Playfair Display SC', serif" }}
           >
             Settle Tab
           </h2>

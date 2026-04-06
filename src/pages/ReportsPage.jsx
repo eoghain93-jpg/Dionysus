@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { supabase } from '../lib/supabase'
+import { useToastStore } from '../hooks/useToast'
 import { Download, BarChart2, TrendingUp, Clock, FileText } from '../lib/icons'
 import DailySummary from '../components/reports/DailySummary'
 import BusiestHours from '../components/reports/BusiestHours'
@@ -28,7 +29,7 @@ export default function ReportsPage() {
         .order('created_at')
 
       if (!orders || orders.length === 0) {
-        alert('No orders found for the selected date.')
+        useToastStore.getState().addToast('No orders found for the selected date.', 'info')
         return
       }
 
@@ -60,10 +61,7 @@ export default function ReportsPage() {
     <div className="flex flex-col h-full min-h-0 p-4 gap-6 overflow-auto">
       {/* Page header */}
       <div className="flex items-center justify-between gap-4 flex-wrap">
-        <h1
-          className="text-2xl font-bold text-white"
-          style={{ fontFamily: "'Playfair Display SC', serif" }}
-        >
+        <h1 className="text-2xl font-bold text-white">
           Reports
         </h1>
         <div className="flex items-center gap-3 flex-wrap">
@@ -103,7 +101,6 @@ export default function ReportsPage() {
           <h2
             id="daily-summary-heading"
             className="text-base font-semibold text-white"
-            style={{ fontFamily: "'Playfair Display SC', serif" }}
           >
             Daily Summary
           </h2>
@@ -119,7 +116,6 @@ export default function ReportsPage() {
           <h2
             id="busiest-hours-heading"
             className="text-base font-semibold text-white"
-            style={{ fontFamily: "'Playfair Display SC', serif" }}
           >
             Busiest Hours
           </h2>
@@ -137,7 +133,6 @@ export default function ReportsPage() {
           <h2
             id="top-products-heading"
             className="text-base font-semibold text-white"
-            style={{ fontFamily: "'Playfair Display SC', serif" }}
           >
             Top 10 Products
           </h2>

@@ -108,7 +108,6 @@ export default function MemberFormModal({ member, onClose, onSaved }) {
           <h2
             id={titleId}
             className="text-lg font-bold text-white"
-            style={{ fontFamily: "'Playfair Display SC', serif" }}
           >
             {isEditing ? 'Edit Member' : 'Add Member'}
           </h2>

@@ -143,7 +143,6 @@ export default function ZReportModal({ date, onClose, onDayClose }) {
           <div>
             <h2
               className="text-xl font-bold text-white"
-              style={{ fontFamily: "'Playfair Display SC', serif" }}
             >
               Z Report
             </h2>

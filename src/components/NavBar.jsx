@@ -1,22 +1,30 @@
 import { useState } from 'react'
-import { NavLink } from 'react-router-dom'
-import { ShoppingCart, Package, Users, BarChart2, Tag, Receipt, ArrowLeftRight, Settings } from 'lucide-react'
+import { NavLink, useLocation } from 'react-router-dom'
+import { ShoppingCart, Package, Users, BarChart2, Tag, Receipt, ArrowLeftRight, Settings, MoreHorizontal, X } from 'lucide-react'
 import { useSessionStore } from '../stores/sessionStore'
 import SwitchUserModal from './till/SwitchUserModal'
 
-const links = [
+const allLinks = [
   { to: '/', label: 'Till', Icon: ShoppingCart },
   { to: '/stock', label: 'Stock', Icon: Package },
   { to: '/members', label: 'Members', Icon: Users },
   { to: '/tabs', label: 'Tabs', Icon: Receipt },
-  { to: '/promos', label: 'Promos', Icon: Tag },
   { to: '/reports', label: 'Reports', Icon: BarChart2 },
+  { to: '/promos', label: 'Promos', Icon: Tag },
   { to: '/settings', label: 'Settings', Icon: Settings },
 ]
+
+// Primary nav: max 5 items for bottom bar
+const primaryLinks = allLinks.slice(0, 5)
+const moreLinks = allLinks.slice(5)
 
 export default function NavBar() {
   const { activeStaff } = useSessionStore()
   const [showSwitch, setShowSwitch] = useState(false)
+  const [showMore, setShowMore] = useState(false)
+  const location = useLocation()
+
+  const moreIsActive = moreLinks.some(l => location.pathname === l.to)
 
   function initials(name) {
     return name?.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase() ?? '?'
@@ -24,14 +32,14 @@ export default function NavBar() {
 
   return (
     <>
-      {/* Sidebar — tablet/desktop */}
+      {/* Sidebar — tablet/desktop (shows all links) */}
       <nav className="hidden md:flex flex-col w-20 lg:w-52 bg-slate-900 border-r border-slate-800 p-3 gap-1 shrink-0">
         <div className="px-3 py-5 hidden lg:block">
-          <span className="text-white font-bold text-lg" style={{ fontFamily: "'Playfair Display SC', serif" }}>
+          <span className="font-display text-white font-bold text-lg">
             Dionysus
           </span>
         </div>
-        {links.map(({ to, label, Icon }) => (
+        {allLinks.map(({ to, label, Icon }) => (
           <NavLink
             key={to}
             to={to}
@@ -67,9 +75,9 @@ export default function NavBar() {
         )}
       </nav>
 
-      {/* Bottom tab bar — mobile */}
+      {/* Bottom tab bar — mobile (5 primary + More) */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-slate-900 border-t border-slate-800 flex z-50">
-        {links.map(({ to, label, Icon }) => (
+        {primaryLinks.map(({ to, label, Icon }) => (
           <NavLink
             key={to}
             to={to}
@@ -79,13 +87,51 @@ export default function NavBar() {
                transition-colors duration-200 cursor-pointer min-h-[56px]
                ${isActive ? 'text-blue-400' : 'text-slate-500'}`
             }
-            aria-label={label}
           >
             <Icon size={22} aria-hidden="true" />
             <span>{label}</span>
           </NavLink>
         ))}
+        {/* More button */}
+        <button
+          onClick={() => setShowMore(v => !v)}
+          aria-label="More navigation options"
+          aria-expanded={showMore}
+          className={`flex-1 flex flex-col items-center justify-center gap-1 py-3 text-xs font-medium
+            transition-colors duration-200 cursor-pointer min-h-[56px]
+            ${moreIsActive || showMore ? 'text-blue-400' : 'text-slate-500'}`}
+        >
+          {showMore ? <X size={22} aria-hidden="true" /> : <MoreHorizontal size={22} aria-hidden="true" />}
+          <span>More</span>
+        </button>
       </nav>
+
+      {/* More menu overlay — mobile */}
+      {showMore && (
+        <>
+          <div
+            className="md:hidden fixed inset-0 z-40"
+            onClick={() => setShowMore(false)}
+          />
+          <div className="md:hidden fixed bottom-16 right-2 z-50 bg-slate-800 border border-slate-700
+            rounded-2xl shadow-xl overflow-hidden min-w-[160px]">
+            {moreLinks.map(({ to, label, Icon }) => (
+              <NavLink
+                key={to}
+                to={to}
+                onClick={() => setShowMore(false)}
+                className={({ isActive }) =>
+                  `flex items-center gap-3 px-4 py-4 text-sm font-medium transition-colors duration-150
+                   ${isActive ? 'text-blue-400 bg-slate-700' : 'text-slate-300 hover:bg-slate-700 hover:text-white'}`
+                }
+              >
+                <Icon size={18} aria-hidden="true" />
+                {label}
+              </NavLink>
+            ))}
+          </div>
+        </>
+      )}
 
       {activeStaff && (
         <button

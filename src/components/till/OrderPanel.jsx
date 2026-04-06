@@ -1,9 +1,9 @@
 import { useState } from 'react'
-import { Banknote, CreditCard, Receipt, LogOut, Plus, Minus, X, Trash2 } from 'lucide-react'
+import { Banknote, CreditCard, Receipt, LogOut, Plus, Minus, X, Trash2, ChevronDown } from 'lucide-react'
 import { useTillStore } from '../../stores/tillStore'
 import CashPaymentModal from './CashPaymentModal'
 
-export default function OrderPanel({ onCheckout }) {
+export default function OrderPanel({ onCheckout, onClose }) {
   const { orderItems, activeMember, clearMember, updateQuantity, removeItem, getTotal, clearOrder } = useTillStore()
   const [paying, setPaying] = useState(false)
   const [showCashModal, setShowCashModal] = useState(false)
@@ -17,6 +17,19 @@ export default function OrderPanel({ onCheckout }) {
 
   return (
     <div className="flex flex-col bg-slate-900 border-l border-slate-800 w-72 xl:w-80 shrink-0">
+      {onClose && (
+        <div className="flex items-center justify-between px-4 py-3 border-b border-slate-800">
+          <span className="text-white font-semibold text-sm">Order</span>
+          <button
+            onClick={onClose}
+            aria-label="Close order panel"
+            className="w-11 h-11 flex items-center justify-center text-slate-400 hover:text-white
+              transition-colors duration-200 cursor-pointer rounded-xl hover:bg-slate-800"
+          >
+            <ChevronDown size={20} aria-hidden="true" />
+          </button>
+        </div>
+      )}
       {activeMember && (
         <div className="bg-blue-950 border-b border-blue-900 px-4 py-3 flex items-center justify-between">
           <div>
@@ -67,8 +80,8 @@ export default function OrderPanel({ onCheckout }) {
               <button
                 onClick={() => removeItem(item.product_id)}
                 aria-label={`Remove ${item.name}`}
-                className="w-8 h-8 flex items-center justify-center text-slate-500
-                  hover:text-red-400 transition-colors duration-200 cursor-pointer"
+                className="w-11 h-11 flex items-center justify-center text-slate-500
+                  hover:text-red-400 transition-colors duration-200 cursor-pointer rounded-lg"
               >
                 <X size={14} aria-hidden="true" />
               </button>

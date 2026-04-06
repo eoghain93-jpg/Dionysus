@@ -159,7 +159,6 @@ export default function PromoFormModal({ promo, products = [], onClose, onSaved 
           <h2
             id={titleId}
             className="text-lg font-bold text-white"
-            style={{ fontFamily: "'Playfair Display SC', serif" }}
           >
             {isEditing ? 'Edit Promotion' : 'Add Promotion'}
           </h2>
