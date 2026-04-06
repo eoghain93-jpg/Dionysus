@@ -2,9 +2,12 @@ import { useState } from 'react'
 import { X } from '../../lib/icons'
 import { recordCashback } from '../../lib/cashback'
 import { useSessionStore } from '../../stores/sessionStore'
+import { openDrawer } from '../../lib/starPrinter'
+import { useToastStore } from '../../hooks/useToast'
 
 export default function CashbackModal({ onClose, onSaved }) {
   const { activeStaff } = useSessionStore()
+  const addToast = useToastStore(s => s.addToast)
   const [amount, setAmount] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState(null)
@@ -17,6 +20,11 @@ export default function CashbackModal({ onClose, onSaved }) {
     setError(null)
     try {
       await recordCashback(val, activeStaff?.id)
+      try {
+        await openDrawer()
+      } catch {
+        addToast('Drawer failed — use manual open in Settings', 'error')
+      }
       onSaved()
     } catch (err) {
       setError(err.message ?? 'Failed to record cashback')
