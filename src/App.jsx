@@ -6,6 +6,7 @@ import MembersPage from './pages/MembersPage'
 import ReportsPage from './pages/ReportsPage'
 import PromosPage from './pages/PromosPage'
 import TabsPage from './pages/TabsPage'
+import SettingsPage from './pages/SettingsPage'
 
 export default function App() {
   return (
@@ -17,6 +18,7 @@ export default function App() {
         <Route path="/tabs" element={<TabsPage />} />
         <Route path="/promos" element={<PromosPage />} />
         <Route path="/reports" element={<ReportsPage />} />
+        <Route path="/settings" element={<SettingsPage />} />
       </Routes>
     </Layout>
   )

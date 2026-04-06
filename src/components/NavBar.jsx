@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { NavLink } from 'react-router-dom'
-import { ShoppingCart, Package, Users, BarChart2, Tag, Receipt, ArrowLeftRight } from 'lucide-react'
+import { ShoppingCart, Package, Users, BarChart2, Tag, Receipt, ArrowLeftRight, Settings } from 'lucide-react'
 import { useSessionStore } from '../stores/sessionStore'
 import SwitchUserModal from './till/SwitchUserModal'
 
@@ -11,6 +11,7 @@ const links = [
   { to: '/tabs', label: 'Tabs', Icon: Receipt },
   { to: '/promos', label: 'Promos', Icon: Tag },
   { to: '/reports', label: 'Reports', Icon: BarChart2 },
+  { to: '/settings', label: 'Settings', Icon: Settings },
 ]
 
 export default function NavBar() {
