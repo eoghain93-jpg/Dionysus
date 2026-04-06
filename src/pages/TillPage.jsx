@@ -4,6 +4,8 @@ import { fetchActivePromotions } from '../lib/promotions'
 import { supabase } from '../lib/supabase'
 import { addToTabBalance } from '../lib/members'
 import { db } from '../lib/db'
+import { printReceipt } from '../lib/starPrinter'
+import { useToastStore } from '../hooks/useToast'
 import { useTillStore } from '../stores/tillStore'
 import { useSyncStore } from '../stores/syncStore'
 import { useSessionStore } from '../stores/sessionStore'
@@ -52,9 +54,12 @@ export default function TillPage() {
       member_price_applied: i.member_price_applied,
     }))
 
+    let orderId = `OFF-${Date.now()}`
+
     if (isOnline) {
       const { data, error } = await supabase.from('orders').insert(order).select().single()
       if (!error) {
+        orderId = data.id
         await Promise.all([
           supabase.from('order_items').insert(items.map(i => ({ ...i, order_id: data.id }))),
           paymentMethod === 'tab' && currentMember
@@ -64,6 +69,12 @@ export default function TillPage() {
       }
     } else {
       await db.pendingOrders.add({ order, items })
+    }
+
+    try {
+      await printReceipt({ orderId, total, paymentMethod, createdAt: order.created_at })
+    } catch {
+      useToastStore.getState().addToast('Print failed — check printer connection', 'error')
     }
 
     clearOrder()
