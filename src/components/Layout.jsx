@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import NavBar from './NavBar'
 import StatusBar from './StatusBar'
+import Toast from './ui/Toast'
 import { initConnectivityListener } from '../lib/sync'
 import { useSyncStore } from '../stores/syncStore'
 
@@ -21,6 +22,7 @@ export default function Layout({ children }) {
           {children}
         </main>
       </div>
+      <Toast />
     </div>
   )
 }
