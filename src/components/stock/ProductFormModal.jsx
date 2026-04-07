@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useId } from 'react'
-import { X } from '../../lib/icons'
+import { X, ImageIcon } from '../../lib/icons'
 import { upsertProduct } from '../../lib/products'
 
 const CATEGORIES = ['draught', 'bottle', 'spirit', 'soft', 'food', 'other']
@@ -28,6 +28,7 @@ export default function ProductFormModal({ product, onClose, onSaved }) {
     unit: product?.unit ?? 'pint',
     supplier_id: product?.supplier_id ?? '',
     cost_price: product?.cost_price ?? '',
+    image_url: product?.image_url ?? '',
   })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState(null)
@@ -70,6 +71,7 @@ export default function ProductFormModal({ product, onClose, onSaved }) {
       }
       if (form.supplier_id.trim()) payload.supplier_id = form.supplier_id.trim()
       if (form.cost_price !== '') payload.cost_price = Number(form.cost_price)
+      if (form.image_url) payload.image_url = form.image_url
 
       await upsertProduct(payload)
       onSaved()
@@ -275,6 +277,42 @@ export default function ProductFormModal({ product, onClose, onSaved }) {
               placeholder="Supplier UUID or reference"
               className="bg-[#1E293B] border border-slate-600 rounded-lg px-3 py-2 text-white placeholder-slate-500 min-h-[44px] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617]"
             />
+          </div>
+
+          {/* Product Image (optional) */}
+          <div className="flex flex-col gap-2">
+            <label htmlFor="pf-image-url" className="text-sm font-medium text-slate-300">
+              Logo URL <span className="text-slate-500 font-normal">(optional)</span>
+            </label>
+            <div className="flex items-center gap-3">
+              {/* Preview */}
+              <div className="w-16 h-16 rounded-lg bg-slate-900 flex items-center justify-center flex-shrink-0 overflow-hidden border border-slate-700">
+                {form.image_url ? (
+                  <img src={form.image_url} alt="Logo preview" className="w-full h-full object-contain p-1" />
+                ) : (
+                  <ImageIcon size={20} className="text-slate-600" aria-hidden="true" />
+                )}
+              </div>
+              <div className="flex flex-col gap-1.5 flex-1">
+                <input
+                  id="pf-image-url"
+                  type="url"
+                  value={form.image_url}
+                  onChange={handleChange('image_url')}
+                  placeholder="https://img.logo.dev/guinness.com?token=…"
+                  className="bg-[#1E293B] border border-slate-600 rounded-lg px-3 py-2 text-white placeholder-slate-500 text-sm min-h-[44px] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617]"
+                />
+                {form.image_url && (
+                  <button
+                    type="button"
+                    onClick={() => setForm(prev => ({ ...prev, image_url: '' }))}
+                    className="text-xs text-slate-500 hover:text-red-400 transition-colors text-left cursor-pointer"
+                  >
+                    Remove logo
+                  </button>
+                )}
+              </div>
+            </div>
           </div>
 
           {/* Actions */}

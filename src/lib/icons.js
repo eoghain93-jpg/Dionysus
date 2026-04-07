@@ -37,4 +37,6 @@ export {
   Lock,            // Z report Close Day
   FileText,        // Z report button
   Tag,             // Promos nav
+  Image as ImageIcon, // Product image placeholder
+  Upload,          // Image upload button
 } from 'lucide-react'
