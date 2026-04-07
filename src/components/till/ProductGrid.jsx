@@ -11,6 +11,10 @@ const CATEGORY_COLORS = {
   other: 'border-l-pink-500',
 }
 
+const CATEGORY_LABELS = {
+  other: 'wine',
+}
+
 export default function ProductGrid({ products, now = new Date() }) {
   const { addItem, activeMember, activePromos } = useTillStore()
 
@@ -54,7 +58,7 @@ export default function ProductGrid({ products, now = new Date() }) {
             <span className={`text-white font-medium text-sm leading-tight ${hasPromo ? 'mt-4' : ''}`}>
               {product.name}
             </span>
-            <span className="text-slate-400 text-xs capitalize">{product.category}</span>
+            <span className="text-slate-400 text-xs capitalize">{CATEGORY_LABELS[product.category] ?? product.category}</span>
             <span className="text-blue-400 font-bold text-base mt-auto">£{displayPrice.toFixed(2)}</span>
           </button>
         )

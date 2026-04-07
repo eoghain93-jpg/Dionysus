@@ -1,5 +1,15 @@
 const CATEGORIES = ['all', 'draught', 'bottle', 'spirit', 'soft', 'food', 'other']
 
+const LABELS = {
+  all: 'All',
+  draught: 'Draught',
+  bottle: 'Bottle',
+  spirit: 'Spirit',
+  soft: 'Soft',
+  food: 'Food',
+  other: 'Wine',
+}
+
 export default function CategoryFilter({ active, onChange }) {
   return (
     <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
@@ -14,7 +24,7 @@ export default function CategoryFilter({ active, onChange }) {
               ? 'bg-blue-600 text-white'
               : 'bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-white'}`}
         >
-          {cat.charAt(0).toUpperCase() + cat.slice(1)}
+          {LABELS[cat]}
         </button>
       ))}
     </div>

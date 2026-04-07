@@ -97,6 +97,26 @@ export default function TillPage() {
         <div className="p-4 space-y-3 overflow-auto flex-1">
           <MemberLookup />
           <CategoryFilter active={category} onChange={setCategory} />
+          <div className="flex gap-2">
+            <button
+              onClick={() => setShowWastage(true)}
+              className="px-3 min-h-[36px] rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-400 text-xs font-medium cursor-pointer transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617]"
+            >
+              Wastage
+            </button>
+            <button
+              onClick={() => setShowStaffDrink(true)}
+              className="px-3 min-h-[36px] rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-400 text-xs font-medium cursor-pointer transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617]"
+            >
+              Staff Drink
+            </button>
+            <button
+              onClick={() => setShowCashback(true)}
+              className="px-3 min-h-[36px] rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-400 text-xs font-medium cursor-pointer transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617]"
+            >
+              Cashback
+            </button>
+          </div>
           {loading ? (
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2">
               {Array.from({ length: 10 }).map((_, i) => (
@@ -111,26 +131,6 @@ export default function TillPage() {
           ) : (
             <ProductGrid products={filtered} />
           )}
-          <div className="flex gap-2 pt-2">
-            <button
-              onClick={() => setShowWastage(true)}
-              className="flex-1 min-h-[44px] rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 text-sm font-medium cursor-pointer transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617]"
-            >
-              Record Wastage
-            </button>
-            <button
-              onClick={() => setShowStaffDrink(true)}
-              className="flex-1 min-h-[44px] rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 text-sm font-medium cursor-pointer transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617]"
-            >
-              Staff Drink
-            </button>
-            <button
-              onClick={() => setShowCashback(true)}
-              className="flex-1 min-h-[44px] rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 text-sm font-medium cursor-pointer transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617]"
-            >
-              Cashback
-            </button>
-          </div>
         </div>
       </div>
       <div className="hidden md:flex">
