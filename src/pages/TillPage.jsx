@@ -89,7 +89,9 @@ export default function TillPage() {
 
   if (!activeStaff) { return <PinLoginScreen /> }
 
-  const filtered = category === 'all' ? products : products.filter(p => p.category === category)
+  const CATEGORY_ORDER = ['draught', 'bottle', 'spirit', 'soft', 'food', 'other']
+  const sorted = [...products].sort((a, b) => CATEGORY_ORDER.indexOf(a.category) - CATEGORY_ORDER.indexOf(b.category))
+  const filtered = category === 'all' ? sorted : sorted.filter(p => p.category === category)
 
   return (
     <div className="flex h-full min-h-0">

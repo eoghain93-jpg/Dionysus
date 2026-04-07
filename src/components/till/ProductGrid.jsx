@@ -7,7 +7,7 @@ const CATEGORY_COLORS = {
   bottle: 'border-l-blue-500',
   spirit: 'border-l-purple-500',
   soft: 'border-l-emerald-500',
-  food: 'border-l-orange-500',
+  food: 'border-l-red-500',
   other: 'border-l-pink-500',
 }
 
