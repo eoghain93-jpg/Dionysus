@@ -35,7 +35,8 @@ export default function NavBar() {
       {/* Sidebar — tablet/desktop (shows all links) */}
       <nav className="hidden md:flex flex-col w-20 lg:w-52 bg-slate-900 border-r border-slate-800 p-3 gap-1 shrink-0">
         <div className="px-1 py-3 hidden lg:flex justify-center">
-          <img src="/fairmile-logo.png" alt="The Fairmile Pub & Kitchen" className="w-32 h-auto" />
+          <img src="/fairmile-logo.png" alt="The Fairmile Pub & Kitchen"
+            className="w-28 h-auto" />
         </div>
         {allLinks.map(({ to, label, Icon }) => (
           <NavLink
