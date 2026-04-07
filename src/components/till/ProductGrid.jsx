@@ -30,16 +30,16 @@ export default function ProductGrid({ products, now = new Date() }) {
               focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617]"
           >
             {/* Image header */}
-            <div className="relative w-full h-20 bg-slate-700 flex-shrink-0">
+            <div className="relative w-full h-20 bg-white flex-shrink-0">
               {product.image_url ? (
                 <img
                   src={product.image_url}
                   alt=""
-                  className="w-full h-full object-contain p-2"
+                  className="w-full h-full object-contain p-2.5"
                 />
               ) : (
-                <div className="w-full h-full flex items-center justify-center">
-                  <ImageIcon size={22} className="text-slate-600" aria-hidden="true" />
+                <div className="w-full h-full flex items-center justify-center bg-slate-700">
+                  <ImageIcon size={22} className="text-slate-500" aria-hidden="true" />
                 </div>
               )}
               {hasPromo && (
