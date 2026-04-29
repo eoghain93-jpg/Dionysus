@@ -135,46 +135,24 @@ describe('printReceipt — with IP set', () => {
     expect(found).toBe(true)
   })
 
-  it('body contains drawer pulse for cash payment (ESC BEL ...)', async () => {
+  it('body contains drawer pulse for cash payment (BEL)', async () => {
+    // Star mC-Print3 fires the drawer on a single BEL byte (0x07) using the
+    // printer's default pulse timing. No ESC prefix needed on this unit.
     await printReceipt({ ...RECEIPT, paymentMethod: 'cash' })
-    const body = fetch.mock.calls[0][1].body
-    const arr = Array.from(body)
-    let found = false
-    for (let i = 0; i < arr.length - 1; i++) {
-      if (arr[i] === 0x1B && arr[i + 1] === 0x07) {
-        found = true
-        break
-      }
-    }
-    expect(found).toBe(true)
+    const arr = Array.from(fetch.mock.calls[0][1].body)
+    expect(arr).toContain(0x07)
   })
 
   it('body does NOT contain drawer pulse for card payment', async () => {
     await printReceipt({ ...RECEIPT, paymentMethod: 'card' })
-    const body = fetch.mock.calls[0][1].body
-    const arr = Array.from(body)
-    let found = false
-    for (let i = 0; i < arr.length - 1; i++) {
-      if (arr[i] === 0x1B && arr[i + 1] === 0x07) {
-        found = true
-        break
-      }
-    }
-    expect(found).toBe(false)
+    const arr = Array.from(fetch.mock.calls[0][1].body)
+    expect(arr).not.toContain(0x07)
   })
 
   it('body does NOT contain drawer pulse for tab payment', async () => {
     await printReceipt({ ...RECEIPT, paymentMethod: 'tab' })
-    const body = fetch.mock.calls[0][1].body
-    const arr = Array.from(body)
-    let found = false
-    for (let i = 0; i < arr.length - 1; i++) {
-      if (arr[i] === 0x1B && arr[i + 1] === 0x07) {
-        found = true
-        break
-      }
-    }
-    expect(found).toBe(false)
+    const arr = Array.from(fetch.mock.calls[0][1].body)
+    expect(arr).not.toContain(0x07)
   })
 
   it('throws when bridge returns non-2xx status', async () => {
@@ -220,17 +198,11 @@ describe('openDrawer — with IP set', () => {
     expect(headers['X-Printer-IP']).toBe('192.168.1.100')
   })
 
-  it('body contains drawer pulse (ESC BEL ...)', async () => {
+  it('body contains drawer pulse (BEL)', async () => {
+    // Star mC-Print3 fires the drawer on a single BEL byte (0x07).
     await openDrawer()
     const arr = Array.from(fetch.mock.calls[0][1].body)
-    let found = false
-    for (let i = 0; i < arr.length - 1; i++) {
-      if (arr[i] === 0x1B && arr[i + 1] === 0x07) {
-        found = true
-        break
-      }
-    }
-    expect(found).toBe(true)
+    expect(arr).toContain(0x07)
   })
 
   it('body does NOT contain receipt content', async () => {
