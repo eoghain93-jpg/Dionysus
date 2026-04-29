@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef, useId } from 'react'
 import { X, CreditCard, Banknote } from '../../lib/icons'
 import { settleTab } from '../../lib/members'
+import { printReceipt } from '../../lib/starPrinter'
+import { useToastStore } from '../../hooks/useToast'
 import CashPaymentModal from '../till/CashPaymentModal'
 
 /**
@@ -55,11 +57,27 @@ export default function SettleTabModal({ member, onClose, onSettled }) {
     setError(null)
     try {
       await settleTab(member.id, val, paymentMethod)
-      onSettled()
     } catch (err) {
       setError(err.message ?? 'Failed to settle tab. Please try again.')
       setSettling(false)
+      return
     }
+
+    // Print + drawer kick mirror the till checkout flow (TillPage handleCheckout).
+    // Wrapped so a printer/bridge failure can't block the settle from completing.
+    try {
+      await printReceipt({
+        orderId: `TAB-${Date.now()}`,
+        total: val,
+        paymentMethod,
+        createdAt: new Date().toISOString(),
+      })
+    } catch (err) {
+      console.error('Print failed:', err)
+      useToastStore.getState().addToast('Print failed — check printer connection', 'error')
+    }
+
+    onSettled()
   }
 
   return (
