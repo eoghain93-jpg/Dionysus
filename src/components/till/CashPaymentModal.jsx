@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { Delete } from 'lucide-react'
 
 const QUICK_AMOUNTS = [5, 10, 20, 50]
@@ -8,19 +8,20 @@ function formatPence(pence) {
   return `£${(pence / 100).toFixed(2)}`
 }
 
-export default function CashPaymentModal({ total, onConfirm, onCancel }) {
+export default function CashPaymentModal({ total, onConfirm, onCancel, onDone }) {
   const [digits, setDigits] = useState('')
   const [confirmed, setConfirmed] = useState(false)
 
-  const totalPence = Math.round(total * 100)
+  // Snapshot the total at mount time. We do NOT react to total prop changes
+  // mid-modal — clearOrder() runs after Confirm fires checkout, which would
+  // otherwise drop the live total to £0 and kick us back from the "Give change"
+  // screen. The modal is unmounted/remounted on each new sale so the snapshot
+  // is always correct for the current sale.
+  const [snapshotTotal] = useState(total)
+  const totalPence = Math.round(snapshotTotal * 100)
   const tenderedPence = (Number(digits) || 0) * 100
   const changePence = tenderedPence - totalPence
   const canConfirm = tenderedPence >= totalPence
-
-  useEffect(() => {
-    setConfirmed(false)
-    setDigits('')
-  }, [total])
 
   function handleKey(key) {
     if (key === 'back') {
@@ -36,6 +37,12 @@ export default function CashPaymentModal({ total, onConfirm, onCancel }) {
     setDigits(String(pounds))
   }
 
+  function handleConfirm() {
+    setConfirmed(true)   // show "give change" screen immediately
+    onConfirm()          // and fire the checkout (print + drawer) right now,
+                         // so staff can give change while the drawer is open
+  }
+
   if (confirmed) {
     return (
       <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-6">
@@ -43,7 +50,7 @@ export default function CashPaymentModal({ total, onConfirm, onCancel }) {
           <h2 className="text-white text-xl font-bold">Give change</h2>
           <div className="text-green-400 text-6xl font-bold">{formatPence(changePence)}</div>
           <button
-            onClick={onConfirm}
+            onClick={onDone ?? onCancel}
             className="w-full bg-emerald-700 hover:bg-emerald-600 text-white font-bold py-4 rounded-2xl text-lg transition-colors cursor-pointer"
           >
             Done
@@ -58,7 +65,7 @@ export default function CashPaymentModal({ total, onConfirm, onCancel }) {
       <div className="bg-slate-800 rounded-2xl p-6 w-full max-w-sm space-y-4">
         <div className="flex items-center justify-between">
           <h2 className="text-white text-lg font-bold">Cash Payment</h2>
-          <span className="text-slate-400 text-sm">Total: <span className="text-white font-semibold">£{total.toFixed(2)}</span></span>
+          <span className="text-slate-400 text-sm">Total: <span className="text-white font-semibold">£{snapshotTotal.toFixed(2)}</span></span>
         </div>
 
         <div className="grid grid-cols-4 gap-2">
@@ -106,7 +113,7 @@ export default function CashPaymentModal({ total, onConfirm, onCancel }) {
             Cancel
           </button>
           <button
-            onClick={() => setConfirmed(true)}
+            onClick={handleConfirm}
             disabled={!canConfirm}
             className="bg-emerald-700 hover:bg-emerald-600 disabled:opacity-40 disabled:cursor-not-allowed
               text-white font-semibold py-3 rounded-xl transition-colors"

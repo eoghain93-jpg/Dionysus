@@ -69,12 +69,30 @@ describe('CashPaymentModal', () => {
     expect(screen.getByText('£2.50')).toBeInTheDocument()
   })
 
-  it('Done button on change step calls onConfirm', () => {
+  it('Confirm button fires onConfirm immediately (so receipt + drawer happen during change-giving)', () => {
+    render(<CashPaymentModal total={7.50} onConfirm={onConfirm} onCancel={onCancel} />)
+    fireEvent.click(screen.getByRole('button', { name: '£10' }))
+    fireEvent.click(screen.getByRole('button', { name: /confirm/i }))
+    expect(onConfirm).toHaveBeenCalledOnce()
+  })
+
+  it('Done button on change step calls onDone (or onCancel fallback)', () => {
+    const onDone = vi.fn()
+    render(<CashPaymentModal total={7.50} onConfirm={onConfirm} onCancel={onCancel} onDone={onDone} />)
+    fireEvent.click(screen.getByRole('button', { name: '£10' }))
+    fireEvent.click(screen.getByRole('button', { name: /confirm/i }))
+    fireEvent.click(screen.getByRole('button', { name: /done/i }))
+    expect(onDone).toHaveBeenCalledOnce()
+    // onConfirm only fires once (on Confirm), not again on Done
+    expect(onConfirm).toHaveBeenCalledOnce()
+  })
+
+  it('Done button falls back to onCancel when onDone not provided', () => {
     render(<CashPaymentModal total={7.50} onConfirm={onConfirm} onCancel={onCancel} />)
     fireEvent.click(screen.getByRole('button', { name: '£10' }))
     fireEvent.click(screen.getByRole('button', { name: /confirm/i }))
     fireEvent.click(screen.getByRole('button', { name: /done/i }))
-    expect(onConfirm).toHaveBeenCalledOnce()
+    expect(onCancel).toHaveBeenCalledOnce()
   })
 
   it('Cancel button calls onCancel', () => {

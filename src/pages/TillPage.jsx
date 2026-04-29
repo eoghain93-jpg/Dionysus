@@ -63,24 +63,44 @@ export default function TillPage() {
 
     let orderId = `OFF-${Date.now()}`
 
-    if (isOnline) {
-      const { data, error } = await supabase.from('orders').insert(order).select().single()
-      if (!error) {
-        orderId = data.id
-        await Promise.all([
-          supabase.from('order_items').insert(items.map(i => ({ ...i, order_id: data.id }))),
-          paymentMethod === 'tab' && currentMember
-            ? addToTabBalance(currentMember.id, total)
-            : Promise.resolve(),
-        ])
+    // Save the order — if anything in this block throws (network blip,
+    // auth error, IndexedDB issue), we still proceed to print + clearOrder
+    // below. Without this defence, an exception here leaves the till stuck:
+    // orderItems still populated, payment buttons disabled because `paying`
+    // never gets reset.
+    try {
+      if (isOnline) {
+        const { data, error } = await supabase.from('orders').insert(order).select().single()
+        if (!error) {
+          orderId = data.id
+          await Promise.all([
+            supabase.from('order_items').insert(items.map(i => ({ ...i, order_id: data.id }))),
+            paymentMethod === 'tab' && currentMember
+              ? addToTabBalance(currentMember.id, total)
+              : Promise.resolve(),
+          ])
+        } else {
+          await db.pendingOrders.add({ order, items })
+          useToastStore.getState().addToast('Saved offline — will sync', 'error')
+        }
+      } else {
+        await db.pendingOrders.add({ order, items })
       }
-    } else {
-      await db.pendingOrders.add({ order, items })
+    } catch (err) {
+      console.error('Order save failed:', err)
+      try {
+        await db.pendingOrders.add({ order, items })
+        useToastStore.getState().addToast('Saved offline — will sync', 'error')
+      } catch (queueErr) {
+        console.error('Offline queue also failed:', queueErr)
+        useToastStore.getState().addToast('Order save failed — check sync', 'error')
+      }
     }
 
     try {
       await printReceipt({ orderId, total, paymentMethod, createdAt: order.created_at })
-    } catch {
+    } catch (err) {
+      console.error('Print failed:', err)
       useToastStore.getState().addToast('Print failed — check printer connection', 'error')
     }
 

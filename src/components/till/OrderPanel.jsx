@@ -128,8 +128,12 @@ export default function OrderPanel({ onCheckout, onClose }) {
       {showCashModal && (
         <CashPaymentModal
           total={total}
-          onConfirm={() => { setShowCashModal(false); handleCheckout('cash') }}
+          // onConfirm fires when user clicks Confirm — print/drawer happen now
+          // so staff can give change with the drawer already open. Modal stays
+          // visible showing the "Give change" amount until Done is clicked.
+          onConfirm={() => handleCheckout('cash')}
           onCancel={() => setShowCashModal(false)}
+          onDone={() => setShowCashModal(false)}
         />
       )}
     </div>

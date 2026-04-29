@@ -155,11 +155,9 @@ export default function SettleTabModal({ member, onClose, onSettled }) {
       {showCashModal && (
         <CashPaymentModal
           total={parseFloat(amount)}
-          onConfirm={() => {
-            setShowCashModal(false)
-            doSettle(parseFloat(amount), 'cash')
-          }}
+          onConfirm={() => doSettle(parseFloat(amount), 'cash')}
           onCancel={() => setShowCashModal(false)}
+          onDone={() => setShowCashModal(false)}
         />
       )}
     </div>

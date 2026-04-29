@@ -1,6 +1,6 @@
 # Star mC-Print3 Printer & Cash Drawer Integration Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Integrate receipt printing and cash drawer control into Dionysus POS using Star WebPRNT over Ethernet, with simulation mode when no printer IP is configured.
 
@@ -37,7 +37,7 @@
 
 ---
 
-- [ ] **Step 1.1: Write the failing tests**
+- [x] **Step 1.1: Write the failing tests**
 
 Create `src/lib/starPrinter.test.js`:
 
@@ -209,7 +209,7 @@ describe('openDrawer — with IP set', () => {
 })
 ```
 
-- [ ] **Step 1.2: Run tests — verify they all fail**
+- [x] **Step 1.2: Run tests — verify they all fail**
 
 ```bash
 cd /Users/eoghainmclaughlin/Dionysus
@@ -220,7 +220,7 @@ Expected: all tests FAIL with "Cannot find module './starPrinter'"
 
 ---
 
-- [ ] **Step 1.3: Create `src/lib/starPrinter.js`**
+- [x] **Step 1.3: Create `src/lib/starPrinter.js`**
 
 ```javascript
 const PRINTER_IP_KEY = 'printer_ip'
@@ -320,7 +320,7 @@ export async function openDrawer() {
 }
 ```
 
-- [ ] **Step 1.4: Run tests — verify they all pass**
+- [x] **Step 1.4: Run tests — verify they all pass**
 
 ```bash
 npx vitest run src/lib/starPrinter.test.js
@@ -330,7 +330,7 @@ Expected: all tests PASS
 
 ---
 
-- [ ] **Step 1.5: Commit**
+- [x] **Step 1.5: Commit**
 
 ```bash
 git add src/lib/starPrinter.js src/lib/starPrinter.test.js
@@ -347,7 +347,7 @@ git commit -m "feat: add Star WebPRNT printer and drawer library"
 
 ---
 
-- [ ] **Step 2.1: Write the failing tests**
+- [x] **Step 2.1: Write the failing tests**
 
 Create `src/hooks/useToast.test.js`:
 
@@ -415,7 +415,7 @@ describe('useToastStore', () => {
 })
 ```
 
-- [ ] **Step 2.2: Run tests — verify they fail**
+- [x] **Step 2.2: Run tests — verify they fail**
 
 ```bash
 npx vitest run src/hooks/useToast.test.js
@@ -425,7 +425,7 @@ Expected: FAIL with "Cannot find module './useToast'"
 
 ---
 
-- [ ] **Step 2.3: Create `src/hooks/useToast.js`**
+- [x] **Step 2.3: Create `src/hooks/useToast.js`**
 
 ```javascript
 import { create } from 'zustand'
@@ -446,7 +446,7 @@ export const useToastStore = create((set) => ({
 }))
 ```
 
-- [ ] **Step 2.4: Run tests — verify they all pass**
+- [x] **Step 2.4: Run tests — verify they all pass**
 
 ```bash
 npx vitest run src/hooks/useToast.test.js
@@ -456,7 +456,7 @@ Expected: all tests PASS
 
 ---
 
-- [ ] **Step 2.5: Commit**
+- [x] **Step 2.5: Commit**
 
 ```bash
 git add src/hooks/useToast.js src/hooks/useToast.test.js
@@ -473,7 +473,7 @@ git commit -m "feat: add toast notification store"
 
 ---
 
-- [ ] **Step 3.1: Create `src/components/ui/Toast.jsx`**
+- [x] **Step 3.1: Create `src/components/ui/Toast.jsx`**
 
 ```jsx
 import { useToastStore } from '../../hooks/useToast'
@@ -506,7 +506,7 @@ export default function Toast() {
 }
 ```
 
-- [ ] **Step 3.2: Add `<Toast />` to Layout**
+- [x] **Step 3.2: Add `<Toast />` to Layout**
 
 Open `src/components/Layout.jsx`. The current file is:
 
@@ -572,7 +572,7 @@ export default function Layout({ children }) {
 }
 ```
 
-- [ ] **Step 3.3: Verify the app still builds**
+- [x] **Step 3.3: Verify the app still builds**
 
 ```bash
 npx vitest run
@@ -582,7 +582,7 @@ Expected: existing tests still PASS, no new failures
 
 ---
 
-- [ ] **Step 3.4: Commit**
+- [x] **Step 3.4: Commit**
 
 ```bash
 git add src/components/ui/Toast.jsx src/components/Layout.jsx
@@ -598,7 +598,7 @@ git commit -m "feat: add toast notification component"
 
 ---
 
-- [ ] **Step 4.1: Add print call to `handleCheckout`**
+- [x] **Step 4.1: Add print call to `handleCheckout`**
 
 Open `src/pages/TillPage.jsx`. Make these two changes:
 
@@ -700,7 +700,7 @@ const handleCheckout = useCallback(async (paymentMethod) => {
 }, [isOnline, clearOrder])
 ```
 
-- [ ] **Step 4.2: Run existing tests — verify nothing is broken**
+- [x] **Step 4.2: Run existing tests — verify nothing is broken**
 
 ```bash
 npx vitest run
@@ -710,7 +710,7 @@ Expected: all existing tests PASS. The existing TillPage tests mock Supabase and
 
 ---
 
-- [ ] **Step 4.3: Commit**
+- [x] **Step 4.3: Commit**
 
 ```bash
 git add src/pages/TillPage.jsx
@@ -726,7 +726,7 @@ git commit -m "feat: print receipt after every checkout"
 
 ---
 
-- [ ] **Step 5.1: Add drawer call to `CashbackModal`**
+- [x] **Step 5.1: Add drawer call to `CashbackModal`**
 
 Open `src/components/till/CashbackModal.jsx`. The current file imports and `handleSubmit` are:
 
@@ -793,7 +793,7 @@ async function handleSubmit(e) {
 }
 ```
 
-- [ ] **Step 5.2: Run existing tests**
+- [x] **Step 5.2: Run existing tests**
 
 ```bash
 npx vitest run
@@ -803,7 +803,7 @@ Expected: all tests PASS
 
 ---
 
-- [ ] **Step 5.3: Commit**
+- [x] **Step 5.3: Commit**
 
 ```bash
 git add src/components/till/CashbackModal.jsx
@@ -820,7 +820,7 @@ git commit -m "feat: open cash drawer after cashback transaction"
 
 ---
 
-- [ ] **Step 6.1: Write the failing tests**
+- [x] **Step 6.1: Write the failing tests**
 
 Create `src/pages/SettingsPage.test.jsx`:
 
@@ -921,7 +921,7 @@ describe('SettingsPage — Open Drawer', () => {
 })
 ```
 
-- [ ] **Step 6.2: Run tests — verify they fail**
+- [x] **Step 6.2: Run tests — verify they fail**
 
 ```bash
 npx vitest run src/pages/SettingsPage.test.jsx
@@ -931,7 +931,7 @@ Expected: FAIL with "Cannot find module './SettingsPage'"
 
 ---
 
-- [ ] **Step 6.3: Create `src/pages/SettingsPage.jsx`**
+- [x] **Step 6.3: Create `src/pages/SettingsPage.jsx`**
 
 ```jsx
 import { useState } from 'react'
@@ -1058,7 +1058,7 @@ export default function SettingsPage() {
 }
 ```
 
-- [ ] **Step 6.4: Run tests — verify they all pass**
+- [x] **Step 6.4: Run tests — verify they all pass**
 
 ```bash
 npx vitest run src/pages/SettingsPage.test.jsx
@@ -1068,7 +1068,7 @@ Expected: all tests PASS
 
 ---
 
-- [ ] **Step 6.5: Commit**
+- [x] **Step 6.5: Commit**
 
 ```bash
 git add src/pages/SettingsPage.jsx src/pages/SettingsPage.test.jsx
@@ -1085,7 +1085,7 @@ git commit -m "feat: add printer settings page"
 
 ---
 
-- [ ] **Step 7.1: Add `/settings` route to `src/App.jsx`**
+- [x] **Step 7.1: Add `/settings` route to `src/App.jsx`**
 
 Current `src/App.jsx`:
 
@@ -1145,7 +1145,7 @@ export default function App() {
 }
 ```
 
-- [ ] **Step 7.2: Add Settings link to `src/components/NavBar.jsx`**
+- [x] **Step 7.2: Add Settings link to `src/components/NavBar.jsx`**
 
 Current imports line in `NavBar.jsx`:
 
@@ -1186,7 +1186,7 @@ const links = [
 ]
 ```
 
-- [ ] **Step 7.3: Run all tests**
+- [x] **Step 7.3: Run all tests**
 
 ```bash
 npx vitest run
@@ -1196,7 +1196,7 @@ Expected: all tests PASS
 
 ---
 
-- [ ] **Step 7.4: Commit**
+- [x] **Step 7.4: Commit**
 
 ```bash
 git add src/App.jsx src/components/NavBar.jsx
@@ -1207,7 +1207,7 @@ git commit -m "feat: add settings route and nav link"
 
 ## Final Verification
 
-- [ ] **Step 8.1: Run the full test suite**
+- [x] **Step 8.1: Run the full test suite**
 
 ```bash
 npx vitest run
@@ -1215,7 +1215,7 @@ npx vitest run
 
 Expected: all tests PASS with no failures
 
-- [ ] **Step 8.2: Verify the production build**
+- [x] **Step 8.2: Verify the production build**
 
 ```bash
 npm run build
