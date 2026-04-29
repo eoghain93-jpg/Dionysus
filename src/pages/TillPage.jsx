@@ -18,6 +18,7 @@ import MemberLookup from '../components/till/MemberLookup'
 import WastageModal from '../components/till/WastageModal'
 import StaffDrinkModal from '../components/till/StaffDrinkModal'
 import CashbackModal from '../components/till/CashbackModal'
+import PrizeWinModal from '../components/till/PrizeWinModal'
 
 export default function TillPage() {
   const [products, setProducts] = useState([])
@@ -26,6 +27,7 @@ export default function TillPage() {
   const [showWastage, setShowWastage] = useState(false)
   const [showStaffDrink, setShowStaffDrink] = useState(false)
   const [showCashback, setShowCashback] = useState(false)
+  const [showPrizeWin, setShowPrizeWin] = useState(false)
   const [showMobileOrder, setShowMobileOrder] = useState(false)
   const { orderItems, activeMember, clearOrder, loadPromos, getTotal } = useTillStore()
   const { isOnline } = useSyncStore()
@@ -138,6 +140,12 @@ export default function TillPage() {
             >
               Cashback
             </button>
+            <button
+              onClick={() => setShowPrizeWin(true)}
+              className="px-3 min-h-[36px] rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-400 text-xs font-medium cursor-pointer transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617]"
+            >
+              Prize Win
+            </button>
           </div>
           {loading ? (
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2">
@@ -206,6 +214,12 @@ export default function TillPage() {
         <CashbackModal
           onClose={() => setShowCashback(false)}
           onSaved={() => setShowCashback(false)}
+        />
+      )}
+      {showPrizeWin && (
+        <PrizeWinModal
+          onClose={() => setShowPrizeWin(false)}
+          onSaved={() => setShowPrizeWin(false)}
         />
       )}
     </div>

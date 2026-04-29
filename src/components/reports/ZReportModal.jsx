@@ -30,7 +30,11 @@ export default function ZReportModal({ date, onClose, onDayClose }) {
 
   const cashSales = data?.salesSummary?.cashTotal ?? 0
   const cashbackTotal = data?.cashbackTotal ?? 0
-  const expectedInTill = openingFloat + cashSales - cashbackTotal
+  const prizeWinsTotal = data?.prizeWins?.total ?? 0
+  // Prize-win vouchers are paid out as cash from the till, same accounting
+  // treatment as cashback. Voucher itself is held separately for supplier
+  // reimbursement, so it doesn't count toward actual_cash either.
+  const expectedInTill = openingFloat + cashSales - cashbackTotal - prizeWinsTotal
   const variance = actualCash - expectedInTill
 
   async function handleExportCSV() {
@@ -56,6 +60,9 @@ export default function ZReportModal({ date, onClose, onDayClose }) {
       `Opening Float,${openingFloat.toFixed(2)}`,
       `Cash Sales,${cashSales.toFixed(2)}`,
       `Cashback Given,-${(data.cashbackTotal ?? 0).toFixed(2)}`,
+      `Prize Wins Paid Out,-${prizeWinsTotal.toFixed(2)}`,
+      `  Machine 1,-${(data.prizeWins?.machine1 ?? 0).toFixed(2)}`,
+      `  Machine 2,-${(data.prizeWins?.machine2 ?? 0).toFixed(2)}`,
       `Expected in Till,${expectedInTill.toFixed(2)}`,
       `Actual Cash,${actualCash.toFixed(2)}`,
       `Variance,${variance.toFixed(2)}`,
@@ -113,6 +120,7 @@ export default function ZReportModal({ date, onClose, onDayClose }) {
           cashReconciliation: reconciliation,
           wastage: data.wastage ?? [],
           staffDrinks: data.staffDrinks ?? [],
+          prizeWins: data.prizeWins ?? { total: 0, machine1: 0, machine2: 0 },
         },
       })
 
@@ -313,6 +321,30 @@ export default function ZReportModal({ date, onClose, onDayClose }) {
                     <span className="text-slate-400">Cashback Given</span>
                     <span className="text-red-400">-{fmt(cashbackTotal)}</span>
                   </div>
+
+                  {/* Prize wins paid out */}
+                  <div className="flex justify-between text-sm">
+                    <span className="text-slate-400">Prize Wins Paid Out</span>
+                    <span className="text-red-400" data-testid="z-prize-wins-total">
+                      -{fmt(prizeWinsTotal)}
+                    </span>
+                  </div>
+                  {prizeWinsTotal > 0 && (
+                    <div className="pl-4 space-y-1 text-xs">
+                      <div className="flex justify-between">
+                        <span className="text-slate-500">Machine 1</span>
+                        <span className="text-red-400/80" data-testid="z-prize-wins-m1">
+                          -{fmt(data.prizeWins?.machine1 ?? 0)}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-slate-500">Machine 2</span>
+                        <span className="text-red-400/80" data-testid="z-prize-wins-m2">
+                          -{fmt(data.prizeWins?.machine2 ?? 0)}
+                        </span>
+                      </div>
+                    </div>
+                  )}
 
                   {/* Expected in till */}
                   <Row label="Expected in Till">
