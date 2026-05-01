@@ -19,6 +19,7 @@ import WastageModal from '../components/till/WastageModal'
 import StaffDrinkModal from '../components/till/StaffDrinkModal'
 import CashbackModal from '../components/till/CashbackModal'
 import PrizeWinModal from '../components/till/PrizeWinModal'
+import MembersOnlyToggle from '../components/till/MembersOnlyToggle'
 
 export default function TillPage() {
   const [products, setProducts] = useState([])
@@ -30,8 +31,15 @@ export default function TillPage() {
   const [showPrizeWin, setShowPrizeWin] = useState(false)
   const [showMobileOrder, setShowMobileOrder] = useState(false)
   const { orderItems, activeMember, clearOrder, loadPromos, getTotal } = useTillStore()
+  const setMembersOnlyMode = useTillStore(s => s.setMembersOnlyMode)
   const { isOnline } = useSyncStore()
   const { activeStaff } = useSessionStore()
+
+  // Auto-clear event-wide members pricing on staff change so the next staff
+  // member doesn't unknowingly inherit a previous shift's pricing mode.
+  useEffect(() => {
+    if (!activeStaff) setMembersOnlyMode(false)
+  }, [activeStaff?.id, setMembersOnlyMode])
 
   useEffect(() => {
     fetchProducts().then(setProducts).catch(console.error).finally(() => setLoading(false))
@@ -119,6 +127,7 @@ export default function TillPage() {
     <div className="flex h-full min-h-0">
       <div className="flex-1 flex flex-col overflow-hidden">
         <div className="p-4 space-y-3 overflow-auto flex-1">
+          <MembersOnlyToggle />
           <MemberLookup />
           <CategoryFilter active={category} onChange={setCategory} />
           <div className="flex gap-2">

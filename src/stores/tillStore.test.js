@@ -10,7 +10,7 @@ const mockProduct = {
 }
 
 beforeEach(() => {
-  useTillStore.setState({ orderItems: [], activeMember: null })
+  useTillStore.setState({ orderItems: [], activeMember: null, membersOnlyMode: false })
 })
 
 describe('tillStore', () => {
@@ -28,6 +28,29 @@ describe('tillStore', () => {
     const { orderItems } = useTillStore.getState()
     expect(orderItems[0].unit_price).toBe(4.50)
     expect(orderItems[0].member_price_applied).toBe(true)
+  })
+
+  it('applies member price when membersOnlyMode is on and no individual member', () => {
+    useTillStore.setState({ membersOnlyMode: true, activeMember: null })
+    useTillStore.getState().addItem(mockProduct)
+    const { orderItems } = useTillStore.getState()
+    expect(orderItems[0].unit_price).toBe(4.50)
+    expect(orderItems[0].member_price_applied).toBe(true)
+  })
+
+  it('uses standard price when membersOnlyMode is off and no member active', () => {
+    useTillStore.setState({ membersOnlyMode: false, activeMember: null })
+    useTillStore.getState().addItem(mockProduct)
+    const { orderItems } = useTillStore.getState()
+    expect(orderItems[0].unit_price).toBe(5.50)
+    expect(orderItems[0].member_price_applied).toBe(false)
+  })
+
+  it('setMembersOnlyMode toggles the flag', () => {
+    useTillStore.getState().setMembersOnlyMode(true)
+    expect(useTillStore.getState().membersOnlyMode).toBe(true)
+    useTillStore.getState().setMembersOnlyMode(false)
+    expect(useTillStore.getState().membersOnlyMode).toBe(false)
   })
 
   it('increments quantity when same product added twice', () => {

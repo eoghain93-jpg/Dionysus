@@ -6,9 +6,15 @@ export const useTillStore = create((set, get) => ({
   orderItems: [],
   activeMember: null,
   activePromos: [],
+  // Event mode: when true, every sale gets member pricing without needing
+  // an individual member identified. Used for members-only events (sport
+  // days etc.) where the door staff have already verified everyone in the
+  // building is a member. Auto-reset on staff change in TillPage.
+  membersOnlyMode: false,
 
   setActiveMember: (member) => set({ activeMember: member }),
   clearMember: () => set({ activeMember: null }),
+  setMembersOnlyMode: (value) => set({ membersOnlyMode: !!value }),
 
   loadPromos: async (fetchFn) => {
     try {
@@ -20,10 +26,12 @@ export const useTillStore = create((set, get) => ({
   },
 
   addItem: (product, now = new Date()) => {
-    const { orderItems, activeMember, activePromos } = get()
+    const { orderItems, activeMember, activePromos, membersOnlyMode } = get()
 
     const standardPrice = product.standard_price
-    const memberPrice = activeMember ? product.member_price : null
+    // Member pricing applies when EITHER an individual member is active
+    // OR the till is in event-wide members-only mode.
+    const memberPrice = (activeMember || membersOnlyMode) ? product.member_price : null
     const promoPrice = getPromoPrice(product, activePromos, now)
 
     // Choose the lowest applicable price
