@@ -96,9 +96,17 @@ export async function settleTab(member_id, amount, payment_method) {
   if (fetchError) throw fetchError
 
   const newBalance = Math.max(0, Number(member.tab_balance) - amount)
+
+  // Only stamp last_settled_at on a FULL settlement (balance hits zero).
+  // Partial settlements leave the tab open with previous orders still on
+  // it, so we must keep the line items visible in the Tabs view.
+  const updateFields = { tab_balance: newBalance }
+  if (newBalance === 0) {
+    updateFields.last_settled_at = new Date().toISOString()
+  }
   const { error } = await supabase
     .from('members')
-    .update({ tab_balance: newBalance })
+    .update(updateFields)
     .eq('id', member_id)
   if (error) throw error
 

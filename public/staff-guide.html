@@ -1,0 +1,701 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Fairmile Staff Guide</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: Arial, sans-serif;
+      font-size: 17px;
+      line-height: 1.6;
+      color: #222;
+      background: #fff;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 24px;
+    }
+
+    .cover {
+      text-align: center;
+      padding: 60px 20px;
+      border-bottom: 4px solid #222;
+      margin-bottom: 40px;
+    }
+
+    .cover img {
+      height: 80px;
+      margin-bottom: 24px;
+    }
+
+    .cover h1 {
+      font-size: 2.2rem;
+      margin-bottom: 8px;
+    }
+
+    .cover p {
+      font-size: 1.1rem;
+      color: #555;
+    }
+
+    h2 {
+      font-size: 1.5rem;
+      background: #222;
+      color: #fff;
+      padding: 10px 16px;
+      margin: 40px 0 16px;
+      border-radius: 4px;
+    }
+
+    h3 {
+      font-size: 1.15rem;
+      margin: 24px 0 8px;
+      color: #222;
+      border-left: 4px solid #f59e0b;
+      padding-left: 10px;
+    }
+
+    p {
+      margin-bottom: 10px;
+    }
+
+    ol, ul {
+      padding-left: 24px;
+      margin-bottom: 12px;
+    }
+
+    li {
+      margin-bottom: 6px;
+    }
+
+    .step-box {
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
+      background: #f9f9f9;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      padding: 14px 16px;
+      margin-bottom: 10px;
+    }
+
+    .step-num {
+      font-size: 1.4rem;
+      font-weight: bold;
+      color: #f59e0b;
+      min-width: 32px;
+      line-height: 1.2;
+    }
+
+    .step-text strong {
+      display: block;
+      font-size: 1rem;
+      margin-bottom: 2px;
+    }
+
+    .step-text span {
+      font-size: 0.92rem;
+      color: #555;
+    }
+
+    .tip {
+      background: #fffbeb;
+      border: 1px solid #f59e0b;
+      border-radius: 6px;
+      padding: 12px 16px;
+      margin: 12px 0;
+      font-size: 0.95rem;
+    }
+
+    .tip::before {
+      content: "TIP: ";
+      font-weight: bold;
+      color: #b45309;
+    }
+
+    .warning {
+      background: #fff1f0;
+      border: 1px solid #e74c3c;
+      border-radius: 6px;
+      padding: 12px 16px;
+      margin: 12px 0;
+      font-size: 0.95rem;
+    }
+
+    .warning::before {
+      content: "IMPORTANT: ";
+      font-weight: bold;
+      color: #c0392b;
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 0.85rem;
+      font-weight: bold;
+      vertical-align: middle;
+    }
+
+    .badge-green  { background: #d1fae5; color: #065f46; }
+    .badge-blue   { background: #dbeafe; color: #1e40af; }
+    .badge-gray   { background: #f3f4f6; color: #374151; border: 1px solid #d1d5db; }
+    .badge-amber  { background: #fef3c7; color: #92400e; }
+    .badge-red    { background: #fee2e2; color: #991b1b; }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 12px 0;
+      font-size: 0.95rem;
+    }
+
+    th {
+      background: #f3f4f6;
+      text-align: left;
+      padding: 8px 12px;
+      border: 1px solid #ddd;
+    }
+
+    td {
+      padding: 8px 12px;
+      border: 1px solid #ddd;
+      vertical-align: top;
+    }
+
+    tr:nth-child(even) td { background: #fafafa; }
+
+    .divider {
+      border: none;
+      border-top: 2px solid #eee;
+      margin: 32px 0;
+    }
+
+    .toc {
+      background: #f9f9f9;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      padding: 20px 24px;
+      margin-bottom: 40px;
+    }
+
+    .toc h2 {
+      background: none;
+      color: #222;
+      padding: 0;
+      margin: 0 0 12px;
+      font-size: 1.15rem;
+    }
+
+    .toc ol {
+      margin: 0;
+    }
+
+    .toc li {
+      margin-bottom: 4px;
+    }
+
+    @media print {
+      body { padding: 16px; font-size: 15px; }
+      h2 { page-break-before: always; }
+      h2:first-of-type { page-break-before: avoid; }
+      .step-box { break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- COVER -->
+  <div class="cover">
+    <img src="/FairmileLogo26.png" alt="Fairmile Pub & Kitchen" onerror="this.style.display='none'">
+    <h1>Staff Guide</h1>
+    <p>How to use the till system</p>
+  </div>
+
+  <!-- TABLE OF CONTENTS -->
+  <div class="toc">
+    <h2>Contents</h2>
+    <ol>
+      <li>Logging In</li>
+      <li>Taking a Sale (Cash or Card)</li>
+      <li>Taking a Sale on a Tab</li>
+      <li>Giving Change (Cash)</li>
+      <li>Removing or Changing Items</li>
+      <li>Members-Only Event Mode</li>
+      <li>Giving Cashback</li>
+      <li>Recording Prize Wins</li>
+      <li>Logging Wastage</li>
+      <li>Staff Drinks</li>
+      <li>End of Day</li>
+      <li>Common Problems</li>
+    </ol>
+  </div>
+
+
+  <!-- SECTION 1 -->
+  <h2>1 &nbsp; Logging In</h2>
+
+  <div class="step-box">
+    <div class="step-num">1</div>
+    <div class="step-text">
+      <strong>Open the till on the screen.</strong>
+      <span>You will see a keypad asking for your PIN.</span>
+    </div>
+  </div>
+
+  <div class="step-box">
+    <div class="step-num">2</div>
+    <div class="step-text">
+      <strong>Type your 4-digit PIN and press Enter.</strong>
+      <span>Your name will appear at the top of the screen. You are now logged in.</span>
+    </div>
+  </div>
+
+  <div class="tip">If you type the wrong PIN, press the back arrow to clear it and try again.</div>
+
+
+  <!-- SECTION 2 -->
+  <h2>2 &nbsp; Taking a Sale (Cash or Card)</h2>
+
+  <p>This is what you will do most of the time.</p>
+
+  <div class="step-box">
+    <div class="step-num">1</div>
+    <div class="step-text">
+      <strong>Tap the drinks or food the customer wants.</strong>
+      <span>Each button you tap adds one item to the order. You will see it appear on the right-hand side of the screen.</span>
+    </div>
+  </div>
+
+  <div class="step-box">
+    <div class="step-num">2</div>
+    <div class="step-text">
+      <strong>Check the order on the right looks correct.</strong>
+      <span>The total is shown at the bottom in large numbers.</span>
+    </div>
+  </div>
+
+  <div class="step-box">
+    <div class="step-num">3</div>
+    <div class="step-text">
+      <strong>Tell the customer the total.</strong>
+    </div>
+  </div>
+
+  <div class="step-box">
+    <div class="step-num">4</div>
+    <div class="step-text">
+      <strong>Press <span class="badge badge-gray">Cash</span> or <span class="badge badge-blue">Card</span>.</strong>
+      <span>For card — the machine will handle the rest. For cash — see Section 4 below.</span>
+    </div>
+  </div>
+
+  <div class="step-box">
+    <div class="step-num">5</div>
+    <div class="step-text">
+      <strong>The receipt will print automatically.</strong>
+      <span>The screen clears and is ready for the next customer.</span>
+    </div>
+  </div>
+
+  <h3>Finding the right drink</h3>
+
+  <p>Use the buttons at the top to switch between drink types:</p>
+
+  <table>
+    <tr>
+      <th>Button</th>
+      <th>What it shows</th>
+    </tr>
+    <tr><td><strong>All</strong></td><td>Every product</td></tr>
+    <tr><td><strong>Draught</strong></td><td>Pints and half pints from the taps</td></tr>
+    <tr><td><strong>Bottle</strong></td><td>Bottled beers and ciders</td></tr>
+    <tr><td><strong>Spirit</strong></td><td>Spirits and measures</td></tr>
+    <tr><td><strong>Soft</strong></td><td>Soft drinks and mixers</td></tr>
+    <tr><td><strong>Wine</strong></td><td>Wine (glass and bottle)</td></tr>
+    <tr><td><strong>Food</strong></td><td>Food items</td></tr>
+  </table>
+
+  <div class="tip">If you see a small orange dot on a product button, the stock is running low. Tell the manager.</div>
+  <div class="tip">If you see a yellow "PROMO" badge on a product, that item is on promotion and the discounted price is already showing.</div>
+
+
+  <!-- SECTION 3 -->
+  <h2>3 &nbsp; Taking a Sale on a Tab</h2>
+
+  <p>A tab lets a customer pay at the end rather than each round.</p>
+
+  <div class="step-box">
+    <div class="step-num">1</div>
+    <div class="step-text">
+      <strong>Find the customer in the search box at the top.</strong>
+      <span>Type their first or last name. Tap their name when it appears.</span>
+    </div>
+  </div>
+
+  <div class="step-box">
+    <div class="step-num">2</div>
+    <div class="step-text">
+      <strong>Their name will appear in the order panel on the right.</strong>
+      <span>A blue bar will show their name at the top of the order.</span>
+    </div>
+  </div>
+
+  <div class="step-box">
+    <div class="step-num">3</div>
+    <div class="step-text">
+      <strong>Add the drinks as normal, then press <span class="badge badge-amber">Tab</span>.</strong>
+      <span>The order is added to their account. Nothing is charged yet.</span>
+    </div>
+  </div>
+
+  <div class="warning">You can only press Tab if a customer has been selected. The Tab button will not work without a name linked to the order.</div>
+
+  <p>To settle a tab later, go to the <strong>Tabs</strong> page from the menu and press <span class="badge badge-green">Settle</span> next to their name.</p>
+
+
+  <!-- SECTION 4 -->
+  <h2>4 &nbsp; Giving Change (Cash)</h2>
+
+  <div class="step-box">
+    <div class="step-num">1</div>
+    <div class="step-text">
+      <strong>Press <span class="badge badge-gray">Cash</span> after building the order.</strong>
+      <span>A box will appear asking how much the customer gave you.</span>
+    </div>
+  </div>
+
+  <div class="step-box">
+    <div class="step-num">2</div>
+    <div class="step-text">
+      <strong>Type in the amount the customer handed you.</strong>
+      <span>For example: if they gave you a £20 note, type 20.</span>
+    </div>
+  </div>
+
+  <div class="step-box">
+    <div class="step-num">3</div>
+    <div class="step-text">
+      <strong>The screen will show how much change to give back.</strong>
+    </div>
+  </div>
+
+  <div class="step-box">
+    <div class="step-num">4</div>
+    <div class="step-text">
+      <strong>Press <span class="badge badge-green">Confirm</span> to finish and open the cash drawer.</strong>
+    </div>
+  </div>
+
+
+  <!-- SECTION 5 -->
+  <h2>5 &nbsp; Removing or Changing Items</h2>
+
+  <h3>To add more of the same item</h3>
+  <p>Tap the product button again — it will increase the quantity by 1 each time.</p>
+  <p>Or press the <strong>+</strong> button next to the item in the order panel.</p>
+
+  <h3>To reduce the quantity</h3>
+  <p>Press the <strong>–</strong> button next to the item in the order panel.</p>
+
+  <h3>To remove an item completely</h3>
+  <p>Press the <strong>X</strong> (remove) button next to the item.</p>
+
+  <div class="tip">If the order is wrong and you want to start again, remove all the items one by one or press each item's X button.</div>
+
+
+  <!-- SECTION 6 -->
+  <h2>6 &nbsp; Members-Only Event Mode</h2>
+
+  <p>On members-only event days (sport finals, members' nights, etc.), the manager may turn on <strong>Event Mode</strong>. While Event Mode is active, every sale automatically uses member pricing — you do not need to identify each customer individually.</p>
+
+  <h3>How to tell if Event Mode is on</h3>
+
+  <p>A bright green banner runs across the top of the till that says <strong>MEMBERS PRICING — EVENT MODE</strong>. Every product tile shows the member price. Every sale is charged at member pricing automatically.</p>
+
+  <h3>Turning Event Mode on or off</h3>
+
+  <div class="step-box">
+    <div class="step-num">1</div>
+    <div class="step-text">
+      <strong>Tap the toggle at the top of the till.</strong>
+      <span>When Event Mode is off it shows as a small grey button: "Start members-only event mode". When on, it shows as the big green banner with an "End event mode" button on the right.</span>
+    </div>
+  </div>
+
+  <div class="step-box">
+    <div class="step-num">2</div>
+    <div class="step-text">
+      <strong>Confirm in the prompt that appears.</strong>
+      <span>You'll be asked "Start event mode?" or "End event mode?" — tap to confirm.</span>
+    </div>
+  </div>
+
+  <div class="warning">Only turn Event Mode on or off if the manager has told you to. It changes the price of every sale on the till.</div>
+
+  <div class="tip">Event Mode automatically turns OFF when you log out or change shift. The next person to sign in starts with it off.</div>
+
+  <div class="tip">Tabs still need a member: Event Mode only changes prices, not who the sale is linked to. To put a sale on someone's tab, you still have to find them in the search box first.</div>
+
+
+  <!-- SECTION 7 -->
+  <h2>7 &nbsp; Giving Cashback</h2>
+
+  <p>Cashback means a customer pays by card but also gets physical cash back. It is <strong>not</strong> a loyalty reward.</p>
+
+  <div class="step-box">
+    <div class="step-num">1</div>
+    <div class="step-text">
+      <strong>Press <span class="badge badge-gray">Cashback</span> below the category buttons.</strong>
+    </div>
+  </div>
+
+  <div class="step-box">
+    <div class="step-num">2</div>
+    <div class="step-text">
+      <strong>Follow the instructions on screen to enter the amount.</strong>
+    </div>
+  </div>
+
+  <div class="step-box">
+    <div class="step-num">3</div>
+    <div class="step-text">
+      <strong>Give the customer the cash from the till.</strong>
+    </div>
+  </div>
+
+  <div class="warning">Only give cashback if the manager has told you this is allowed. Always record it properly — do not skip this step.</div>
+
+
+  <!-- SECTION 8 -->
+  <h2>8 &nbsp; Recording Prize Wins</h2>
+
+  <p>The pub's two fruit machines pay out paper vouchers. When a member brings a voucher to the bar to claim, you record the prize win and pay out the cash from the till.</p>
+
+  <div class="step-box">
+    <div class="step-num">1</div>
+    <div class="step-text">
+      <strong>Press <span class="badge badge-gray">Prize Win</span> below the category buttons.</strong>
+    </div>
+  </div>
+
+  <div class="step-box">
+    <div class="step-num">2</div>
+    <div class="step-text">
+      <strong>Enter the voucher amount in £.</strong>
+      <span>For example: £5.00 voucher → type 5.00.</span>
+    </div>
+  </div>
+
+  <div class="step-box">
+    <div class="step-num">3</div>
+    <div class="step-text">
+      <strong>Tap which machine the voucher came from.</strong>
+      <span>Choose Machine 1 or Machine 2 — the supplier reimburses for each machine separately, so this matters.</span>
+    </div>
+  </div>
+
+  <div class="step-box">
+    <div class="step-num">4</div>
+    <div class="step-text">
+      <strong>Press Record. The cash drawer will open.</strong>
+      <span>Pay the customer the cash amount equal to the voucher value.</span>
+    </div>
+  </div>
+
+  <div class="step-box">
+    <div class="step-num">5</div>
+    <div class="step-text">
+      <strong>Put the voucher in the till drawer for safekeeping.</strong>
+      <span>The till has already recorded the prize win against the machine for supplier reimbursement — keeping the voucher in the drawer just keeps it safe.</span>
+    </div>
+  </div>
+
+  <div class="tip">When you reconcile cash at end of day, do NOT count vouchers as cash. The till tracks them separately, so you only count actual notes and coins.</div>
+
+
+  <!-- SECTION 9 -->
+  <h2>9 &nbsp; Logging Wastage</h2>
+
+  <p>Wastage means a drink was spilled, broken, or had to be thrown away.</p>
+
+  <div class="step-box">
+    <div class="step-num">1</div>
+    <div class="step-text">
+      <strong>Press <span class="badge badge-gray">Wastage</span> below the category buttons.</strong>
+    </div>
+  </div>
+
+  <div class="step-box">
+    <div class="step-num">2</div>
+    <div class="step-text">
+      <strong>Tap the product that was wasted.</strong>
+    </div>
+  </div>
+
+  <div class="step-box">
+    <div class="step-num">3</div>
+    <div class="step-text">
+      <strong>Confirm the quantity and press <span class="badge badge-green">Confirm</span>.</strong>
+    </div>
+  </div>
+
+  <div class="tip">Always log wastage — it helps the manager track stock accurately.</div>
+
+
+  <!-- SECTION 8 -->
+  <h2>10 &nbsp; Staff Drinks</h2>
+
+  <p>If you are given a complimentary drink by the manager, you must log it.</p>
+
+  <div class="step-box">
+    <div class="step-num">1</div>
+    <div class="step-text">
+      <strong>Press <span class="badge badge-gray">Staff Drink</span> below the category buttons.</strong>
+    </div>
+  </div>
+
+  <div class="step-box">
+    <div class="step-num">2</div>
+    <div class="step-text">
+      <strong>Tap the drink that was given.</strong>
+    </div>
+  </div>
+
+  <div class="step-box">
+    <div class="step-num">3</div>
+    <div class="step-text">
+      <strong>Confirm and press <span class="badge badge-green">Done</span>.</strong>
+    </div>
+  </div>
+
+  <div class="warning">Do not use this unless the manager has approved the drink. Every entry is recorded and reviewed.</div>
+
+
+  <!-- SECTION 9 -->
+  <h2>11 &nbsp; End of Day</h2>
+
+  <p>The staff member closing the pub runs the end-of-day. Don't wait for the manager — if you're locking up, you do the close.</p>
+
+  <div class="step-box">
+    <div class="step-num">1</div>
+    <div class="step-text">
+      <strong>Go to the <strong>Reports</strong> page using the menu at the top.</strong>
+    </div>
+  </div>
+
+  <div class="step-box">
+    <div class="step-num">2</div>
+    <div class="step-text">
+      <strong>Press <span class="badge badge-gray">Z Report</span>.</strong>
+      <span>This shows the end-of-day sales summary on screen.</span>
+    </div>
+  </div>
+
+  <div class="step-box">
+    <div class="step-num">3</div>
+    <div class="step-text">
+      <strong>Count the cash in the till and enter the totals.</strong>
+      <span>Enter the opening float and the actual cash counted. The till will work out the variance against the expected amount.</span>
+    </div>
+  </div>
+
+  <div class="step-box">
+    <div class="step-num">4</div>
+    <div class="step-text">
+      <strong>Check the Tabs page for any open tabs.</strong>
+      <span>Settle anything that needs to be cleared before close.</span>
+    </div>
+  </div>
+
+  <div class="step-box">
+    <div class="step-num">5</div>
+    <div class="step-text">
+      <strong>Press <span class="badge badge-red">Close Day</span> when everything reconciles.</strong>
+      <span>This locks the till for the day and emails the report to the manager automatically. The next staff member will need to log back in to start a new day.</span>
+    </div>
+  </div>
+
+  <div class="tip">If the variance is more than a few pounds out, double-check your count before pressing Close Day. Note any anomaly somewhere the manager can see it.</div>
+
+
+  <!-- SECTION 10 -->
+  <h2>12 &nbsp; Common Problems</h2>
+
+  <p>Try the steps in <strong>What to try</strong> first. If something is still broken after that, raise it in the <strong>EPOS WhatsApp chat</strong> — that's the fastest way to get a fix.</p>
+
+  <table>
+    <tr>
+      <th style="width:30%">Problem</th>
+      <th style="width:50%">What to try</th>
+      <th style="width:20%">If still stuck</th>
+    </tr>
+    <tr>
+      <td>My PIN is not working</td>
+      <td>Press the back arrow to clear. Try again — make sure you're tapping the right digits. PINs are 4 digits.</td>
+      <td>Manager (only they can reset a PIN)</td>
+    </tr>
+    <tr>
+      <td>The receipt is not printing</td>
+      <td>1. Check the printer has paper.<br>2. Check the printer is plugged in and the green light is on.<br>3. Go to Settings and press <span class="badge badge-gray">Test Print</span>.<br>The sale has still gone through — the customer has been charged. Take payment as normal.</td>
+      <td>EPOS WhatsApp chat</td>
+    </tr>
+    <tr>
+      <td>The drawer didn't open after a cash sale</td>
+      <td>1. Make sure the printer is plugged in (the drawer is wired through it).<br>2. Go to Settings and press <span class="badge badge-gray">Open Drawer</span> to open it manually.</td>
+      <td>EPOS WhatsApp chat</td>
+    </tr>
+    <tr>
+      <td>"Print failed" message appears</td>
+      <td>The sale has been recorded — keep serving. Try Settings → <span class="badge badge-gray">Test Print</span> to confirm the printer's working again.</td>
+      <td>EPOS WhatsApp chat if it keeps happening</td>
+    </tr>
+    <tr>
+      <td>The screen is frozen or not responding</td>
+      <td>1. Wait 10 seconds — it might catch up.<br>2. Pull down on the screen to refresh the page.<br>3. As a last resort, close the till tab and reopen <strong>club-epos.vercel.app</strong>.</td>
+      <td>EPOS WhatsApp chat</td>
+    </tr>
+    <tr>
+      <td>The Tab button is greyed out</td>
+      <td>Search for and select the member first using the search bar at the top. Tab will then unlock.</td>
+      <td>(Not a fault — that's how it's designed.)</td>
+    </tr>
+    <tr>
+      <td>The till is showing member prices to non-members</td>
+      <td>Event Mode is on. Look for the green banner at the top — tap <span class="badge badge-gray">End event mode</span> and confirm.</td>
+      <td>Manager if you're not sure whether it should be on</td>
+    </tr>
+    <tr>
+      <td>I forgot to record a prize win</td>
+      <td>Record it now using the <span class="badge badge-gray">Prize Win</span> button. The voucher is already in the till drawer — leave it there.</td>
+      <td>(Self-fix.)</td>
+    </tr>
+    <tr>
+      <td>I charged the wrong amount</td>
+      <td>Tell the next customer briefly to wait. Note the order details (member name if any, time, items).</td>
+      <td>Manager — only they can refund and re-ring</td>
+    </tr>
+    <tr>
+      <td>I pressed the wrong payment button (e.g. Cash instead of Card)</td>
+      <td>Note the order time, total, and what should have been pressed.</td>
+      <td>Manager — they correct the payment record</td>
+    </tr>
+    <tr>
+      <td>A product is missing from the till</td>
+      <td>Take payment as a similar product if the price is the same. Note the product name on a piece of paper.</td>
+      <td>Manager — only they can add products</td>
+    </tr>
+  </table>
+
+  <div class="warning">Always raise persistent technical problems in the <strong>EPOS WhatsApp chat</strong> after you've tried the steps above. Don't wait until end of shift — the longer something is broken, the more sales it costs.</div>
+
+  <hr class="divider">
+
+  <p style="text-align:center; color:#888; font-size:0.9rem;">
+    Fairmile Pub &amp; Kitchen &nbsp;|&nbsp; Staff Guide &nbsp;|&nbsp; For internal use only
+  </p>
+
+</body>
+</html>

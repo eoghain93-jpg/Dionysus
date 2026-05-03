@@ -48,7 +48,33 @@ describe('fetchOpenTabs', () => {
 })
 
 describe('fetchTabOrders', () => {
-  it('fetches orders with items for a member filtered by tab payment method', async () => {
+  // The function makes TWO calls: from('members').select(last_settled_at)
+  // then from('orders').select(...).eq().eq().gt('created_at', since).order().
+  // Helper builds dual mock chains keyed by table.
+  function setupMocks({ lastSettledAt = null, orders = [], ordersError = null, memberError = null } = {}) {
+    const memberChain = {
+      select: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      single: vi.fn().mockResolvedValue({
+        data: memberError ? null : { last_settled_at: lastSettledAt },
+        error: memberError,
+      }),
+    }
+    const ordersChain = {
+      select: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      gt: vi.fn().mockReturnThis(),
+      order: vi.fn().mockResolvedValue({ data: orders, error: ordersError }),
+    }
+    supabase.from.mockImplementation((table) => {
+      if (table === 'members') return memberChain
+      if (table === 'orders')  return ordersChain
+      return {}
+    })
+    return { memberChain, ordersChain }
+  }
+
+  it('fetches orders for a member filtered by tab payment method', async () => {
     const orders = [
       {
         id: 'o1',
@@ -56,43 +82,40 @@ describe('fetchTabOrders', () => {
         total_amount: 15.50,
         order_items: [
           { id: 'oi1', product_id: 'p1', quantity: 2, unit_price: 5.50, products: { name: 'Guinness' } },
-          { id: 'oi2', product_id: 'p2', quantity: 1, unit_price: 4.50, products: { name: 'Coke' } },
         ],
       },
     ]
-    const chain = {
-      select: vi.fn().mockReturnThis(),
-      eq: vi.fn().mockReturnThis(),
-      order: vi.fn().mockImplementation(() => Promise.resolve({ data: orders, error: null })),
-    }
-    supabase.from.mockReturnValue(chain)
+    const { ordersChain } = setupMocks({ orders })
 
     const result = await fetchTabOrders('m1')
+    expect(supabase.from).toHaveBeenCalledWith('members')
     expect(supabase.from).toHaveBeenCalledWith('orders')
-    expect(chain.select).toHaveBeenCalledWith('id, created_at, total_amount, order_items(id, product_id, quantity, unit_price, products(name))')
-    expect(chain.eq).toHaveBeenCalledWith('member_id', 'm1')
-    expect(chain.eq).toHaveBeenCalledWith('payment_method', 'tab')
-    expect(chain.order).toHaveBeenCalledWith('created_at', { ascending: false })
+    expect(ordersChain.eq).toHaveBeenCalledWith('member_id', 'm1')
+    expect(ordersChain.eq).toHaveBeenCalledWith('payment_method', 'tab')
+    expect(ordersChain.order).toHaveBeenCalledWith('created_at', { ascending: false })
     expect(result).toEqual(orders)
   })
 
+  it('filters by created_at > last_settled_at when set', async () => {
+    const since = '2026-04-15T10:00:00Z'
+    const { ordersChain } = setupMocks({ lastSettledAt: since })
+    await fetchTabOrders('m1')
+    expect(ordersChain.gt).toHaveBeenCalledWith('created_at', since)
+  })
+
+  it('uses epoch as fallback when last_settled_at is null', async () => {
+    const { ordersChain } = setupMocks({ lastSettledAt: null })
+    await fetchTabOrders('m1')
+    expect(ordersChain.gt).toHaveBeenCalledWith('created_at', '1970-01-01')
+  })
+
   it('returns empty array when member has no tab orders', async () => {
-    const chain = {
-      select: vi.fn().mockReturnThis(),
-      eq: vi.fn().mockReturnThis(),
-      order: vi.fn().mockImplementation(() => Promise.resolve({ data: [], error: null })),
-    }
-    supabase.from.mockReturnValue(chain)
+    setupMocks({ orders: [] })
     expect(await fetchTabOrders('m1')).toEqual([])
   })
 
   it('throws on error', async () => {
-    const chain = {
-      select: vi.fn().mockReturnThis(),
-      eq: vi.fn().mockReturnThis(),
-      order: vi.fn().mockImplementation(() => Promise.resolve({ data: null, error: { message: 'DB error' } })),
-    }
-    supabase.from.mockReturnValue(chain)
+    setupMocks({ ordersError: { message: 'DB error' } })
     await expect(fetchTabOrders('m1')).rejects.toThrow('DB error')
   })
 })

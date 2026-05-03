@@ -128,4 +128,30 @@ describe('settleTab', () => {
     // The update should have been called (we can't easily check the value in this mock setup,
     // but it should not throw)
   })
+
+  it('stamps last_settled_at when the balance hits zero (full settlement)', async () => {
+    const { memberUpdate } = setupMocks(15.50)
+    await settleTab('member-1', 15.50, 'cash')
+    const updatePayload = memberUpdate.mock.calls[0][0]
+    expect(updatePayload.tab_balance).toBe(0)
+    expect(updatePayload.last_settled_at).toEqual(expect.any(String))
+    // ISO 8601 timestamp shape
+    expect(updatePayload.last_settled_at).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/)
+  })
+
+  it('does NOT stamp last_settled_at on a partial settlement', async () => {
+    const { memberUpdate } = setupMocks(15.50)
+    await settleTab('member-1', 10.00, 'card')
+    const updatePayload = memberUpdate.mock.calls[0][0]
+    expect(updatePayload.tab_balance).toBe(5.50)
+    expect(updatePayload.last_settled_at).toBeUndefined()
+  })
+
+  it('stamps last_settled_at on overpayment (clamped to zero)', async () => {
+    const { memberUpdate } = setupMocks(5.00)
+    await settleTab('member-1', 100.00, 'cash')
+    const updatePayload = memberUpdate.mock.calls[0][0]
+    expect(updatePayload.tab_balance).toBe(0)
+    expect(updatePayload.last_settled_at).toEqual(expect.any(String))
+  })
 })
