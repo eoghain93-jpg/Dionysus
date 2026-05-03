@@ -7,7 +7,7 @@ const mockProducts = [
   { id: '2', name: 'Coke', category: 'soft', standard_price: 2.50, member_price: 2.00, stock_quantity: 2, par_level: 5 },
 ]
 
-beforeEach(() => useTillStore.setState({ orderItems: [], activeMember: null, activePromos: [] }))
+beforeEach(() => useTillStore.setState({ orderItems: [], activeMember: null, activePromos: [], membersOnlyMode: false }))
 
 describe('ProductGrid', () => {
   it('renders all products', () => {
@@ -29,6 +29,12 @@ describe('ProductGrid', () => {
 
   it('shows member price when member is active', () => {
     useTillStore.setState({ activeMember: { id: 'm1', name: 'Test' } })
+    render(<ProductGrid products={mockProducts} />)
+    expect(screen.getByText('£4.50')).toBeInTheDocument()
+  })
+
+  it('shows member price when membersOnlyMode is on with no individual member', () => {
+    useTillStore.setState({ membersOnlyMode: true, activeMember: null })
     render(<ProductGrid products={mockProducts} />)
     expect(screen.getByText('£4.50')).toBeInTheDocument()
   })

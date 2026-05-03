@@ -16,13 +16,15 @@ const CATEGORY_LABELS = {
 }
 
 export default function ProductGrid({ products, now = new Date() }) {
-  const { addItem, activeMember, activePromos } = useTillStore()
+  const { addItem, activeMember, activePromos, membersOnlyMode } = useTillStore()
 
   return (
     <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2">
       {products.map(product => {
         const promoPrice = getPromoPrice(product, activePromos, now)
-        const memberPrice = activeMember ? product.member_price : null
+        // Mirror addItem's pricing rule: member price applies when an
+        // individual member is active OR the till is in event-wide mode.
+        const memberPrice = (activeMember || membersOnlyMode) ? product.member_price : null
 
         const candidates = [product.standard_price]
         if (memberPrice != null) candidates.push(memberPrice)
