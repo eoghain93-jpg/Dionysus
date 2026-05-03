@@ -6,6 +6,18 @@ const BUNDLE_QTY = 4
 const BUNDLE_TOTAL = 10.00
 const UNIT_PRICE = BUNDLE_TOTAL / BUNDLE_QTY
 
+// Only these spirits are eligible for the 4-for-£10 deal. Match is
+// case-insensitive substring against product.name so "Sambuca Black",
+// "Tequila Rose", etc. would also qualify if they were on the menu.
+// To change the eligible list, edit this array — no DB migration needed.
+const BUNDLE_ELIGIBLE_KEYWORDS = ['sambuca', 'fireball', 'tequila']
+
+function isBundleEligible(product) {
+  if (product.category !== 'spirit') return false
+  const lower = product.name.toLowerCase()
+  return BUNDLE_ELIGIBLE_KEYWORDS.some(kw => lower.includes(kw))
+}
+
 /**
  * ShotBundleModal — pick 4 spirits for £10 (the always-on shot promo).
  *
@@ -19,7 +31,7 @@ export default function ShotBundleModal({ products, onClose }) {
   const addBundleItems = useTillStore(s => s.addBundleItems)
   const [selected, setSelected] = useState([]) // array of product objects (duplicates allowed)
 
-  const spirits = products.filter(p => p.category === 'spirit')
+  const spirits = products.filter(isBundleEligible)
   const remaining = BUNDLE_QTY - selected.length
   const isReady = selected.length === BUNDLE_QTY
 
@@ -64,7 +76,7 @@ export default function ShotBundleModal({ products, onClose }) {
             <p className="text-slate-400 text-sm">
               {isReady
                 ? 'Ready — tap Confirm to add to the order.'
-                : `Pick ${remaining} more ${remaining === 1 ? 'spirit' : 'spirits'}.`}
+                : `Pick ${remaining} more ${remaining === 1 ? 'spirit' : 'spirits'} — Sambuca, Fireball or Tequila.`}
             </p>
           </div>
           <button
@@ -105,7 +117,9 @@ export default function ShotBundleModal({ products, onClose }) {
         {/* Spirit grid */}
         <div className="flex-1 overflow-auto p-5">
           {spirits.length === 0 ? (
-            <p className="text-slate-500 text-sm text-center py-8">No spirit products configured.</p>
+            <p className="text-slate-500 text-sm text-center py-8">
+              No eligible spirits configured for this promotion. Add Sambuca, Fireball or Tequila to the menu first.
+            </p>
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
               {spirits.map(product => {
