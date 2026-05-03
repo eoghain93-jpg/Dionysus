@@ -67,6 +67,35 @@ export const useTillStore = create((set, get) => ({
     }
   },
 
+  /**
+   * Add a fixed-price bundle to the order. Each product in the list gets a
+   * line item priced at bundleTotal/N. Identical spirits in the same bundle
+   * collapse into one line with quantity. Bundle items never merge with
+   * existing standard-price items for the same product — the price differs,
+   * so they stay as separate lines for receipt clarity.
+   */
+  addBundleItems: (productList, bundleTotal) => {
+    if (!productList?.length) return
+    const unitPrice = Number((bundleTotal / productList.length).toFixed(2))
+    const groups = productList.reduce((acc, product) => {
+      const existing = acc.find(g => g.product.id === product.id)
+      if (existing) existing.qty++
+      else acc.push({ product, qty: 1 })
+      return acc
+    }, [])
+    const newItems = groups.map(({ product, qty }) => ({
+      product_id: product.id,
+      name: product.name,
+      quantity: qty,
+      unit_price: unitPrice,
+      member_price_applied: false,
+      promo_price_applied: false,
+      bundle_price_applied: true,
+      subtotal: Number((unitPrice * qty).toFixed(2)),
+    }))
+    set(state => ({ orderItems: [...state.orderItems, ...newItems] }))
+  },
+
   removeItem: (product_id) =>
     set(state => ({ orderItems: state.orderItems.filter(i => i.product_id !== product_id) })),
 

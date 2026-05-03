@@ -20,6 +20,7 @@ import StaffDrinkModal from '../components/till/StaffDrinkModal'
 import CashbackModal from '../components/till/CashbackModal'
 import PrizeWinModal from '../components/till/PrizeWinModal'
 import MembersOnlyToggle from '../components/till/MembersOnlyToggle'
+import ShotBundleModal from '../components/till/ShotBundleModal'
 
 export default function TillPage() {
   const [products, setProducts] = useState([])
@@ -29,6 +30,7 @@ export default function TillPage() {
   const [showStaffDrink, setShowStaffDrink] = useState(false)
   const [showCashback, setShowCashback] = useState(false)
   const [showPrizeWin, setShowPrizeWin] = useState(false)
+  const [showShotBundle, setShowShotBundle] = useState(false)
   const [showMobileOrder, setShowMobileOrder] = useState(false)
   const { orderItems, activeMember, clearOrder, loadPromos, getTotal } = useTillStore()
   const setMembersOnlyMode = useTillStore(s => s.setMembersOnlyMode)
@@ -155,6 +157,12 @@ export default function TillPage() {
             >
               Prize Win
             </button>
+            <button
+              onClick={() => setShowShotBundle(true)}
+              className="px-3 min-h-[36px] rounded-lg bg-purple-900 hover:bg-purple-800 border border-purple-700 text-purple-100 text-xs font-bold cursor-pointer transition-colors focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 focus:ring-offset-[#020617]"
+            >
+              4 Shots £10
+            </button>
           </div>
           {loading ? (
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2">
@@ -229,6 +237,12 @@ export default function TillPage() {
         <PrizeWinModal
           onClose={() => setShowPrizeWin(false)}
           onSaved={() => setShowPrizeWin(false)}
+        />
+      )}
+      {showShotBundle && (
+        <ShotBundleModal
+          products={products}
+          onClose={() => setShowShotBundle(false)}
         />
       )}
     </div>

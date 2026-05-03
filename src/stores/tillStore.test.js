@@ -53,6 +53,58 @@ describe('tillStore', () => {
     expect(useTillStore.getState().membersOnlyMode).toBe(false)
   })
 
+  describe('addBundleItems', () => {
+    const vodka  = { id: 'spirit-vodka',  name: 'Vodka',  category: 'spirit', standard_price: 4.50, member_price: 4.00 }
+    const gin    = { id: 'spirit-gin',    name: 'Gin',    category: 'spirit', standard_price: 4.50, member_price: 4.00 }
+    const rum    = { id: 'spirit-rum',    name: 'Rum',    category: 'spirit', standard_price: 4.50, member_price: 4.00 }
+    const whisky = { id: 'spirit-whisky', name: 'Whisky', category: 'spirit', standard_price: 5.00, member_price: 4.50 }
+
+    it('adds 4 distinct spirits at £2.50 each, totalling £10', () => {
+      useTillStore.getState().addBundleItems([vodka, gin, rum, whisky], 10.00)
+      const { orderItems } = useTillStore.getState()
+      expect(orderItems).toHaveLength(4)
+      expect(orderItems.every(i => i.unit_price === 2.50)).toBe(true)
+      expect(orderItems.every(i => i.bundle_price_applied === true)).toBe(true)
+      expect(useTillStore.getState().getTotal()).toBe(10.00)
+    })
+
+    it('collapses duplicates in the bundle into a single line with quantity', () => {
+      useTillStore.getState().addBundleItems([vodka, vodka, vodka, vodka], 10.00)
+      const { orderItems } = useTillStore.getState()
+      expect(orderItems).toHaveLength(1)
+      expect(orderItems[0].quantity).toBe(4)
+      expect(orderItems[0].unit_price).toBe(2.50)
+      expect(orderItems[0].subtotal).toBe(10.00)
+    })
+
+    it('does not merge with existing standard-price items for the same product', () => {
+      // Customer adds a vodka at standard, then opens the bundle and adds 4 more vodkas
+      useTillStore.getState().addItem(vodka)
+      useTillStore.getState().addBundleItems([vodka, vodka, vodka, vodka], 10.00)
+      const { orderItems } = useTillStore.getState()
+      expect(orderItems).toHaveLength(2)
+      const standard = orderItems.find(i => i.unit_price === 4.50)
+      const bundle   = orderItems.find(i => i.unit_price === 2.50)
+      expect(standard.quantity).toBe(1)
+      expect(bundle.quantity).toBe(4)
+      expect(useTillStore.getState().getTotal()).toBe(14.50)
+    })
+
+    it('marks bundle items so they are NOT flagged as member or promo prices', () => {
+      useTillStore.setState({ activeMember: { id: 'm1', name: 'Test' } })
+      useTillStore.getState().addBundleItems([vodka, gin, rum, whisky], 10.00)
+      const items = useTillStore.getState().orderItems
+      expect(items.every(i => i.bundle_price_applied === true)).toBe(true)
+      expect(items.every(i => i.member_price_applied === false)).toBe(true)
+      expect(items.every(i => i.promo_price_applied === false)).toBe(true)
+    })
+
+    it('is a no-op when product list is empty', () => {
+      useTillStore.getState().addBundleItems([], 10.00)
+      expect(useTillStore.getState().orderItems).toHaveLength(0)
+    })
+  })
+
   it('increments quantity when same product added twice', () => {
     useTillStore.getState().addItem(mockProduct)
     useTillStore.getState().addItem(mockProduct)
