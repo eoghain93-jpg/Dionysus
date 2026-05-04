@@ -76,7 +76,13 @@ export default function CashPaymentModal({ total, onConfirm, onCancel, onDone })
           <span className="text-slate-400 text-sm">Total: <span className="text-white font-semibold">£{snapshotTotal.toFixed(2)}</span></span>
         </div>
 
-        <div className="grid grid-cols-4 gap-2">
+        <div className="grid grid-cols-5 gap-2">
+          <button
+            onClick={() => setDigits(snapshotTotal.toFixed(2))}
+            className="bg-emerald-700 hover:bg-emerald-600 text-white font-semibold py-3 rounded-xl text-sm transition-colors cursor-pointer col-span-1"
+          >
+            Exact
+          </button>
           {QUICK_AMOUNTS.map(amt => (
             <button
               key={amt}
