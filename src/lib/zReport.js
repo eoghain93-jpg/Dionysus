@@ -97,6 +97,12 @@ export async function fetchZReportData(date) {
 
   const weekToDateRevenue = (weekOrders ?? []).reduce((s, o) => s + (o.total_amount ?? 0), 0)
 
+  const { data: tabData } = await supabase
+    .from('members')
+    .select('tab_balance')
+    .gt('tab_balance', 0)
+  const outstandingTabs = (tabData ?? []).reduce((s, m) => s + Number(m.tab_balance), 0)
+
   const [wastage, staffDrinks, cashbackTotal, prizeWins] = await Promise.all([
     fetchWastageForDate(date),
     fetchStaffDrinksForDate(date),
@@ -104,5 +110,5 @@ export async function fetchZReportData(date) {
     fetchPrizeWinsForDate(date),
   ])
 
-  return { salesSummary, topProducts, wastage, staffDrinks, cashbackTotal, prizeWins, weekToDateRevenue }
+  return { salesSummary, topProducts, wastage, staffDrinks, cashbackTotal, prizeWins, weekToDateRevenue, outstandingTabs }
 }

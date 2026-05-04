@@ -223,6 +223,11 @@ export default function ZReportModal({ date, onClose, onDayClose }) {
                       {fmt(data.weekToDateRevenue ?? 0)}
                     </span>
                   </Row>
+                  <Row label={<span className="text-slate-300 font-medium">Outstanding Tabs</span>}>
+                    <span className="text-amber-400 font-bold tabular-nums">
+                      {fmt(data.outstandingTabs ?? 0)}
+                    </span>
+                  </Row>
                 </div>
               </section>
 
