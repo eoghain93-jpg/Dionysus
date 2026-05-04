@@ -222,6 +222,12 @@ export default function ZReportModal({ date, onClose, onDayClose }) {
                       {fmt(data.salesSummary.netRevenue)}
                     </span>
                   </Row>
+                  <div className="border-t border-slate-700/50 my-1" />
+                  <Row label={<span className="text-slate-300 font-medium">Week to Date</span>}>
+                    <span className="text-emerald-400 font-bold tabular-nums">
+                      {fmt(data.weekToDateRevenue ?? 0)}
+                    </span>
+                  </Row>
                 </div>
               </section>
 

@@ -3,6 +3,14 @@ import { fetchWastageForDate, fetchStaffDrinksForDate } from './stockMovements'
 import { fetchCashbackForDate } from './cashback'
 import { fetchPrizeWinsForDate } from './prizeWins'
 
+function getMondayISO(dateStr) {
+  const d = new Date(`${dateStr}T12:00:00Z`)
+  const day = d.getUTCDay()
+  const diff = day === 0 ? -6 : 1 - day
+  d.setUTCDate(d.getUTCDate() + diff)
+  return d.toISOString().split('T')[0]
+}
+
 /**
  * Fetch all data needed for a Z report for a given date (YYYY-MM-DD).
  * Returns { salesSummary, topProducts, wastage, staffDrinks }.
@@ -75,6 +83,20 @@ export async function fetchZReportData(date) {
       .slice(0, 10)
   }
 
+  const monday = getMondayISO(date)
+  const weekFrom = `${monday}T00:00:00`
+  const weekTo   = `${date}T23:59:59`
+
+  const { data: weekOrders } = await supabase
+    .from('orders')
+    .select('total_amount, payment_method, status')
+    .gte('created_at', weekFrom)
+    .lte('created_at', weekTo)
+    .eq('status', 'paid')
+    .in('payment_method', ['cash', 'card'])
+
+  const weekToDateRevenue = (weekOrders ?? []).reduce((s, o) => s + (o.total_amount ?? 0), 0)
+
   const [wastage, staffDrinks, cashbackTotal, prizeWins] = await Promise.all([
     fetchWastageForDate(date),
     fetchStaffDrinksForDate(date),
@@ -82,5 +104,5 @@ export async function fetchZReportData(date) {
     fetchPrizeWinsForDate(date),
   ])
 
-  return { salesSummary, topProducts, wastage, staffDrinks, cashbackTotal, prizeWins }
+  return { salesSummary, topProducts, wastage, staffDrinks, cashbackTotal, prizeWins, weekToDateRevenue }
 }
