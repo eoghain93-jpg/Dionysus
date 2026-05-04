@@ -26,13 +26,14 @@ export async function fetchZReportData(date) {
 
   const sum = (arr) => arr.reduce((s, o) => s + (o.total_amount ?? 0), 0)
 
-  const totalRevenue    = sum(paid)
   const refundsTotal    = sum(refunds)
   const transactionCount = paid.length
   const cashTotal = sum(paid.filter(o => o.payment_method === 'cash'))
   const cardTotal = sum(paid.filter(o => o.payment_method === 'card'))
   const tabTotal  = sum(paid.filter(o => o.payment_method === 'tab'))
-  const netRevenue = totalRevenue - refundsTotal
+  // Total revenue excludes tabs — tab balances are deferred income, not cash received today
+  const totalRevenue = cashTotal + cardTotal
+  const netRevenue   = totalRevenue - refundsTotal
 
   const salesSummary = {
     totalRevenue,

@@ -206,8 +206,8 @@ export default function ZReportModal({ date, onClose, onDayClose }) {
                       {fmt(data.salesSummary.cardTotal)}
                     </span>
                   </Row>
-                  <Row label={<><Receipt size={13} className="inline mr-1 text-slate-400" aria-hidden="true" />Tab</>}>
-                    <span className="text-white text-sm" data-testid="z-tab-total">
+                  <Row label={<><Receipt size={13} className="inline mr-1 text-slate-400" aria-hidden="true" />On Tab <span className="text-slate-500 text-xs ml-1">(deferred)</span></>}>
+                    <span className="text-slate-400 text-sm" data-testid="z-tab-total">
                       {fmt(data.salesSummary.tabTotal)}
                     </span>
                   </Row>
@@ -317,10 +317,11 @@ export default function ZReportModal({ date, onClose, onDayClose }) {
                   </Row>
 
                   {/* Cashback given */}
-                  <div className="flex justify-between text-sm">
-                    <span className="text-slate-400">Cashback Given</span>
-                    <span className="text-red-400">-{fmt(cashbackTotal)}</span>
-                  </div>
+                  <Row label="Cashback Given">
+                    <span className={`text-sm tabular-nums ${cashbackTotal > 0 ? 'text-red-400 font-semibold' : 'text-slate-500'}`}>
+                      {cashbackTotal > 0 ? `-${fmt(cashbackTotal)}` : '—'}
+                    </span>
+                  </Row>
 
                   {/* Prize wins paid out */}
                   <div className="flex justify-between text-sm">
