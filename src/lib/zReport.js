@@ -3,10 +3,11 @@ import { fetchWastageForDate, fetchStaffDrinksForDate } from './stockMovements'
 import { fetchCashbackForDate } from './cashback'
 import { fetchPrizeWinsForDate } from './prizeWins'
 
-function getMondayISO(dateStr) {
+function getWeekStartISO(dateStr) {
+  // Pub week runs Saturday–Friday
   const d = new Date(`${dateStr}T12:00:00Z`)
-  const day = d.getUTCDay()
-  const diff = day === 0 ? -6 : 1 - day
+  const day = d.getUTCDay() // 0=Sun,1=Mon,...,6=Sat
+  const diff = -((day - 6 + 7) % 7)  // days back to most recent Saturday
   d.setUTCDate(d.getUTCDate() + diff)
   return d.toISOString().split('T')[0]
 }
@@ -83,7 +84,7 @@ export async function fetchZReportData(date) {
       .slice(0, 10)
   }
 
-  const monday = getMondayISO(date)
+  const monday = getWeekStartISO(date)
   const weekFrom = `${monday}T00:00:00`
   const weekTo   = `${date}T23:59:59`
 
