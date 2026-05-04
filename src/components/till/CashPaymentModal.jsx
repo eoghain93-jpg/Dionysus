@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Delete } from 'lucide-react'
 
 const QUICK_AMOUNTS = [5, 10, 20, 50]
-const NUMPAD_KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '00', '0', 'back']
+const NUMPAD_KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '.', '0', 'back']
 
 function formatPence(pence) {
   return `£${(pence / 100).toFixed(2)}`
@@ -19,18 +19,26 @@ export default function CashPaymentModal({ total, onConfirm, onCancel, onDone })
   // is always correct for the current sale.
   const [snapshotTotal] = useState(total)
   const totalPence = Math.round(snapshotTotal * 100)
-  const tenderedPence = (Number(digits) || 0) * 100
+  const tenderedPence = Math.round((parseFloat(digits) || 0) * 100)
   const changePence = tenderedPence - totalPence
   const canConfirm = tenderedPence >= totalPence
 
   function handleKey(key) {
     if (key === 'back') {
       setDigits(d => d.slice(0, -1))
-    } else if (key === '00') {
-      setDigits(d => d.length <= 3 ? d + '00' : d)
-    } else {
-      setDigits(d => d.length < 5 ? d + key : d)
+      return
     }
+    if (key === '.') {
+      if (digits.includes('.')) return
+      setDigits(d => d === '' ? '0.' : d + '.')
+      return
+    }
+    // No more than 2 decimal places
+    const dotIdx = digits.indexOf('.')
+    if (dotIdx !== -1 && digits.length - dotIdx > 2) return
+    // Cap at £999.99
+    if (digits.replace('.', '').length >= 5) return
+    setDigits(d => d + key)
   }
 
   function handleQuick(pounds) {
