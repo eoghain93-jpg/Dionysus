@@ -33,6 +33,7 @@ export async function fetchTabOrders(member_id) {
     .select('id, created_at, total_amount, order_items(id, product_id, quantity, unit_price, products(name))')
     .eq('member_id', member_id)
     .eq('payment_method', 'tab')
+    .neq('status', 'voided')
     .gt('created_at', since)
     .order('created_at', { ascending: false })
   if (error) throw error
@@ -63,7 +64,7 @@ export async function adjustTabBalance(member_id, amount, reason, staff_id) {
 export async function removeOrderFromTab(order_id, member_id, order_total) {
   const { error: orderError } = await supabase
     .from('orders')
-    .update({ payment_method: 'removed' })
+    .update({ status: 'voided' })
     .eq('id', order_id)
   if (orderError) throw orderError
 
