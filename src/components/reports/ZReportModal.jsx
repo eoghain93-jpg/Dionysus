@@ -206,11 +206,6 @@ export default function ZReportModal({ date, onClose, onDayClose }) {
                       {fmt(data.salesSummary.cardTotal)}
                     </span>
                   </Row>
-                  <Row label={<><Receipt size={13} className="inline mr-1 text-slate-400" aria-hidden="true" />On Tab <span className="text-slate-500 text-xs ml-1">(deferred)</span></>}>
-                    <span className="text-slate-400 text-sm" data-testid="z-tab-total">
-                      {fmt(data.salesSummary.tabTotal)}
-                    </span>
-                  </Row>
                   <div className="border-t border-slate-700/50 my-1" />
                   <Row label="Refunds">
                     <span className="text-red-400 text-sm" data-testid="z-refunds-total">
