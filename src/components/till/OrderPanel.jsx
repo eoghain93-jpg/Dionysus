@@ -35,6 +35,11 @@ export default function OrderPanel({ onCheckout, onClose }) {
           <div>
             <div className="text-blue-400 text-xs font-medium uppercase tracking-wider">Member</div>
             <div className="text-white font-semibold text-sm">{activeMember.name}</div>
+            {Number(activeMember.tab_balance) > 0 && (
+              <div className="text-blue-300 text-xs mt-0.5">
+                Tab: £{Number(activeMember.tab_balance).toFixed(2)}
+              </div>
+            )}
           </div>
           <button
             onClick={clearMember}

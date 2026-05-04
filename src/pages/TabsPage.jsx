@@ -101,7 +101,7 @@ export default function TabsPage() {
       </div>
 
       {/* Content */}
-      <div className="flex-1 bg-[#0F172A] rounded-2xl border border-slate-700 overflow-hidden">
+      <div className="flex-1 bg-[#0F172A] rounded-2xl border border-slate-700 overflow-auto">
         {loading ? (
           <p className="text-slate-400 text-sm p-6 text-center">Loading open tabs…</p>
         ) : error ? (
