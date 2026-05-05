@@ -196,14 +196,19 @@ export default function ZReportModal({ date, onClose, onDayClose }) {
                     </span>
                   </Row>
                   <div className="border-t border-slate-700/50 my-1" />
-                  <Row label={<><Banknote size={13} className="inline mr-1 text-green-400" aria-hidden="true" />Cash</>}>
+                  <Row label={<><Banknote size={13} className="inline mr-1 text-green-400" aria-hidden="true" />Cash Sales</>}>
                     <span className="text-white text-sm" data-testid="z-cash-total">
-                      {fmt(data.salesSummary.cashTotal)}
+                      {fmt(data.salesSummary.cashSalesOnly ?? 0)}
                     </span>
                   </Row>
-                  <Row label={<><CreditCard size={13} className="inline mr-1 text-blue-400" aria-hidden="true" />Card</>}>
+                  <Row label={<><CreditCard size={13} className="inline mr-1 text-blue-400" aria-hidden="true" />Card Sales</>}>
                     <span className="text-white text-sm" data-testid="z-card-total">
-                      {fmt(data.salesSummary.cardTotal)}
+                      {fmt(data.salesSummary.cardSalesOnly ?? 0)}
+                    </span>
+                  </Row>
+                  <Row label={<><Receipt size={13} className="inline mr-1 text-slate-400" aria-hidden="true" />New Tab Sales <span className="text-slate-500 text-xs ml-1">(deferred)</span></>}>
+                    <span className="text-slate-400 text-sm">
+                      {fmt(data.salesSummary.tabTotal ?? 0)}
                     </span>
                   </Row>
                   <div className="border-t border-slate-700/50 my-1" />
@@ -215,6 +220,12 @@ export default function ZReportModal({ date, onClose, onDayClose }) {
                   <Row label="Net Revenue">
                     <span className="text-white font-semibold" data-testid="z-net-revenue">
                       {fmt(data.salesSummary.netRevenue)}
+                    </span>
+                  </Row>
+                  <div className="border-t border-slate-700/50 my-1" />
+                  <Row label={<span className="text-slate-400 text-sm">Tab Settlements collected <span className="text-slate-500 text-xs ml-1">(past debt cleared)</span></span>}>
+                    <span className="text-blue-400 text-sm tabular-nums">
+                      {fmt(data.salesSummary.settlementsTotal ?? 0)}
                     </span>
                   </Row>
                   <div className="border-t border-slate-700/50 my-1" />
@@ -317,8 +328,8 @@ export default function ZReportModal({ date, onClose, onDayClose }) {
                     </div>
                   </div>
 
-                  {/* Cash sales (auto) */}
-                  <Row label="Cash Sales">
+                  {/* Cash received (sales + tab settlements paid in cash) */}
+                  <Row label={<span className="text-sm">Cash Received <span className="text-slate-500 text-xs ml-1">(sales + settlements)</span></span>}>
                     <span className="text-white text-sm tabular-nums">{fmt(cashSales)}</span>
                   </Row>
 

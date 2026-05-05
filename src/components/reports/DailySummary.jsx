@@ -14,7 +14,7 @@ export default function DailySummary({ date }) {
 
     supabase
       .from('orders')
-      .select('id, total_amount, payment_method, status')
+      .select('id, total_amount, payment_method, status, order_items(id)')
       .gte('created_at', `${date}T00:00:00`)
       .lte('created_at', `${date}T23:59:59`)
       .then(({ data, error: err }) => {
@@ -23,23 +23,21 @@ export default function DailySummary({ date }) {
           return
         }
         const orders = data ?? []
-        const paid = orders.filter(o => o.status === 'paid')
+        const paid   = orders.filter(o => o.status === 'paid')
         const voided = orders.filter(o => o.status === 'voided')
+        // Tab settlements have no order_items — exclude from sales totals
+        // so they don't double-count against the original tab orders
+        const sales = paid.filter(o => (o.order_items ?? []).length > 0)
+        const sumBy = (arr, m) => arr.filter(o => o.payment_method === m).reduce((s, o) => s + (o.total_amount ?? 0), 0)
 
-        const totalRevenue = paid.reduce((sum, o) => sum + (o.total_amount ?? 0), 0)
-        const cashTotal = paid
-          .filter(o => o.payment_method === 'cash')
-          .reduce((sum, o) => sum + (o.total_amount ?? 0), 0)
-        const cardTotal = paid
-          .filter(o => o.payment_method === 'card')
-          .reduce((sum, o) => sum + (o.total_amount ?? 0), 0)
-        const tabTotal = paid
-          .filter(o => o.payment_method === 'tab')
-          .reduce((sum, o) => sum + (o.total_amount ?? 0), 0)
+        const cashTotal = sumBy(sales, 'cash')
+        const cardTotal = sumBy(sales, 'card')
+        const tabTotal  = sumBy(sales, 'tab')
+        const totalRevenue = cashTotal + cardTotal + tabTotal
 
         setSummary({
           totalRevenue,
-          transactionCount: paid.length,
+          transactionCount: sales.length,
           voidCount: voided.length,
           cashTotal,
           cardTotal,
