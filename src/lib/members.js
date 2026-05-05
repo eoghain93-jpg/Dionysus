@@ -93,15 +93,20 @@ export async function upsertMember(member) {
 }
 
 export async function addToTabBalance(member_id, amount) {
-  const { data: member } = await supabase
+  const { data: member, error: fetchError } = await supabase
     .from('members')
     .select('tab_balance')
     .eq('id', member_id)
     .single()
-  await supabase
+  if (fetchError) throw fetchError
+  // Number() guard: tab_balance can come back as a string from some
+  // Supabase / Postgres configs; without it `+` would string-concat.
+  const newBalance = Number(member?.tab_balance ?? 0) + Number(amount)
+  const { error } = await supabase
     .from('members')
-    .update({ tab_balance: (member?.tab_balance || 0) + amount })
+    .update({ tab_balance: newBalance })
     .eq('id', member_id)
+  if (error) throw error
 }
 
 export async function settleTab(member_id, amount, payment_method) {
