@@ -10,7 +10,6 @@ interface SalesSummary {
   transactionCount: number
   cashTotal: number
   cardTotal: number
-  tabTotal: number
   refundsTotal: number
   netRevenue: number
 }
@@ -24,6 +23,8 @@ interface TopProduct {
 interface CashReconciliation {
   openingFloat: number
   cashSales: number
+  cashbackTotal?: number
+  prizeWinsTotal?: number
   expectedInTill: number
   actualCash: number
   variance: number
@@ -48,6 +49,8 @@ interface ZReportBody {
   cashReconciliation: CashReconciliation
   wastage: WastageItem[]
   staffDrinks: StaffDrinkSummary[]
+  weekToDateRevenue?: number
+  outstandingTabs?: number
 }
 
 function fmt(n: number): string {
@@ -57,6 +60,10 @@ function fmt(n: number): string {
 
 function buildEmailText(body: ZReportBody): string {
   const { reportDate, salesSummary: s, topProducts, cashReconciliation: c } = body
+  const cashback   = c.cashbackTotal   ?? 0
+  const prizeWins  = c.prizeWinsTotal  ?? 0
+  const wkToDate   = body.weekToDateRevenue ?? 0
+  const outstanding = body.outstandingTabs ?? 0
   const lines: string[] = [
     `Z Report — ${reportDate}`,
     '='.repeat(40),
@@ -67,9 +74,10 @@ function buildEmailText(body: ZReportBody): string {
     `Transactions:      ${s.transactionCount}`,
     `Cash:              ${fmt(s.cashTotal)}`,
     `Card:              ${fmt(s.cardTotal)}`,
-    `Tab:               ${fmt(s.tabTotal)}`,
     `Refunds:           ${fmt(-s.refundsTotal)}`,
     `Net Revenue:       ${fmt(s.netRevenue)}`,
+    `Week to Date:      ${fmt(wkToDate)}`,
+    `Outstanding Tabs:  ${fmt(outstanding)}`,
     '',
     'TOP PRODUCTS',
     '-'.repeat(40),
@@ -80,7 +88,9 @@ function buildEmailText(body: ZReportBody): string {
     'CASH RECONCILIATION',
     '-'.repeat(40),
     `Opening Float:     ${fmt(c.openingFloat)}`,
-    `Cash Sales:        ${fmt(c.cashSales)}`,
+    `Cash Received:     ${fmt(c.cashSales)}`,
+    `Cashback Given:    ${cashback > 0 ? `-${fmt(cashback)}` : '—'}`,
+    `Prize Wins:        ${prizeWins > 0 ? `-${fmt(prizeWins)}` : '—'}`,
     `Expected in Till:  ${fmt(c.expectedInTill)}`,
     `Actual Cash:       ${fmt(c.actualCash)}`,
     `Variance:          ${fmt(c.variance)}`,

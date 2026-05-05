@@ -16,7 +16,6 @@ const VALID_BODY = {
     transactionCount: 38,
     cashTotal: 120.00,
     cardTotal: 280.00,
-    tabTotal: 50.00,
     refundsTotal: 15.00,
     netRevenue: 435.00,
   },

@@ -93,6 +93,8 @@ export default function ZReportModal({ date, onClose, onDayClose }) {
       const reconciliation = {
         openingFloat,
         cashSales,
+        cashbackTotal,
+        prizeWinsTotal,
         expectedInTill,
         actualCash,
         variance,
@@ -120,6 +122,8 @@ export default function ZReportModal({ date, onClose, onDayClose }) {
           wastage: data.wastage ?? [],
           staffDrinks: data.staffDrinks ?? [],
           prizeWins: data.prizeWins ?? { total: 0, machine1: 0, machine2: 0 },
+          weekToDateRevenue: data.weekToDateRevenue ?? 0,
+          outstandingTabs: data.outstandingTabs ?? 0,
         },
       })
 
