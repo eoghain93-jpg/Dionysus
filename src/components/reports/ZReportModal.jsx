@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
 import { fetchZReportData } from '../../lib/zReport'
 import { useSessionStore } from '../../stores/sessionStore'
-import { X, Download, Lock, CreditCard, Banknote, Receipt } from '../../lib/icons'
+import { X, Download, Lock, CreditCard, Banknote } from '../../lib/icons'
 
 function fmt(n) {
   if (n === undefined || n === null) return '£0.00'
@@ -48,7 +48,6 @@ export default function ZReportModal({ date, onClose, onDayClose }) {
       `Transactions,${s.transactionCount}`,
       `Cash,${s.cashTotal.toFixed(2)}`,
       `Card,${s.cardTotal.toFixed(2)}`,
-      `Tab,${s.tabTotal.toFixed(2)}`,
       `Refunds,-${s.refundsTotal.toFixed(2)}`,
       `Net Revenue,${s.netRevenue.toFixed(2)}`,
       '',
@@ -196,19 +195,14 @@ export default function ZReportModal({ date, onClose, onDayClose }) {
                     </span>
                   </Row>
                   <div className="border-t border-slate-700/50 my-1" />
-                  <Row label={<><Banknote size={13} className="inline mr-1 text-green-400" aria-hidden="true" />Cash Sales</>}>
+                  <Row label={<><Banknote size={13} className="inline mr-1 text-green-400" aria-hidden="true" />Cash</>}>
                     <span className="text-white text-sm" data-testid="z-cash-total">
-                      {fmt(data.salesSummary.cashSalesOnly ?? 0)}
+                      {fmt(data.salesSummary.cashTotal)}
                     </span>
                   </Row>
-                  <Row label={<><CreditCard size={13} className="inline mr-1 text-blue-400" aria-hidden="true" />Card Sales</>}>
+                  <Row label={<><CreditCard size={13} className="inline mr-1 text-blue-400" aria-hidden="true" />Card</>}>
                     <span className="text-white text-sm" data-testid="z-card-total">
-                      {fmt(data.salesSummary.cardSalesOnly ?? 0)}
-                    </span>
-                  </Row>
-                  <Row label={<><Receipt size={13} className="inline mr-1 text-slate-400" aria-hidden="true" />New Tab Sales <span className="text-slate-500 text-xs ml-1">(deferred)</span></>}>
-                    <span className="text-slate-400 text-sm">
-                      {fmt(data.salesSummary.tabTotal ?? 0)}
+                      {fmt(data.salesSummary.cardTotal)}
                     </span>
                   </Row>
                   <div className="border-t border-slate-700/50 my-1" />
@@ -220,12 +214,6 @@ export default function ZReportModal({ date, onClose, onDayClose }) {
                   <Row label="Net Revenue">
                     <span className="text-white font-semibold" data-testid="z-net-revenue">
                       {fmt(data.salesSummary.netRevenue)}
-                    </span>
-                  </Row>
-                  <div className="border-t border-slate-700/50 my-1" />
-                  <Row label={<span className="text-slate-400 text-sm">Tab Settlements collected <span className="text-slate-500 text-xs ml-1">(past debt cleared)</span></span>}>
-                    <span className="text-blue-400 text-sm tabular-nums">
-                      {fmt(data.salesSummary.settlementsTotal ?? 0)}
                     </span>
                   </Row>
                   <div className="border-t border-slate-700/50 my-1" />
@@ -328,8 +316,8 @@ export default function ZReportModal({ date, onClose, onDayClose }) {
                     </div>
                   </div>
 
-                  {/* Cash received (sales + tab settlements paid in cash) */}
-                  <Row label={<span className="text-sm">Cash Received <span className="text-slate-500 text-xs ml-1">(sales + settlements)</span></span>}>
+                  {/* Cash received (auto from orders, payment_method=cash) */}
+                  <Row label="Cash Received">
                     <span className="text-white text-sm tabular-nums">{fmt(cashSales)}</span>
                   </Row>
 

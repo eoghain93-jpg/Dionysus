@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
-import { CreditCard, Banknote, Receipt } from '../../lib/icons'
+import { CreditCard, Banknote } from '../../lib/icons'
 
 export default function DailySummary({ date }) {
   const [loading, setLoading] = useState(true)
@@ -14,7 +14,7 @@ export default function DailySummary({ date }) {
 
     supabase
       .from('orders')
-      .select('id, total_amount, payment_method, status, order_items(id)')
+      .select('id, total_amount, payment_method, status')
       .gte('created_at', `${date}T00:00:00`)
       .lte('created_at', `${date}T23:59:59`)
       .then(({ data, error: err }) => {
@@ -25,23 +25,19 @@ export default function DailySummary({ date }) {
         const orders = data ?? []
         const paid   = orders.filter(o => o.status === 'paid')
         const voided = orders.filter(o => o.status === 'voided')
-        // Tab settlements have no order_items — exclude from sales totals
-        // so they don't double-count against the original tab orders
-        const sales = paid.filter(o => (o.order_items ?? []).length > 0)
+        // Cash-basis revenue: cash + card actually received. Tab orders are
+        // IOUs and excluded — outstanding tab balances are tracked separately.
         const sumBy = (arr, m) => arr.filter(o => o.payment_method === m).reduce((s, o) => s + (o.total_amount ?? 0), 0)
-
-        const cashTotal = sumBy(sales, 'cash')
-        const cardTotal = sumBy(sales, 'card')
-        const tabTotal  = sumBy(sales, 'tab')
-        const totalRevenue = cashTotal + cardTotal + tabTotal
+        const cashTotal = sumBy(paid, 'cash')
+        const cardTotal = sumBy(paid, 'card')
+        const totalRevenue = cashTotal + cardTotal
 
         setSummary({
           totalRevenue,
-          transactionCount: sales.length,
+          transactionCount: paid.filter(o => o.payment_method !== 'tab').length,
           voidCount: voided.length,
           cashTotal,
           cardTotal,
-          tabTotal,
         })
       })
       .finally(() => setLoading(false))
@@ -118,15 +114,6 @@ export default function DailySummary({ date }) {
             </span>
             <span className="text-white text-sm font-semibold" data-testid="card-total">
               {fmt(summary.cardTotal)}
-            </span>
-          </div>
-          <div className="flex items-center justify-between gap-2">
-            <span className="flex items-center gap-1.5 text-slate-300 text-sm">
-              <Receipt size={14} aria-hidden="true" className="text-slate-400" />
-              Tab
-            </span>
-            <span className="text-white text-sm font-semibold" data-testid="tab-total">
-              {fmt(summary.tabTotal)}
             </span>
           </div>
         </div>

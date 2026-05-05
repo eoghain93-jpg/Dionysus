@@ -20,11 +20,14 @@ export async function fetchZReportData(date) {
   const from = `${date}T00:00:00`
   const to   = `${date}T23:59:59`
 
-  // 1. Fetch all orders for the date (paid + refunded), with order_items so we
-  // can distinguish real sales (have items) from tab settlements (no items)
+  // Fetch all orders for the date (paid + refunded). Cash-basis accounting:
+  // revenue = cash + card actually received (whether on a sale or a tab
+  // settlement — both put real money in the till). Tab orders are IOUs, not
+  // revenue, so they're excluded entirely; what's owed lives on
+  // members.tab_balance and surfaces as Outstanding Tabs.
   const { data: orders, error: ordersError } = await supabase
     .from('orders')
-    .select('id, total_amount, payment_method, status, order_items(id)')
+    .select('id, total_amount, payment_method, status')
     .gte('created_at', from)
     .lte('created_at', to)
 
@@ -34,37 +37,20 @@ export async function fetchZReportData(date) {
   const paid    = allOrders.filter(o => o.status === 'paid')
   const refunds = allOrders.filter(o => o.status === 'refunded')
 
-  // A tab settlement creates an order with no order_items — it's just a
-  // payment record clearing past debt, not a new sale. Excluding these from
-  // revenue prevents double-counting (the original tab order already
-  // recognised the revenue when the drinks were served).
-  const sales       = paid.filter(o => (o.order_items ?? []).length > 0)
-  const settlements = paid.filter(o => (o.order_items ?? []).length === 0)
-
-  const sum = (arr) => arr.reduce((s, o) => s + (o.total_amount ?? 0), 0)
+  const sum   = (arr) => arr.reduce((s, o) => s + (o.total_amount ?? 0), 0)
   const sumBy = (arr, method) => sum(arr.filter(o => o.payment_method === method))
 
-  const refundsTotal     = sum(refunds)
-  const transactionCount = sales.length
-  const cashTotal = sumBy(paid, 'cash')           // all cash hitting drawer
-  const cardTotal = sumBy(paid, 'card')           // all card payments
-  const tabTotal  = sumBy(sales, 'tab')           // new tab orders today
-  const cashSalesOnly = sumBy(sales, 'cash')      // real cash sales (items)
-  const cardSalesOnly = sumBy(sales, 'card')      // real card sales (items)
-  const settlementsTotal = sum(settlements)
-  // Trading revenue = drinks served today, regardless of payment method
-  const totalRevenue = cashSalesOnly + cardSalesOnly + tabTotal
+  const cashTotal    = sumBy(paid, 'cash')
+  const cardTotal    = sumBy(paid, 'card')
+  const totalRevenue = cashTotal + cardTotal
+  const refundsTotal = sum(refunds)
   const netRevenue   = totalRevenue - refundsTotal
 
   const salesSummary = {
     totalRevenue,
-    transactionCount,
+    transactionCount: paid.filter(o => o.payment_method !== 'tab').length,
     cashTotal,
     cardTotal,
-    tabTotal,
-    cashSalesOnly,
-    cardSalesOnly,
-    settlementsTotal,
     refundsTotal,
     netRevenue,
   }
@@ -105,15 +91,13 @@ export async function fetchZReportData(date) {
 
   const { data: weekOrders } = await supabase
     .from('orders')
-    .select('total_amount, payment_method, status, order_items(id)')
+    .select('total_amount, payment_method, status')
     .gte('created_at', weekFrom)
     .lte('created_at', weekTo)
     .eq('status', 'paid')
+    .in('payment_method', ['cash', 'card'])
 
-  // Trading revenue across the week — exclude settlements (no items)
-  const weekToDateRevenue = (weekOrders ?? [])
-    .filter(o => (o.order_items ?? []).length > 0)
-    .reduce((s, o) => s + (o.total_amount ?? 0), 0)
+  const weekToDateRevenue = (weekOrders ?? []).reduce((s, o) => s + (o.total_amount ?? 0), 0)
 
   const { data: tabData } = await supabase
     .from('members')
