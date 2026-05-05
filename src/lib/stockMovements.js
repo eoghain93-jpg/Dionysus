@@ -19,16 +19,22 @@ export async function fetchWastageForDate(date) {
   const to = `${date}T23:59:59`
   const { data, error } = await supabase
     .from('stock_movements')
-    .select('quantity, products(name, standard_price)')
+    .select('product_id, quantity, products(name, standard_price)')
     .eq('type', 'wastage')
     .gte('created_at', from)
     .lte('created_at', to)
   if (error) throw error
-  return (data ?? []).map(r => ({
-    name: r.products?.name ?? 'Unknown',
-    quantity: r.quantity,
-    value: r.quantity * (r.products?.standard_price ?? 0),
-  }))
+  // Consolidate multiple wastage rows for the same product into one line
+  const byProduct = {}
+  ;(data ?? []).forEach(r => {
+    const key = r.product_id ?? r.products?.name ?? 'unknown'
+    const name = r.products?.name ?? 'Unknown'
+    const price = r.products?.standard_price ?? 0
+    if (!byProduct[key]) byProduct[key] = { name, quantity: 0, value: 0 }
+    byProduct[key].quantity += r.quantity
+    byProduct[key].value    += r.quantity * price
+  })
+  return Object.values(byProduct).sort((a, b) => b.value - a.value)
 }
 
 export async function fetchStaffDrinksForDate(date) {
