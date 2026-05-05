@@ -136,7 +136,9 @@ export async function printReceipt({ orderId, total, paymentMethod, createdAt })
     total,
     paymentMethod,
     createdAt,
-    includeDrawer: paymentMethod === 'cash',
+    // Open the drawer for any real money transaction (cash or card). Tabs
+    // don't need it since no money is changing hands at this point.
+    includeDrawer: paymentMethod === 'cash' || paymentMethod === 'card',
   })
   if (!ip) {
     console.info('[starPrinter] Simulation mode — no IP set:', bytes.length, 'bytes')

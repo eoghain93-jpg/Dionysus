@@ -143,10 +143,10 @@ describe('printReceipt — with IP set', () => {
     expect(arr).toContain(0x07)
   })
 
-  it('body does NOT contain drawer pulse for card payment', async () => {
+  it('body contains drawer pulse for card payment (staff need access to receipt drawer)', async () => {
     await printReceipt({ ...RECEIPT, paymentMethod: 'card' })
     const arr = Array.from(fetch.mock.calls[0][1].body)
-    expect(arr).not.toContain(0x07)
+    expect(arr).toContain(0x07)
   })
 
   it('body does NOT contain drawer pulse for tab payment', async () => {
