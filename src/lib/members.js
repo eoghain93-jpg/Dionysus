@@ -57,17 +57,35 @@ export async function upsertMember(member) {
     return data
   } else {
     if (!fields.membership_number) {
-      const { count } = await supabase.from('members').select('id', { count: 'exact', head: true })
-      fields.membership_number = `M${String((count || 0) + 1).padStart(4, '0')}`
+      // Use max(M####) + 1, not count + 1 — count is unreliable once any
+      // member has been deleted or staff (STF-***) numbers exist.
+      const { data: rows } = await supabase
+        .from('members')
+        .select('membership_number')
+        .like('membership_number', 'M%')
+      const maxN = (rows ?? []).reduce((m, r) => {
+        const n = Number(String(r.membership_number).slice(1))
+        return Number.isFinite(n) && n > m ? n : m
+      }, 0)
+      fields.membership_number = `M${String(maxN + 1).padStart(4, '0')}`
     }
     const { data, error } = await supabase.from('members').insert(fields).select().single()
     if (error) throw error
     await db.members.put(data)
     if (data.email) {
+      // Fire-and-forget: send the magic-link login email AND the wallet
+      // pass email. Both run in parallel; failure of either doesn't block
+      // member creation. Member receives two separate emails — one to log
+      // into the member-app, one with the .pkpass + Google Wallet button.
       supabase.functions.invoke('invite-member', {
         body: { member_id: data.id, email: data.email },
       }).then(({ error }) => {
         if (error) console.error('Failed to send member invite:', error)
+      })
+      supabase.functions.invoke('send-wallet-pass-email', {
+        body: { member_id: data.id },
+      }).then(({ error }) => {
+        if (error) console.error('Failed to send wallet pass email:', error)
       })
     }
     return data
