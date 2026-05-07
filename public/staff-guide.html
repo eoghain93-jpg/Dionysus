@@ -229,6 +229,8 @@
       <li>Logging Wastage</li>
       <li>Staff Drinks</li>
       <li>End of Day</li>
+      <li>Resetting Your PIN</li>
+      <li>Printer Setup</li>
       <li>Common Problems</li>
     </ol>
   </div>
@@ -318,7 +320,7 @@
     <tr><td><strong>Food</strong></td><td>Food items</td></tr>
   </table>
 
-  <div class="tip">If you see a small orange dot on a product button, the stock is running low. Tell the manager.</div>
+  <div class="tip">If you see a small orange dot on a product button, the stock is running low. Note it in the EPOS WhatsApp chat so the team can re-order or swap kegs.</div>
   <div class="tip">If you see a yellow "PROMO" badge on a product, that item is on promotion and the discounted price is already showing.</div>
 
 
@@ -409,7 +411,7 @@
   <!-- SECTION 6 -->
   <h2>6 &nbsp; Members-Only Event Mode</h2>
 
-  <p>On members-only event days (sport finals, members' nights, etc.), the manager may turn on <strong>Event Mode</strong>. While Event Mode is active, every sale automatically uses member pricing — you do not need to identify each customer individually.</p>
+  <p>On members-only event days (sport finals, members' nights, etc.) you can turn on <strong>Event Mode</strong>. While it's active, every sale automatically uses member pricing — you don't need to identify each customer individually.</p>
 
   <h3>How to tell if Event Mode is on</h3>
 
@@ -433,7 +435,7 @@
     </div>
   </div>
 
-  <div class="warning">Only turn Event Mode on or off if the manager has told you to. It changes the price of every sale on the till.</div>
+  <div class="warning">Event Mode changes the price of every sale on the till. Only turn it on for an actual members-only event, and turn it off as soon as the event ends.</div>
 
   <div class="tip">Event Mode automatically turns OFF when you log out or change shift. The next person to sign in starts with it off.</div>
 
@@ -466,7 +468,7 @@
     </div>
   </div>
 
-  <div class="warning">Only give cashback if the manager has told you this is allowed. Always record it properly — do not skip this step.</div>
+  <div class="warning">Cashback comes out of the till drawer. If you don't record it the till will be short by the cashback amount at end of day, and the manager will think money has gone missing. Always press the Cashback button before handing over the cash.</div>
 
 
   <!-- SECTION 8 -->
@@ -519,7 +521,13 @@
   <!-- SECTION 9 -->
   <h2>9 &nbsp; Logging Wastage</h2>
 
-  <p>Wastage means a drink was spilled, broken, or had to be thrown away.</p>
+  <p>Wastage means a drink was spilled, broken, had to be thrown away, or has come out of the drip trays under the taps.</p>
+
+  <h3>Drip trays</h3>
+  <p>Empty the drip tray as soon as it gets full — don't wait for end of shift. Each time you empty it, log the contents as wastage in <strong>half pints</strong> against whichever drink it came from. Most of the time the easiest way is to log a single half-pint each of the lager / bitter / cider / Guinness that filled the tray.</p>
+
+  <h3>Spills, breakages, dumped drinks</h3>
+  <p>Log these as soon as they happen so stock stays accurate.</p>
 
   <div class="step-box">
     <div class="step-num">1</div>
@@ -532,6 +540,7 @@
     <div class="step-num">2</div>
     <div class="step-text">
       <strong>Tap the product that was wasted.</strong>
+      <span>For drip-tray contents, choose the half-pint version of the drink (e.g. <em>Tetley (Half)</em>).</span>
     </div>
   </div>
 
@@ -542,13 +551,13 @@
     </div>
   </div>
 
-  <div class="tip">Always log wastage — it helps the manager track stock accurately.</div>
+  <div class="tip">Log wastage as you go — not at end of day. The Z report adds it all up automatically.</div>
 
 
   <!-- SECTION 8 -->
   <h2>10 &nbsp; Staff Drinks</h2>
 
-  <p>If you are given a complimentary drink by the manager, you must log it.</p>
+  <p>If you take a complimentary drink during your shift (the staff allowance), log it here so stock stays accurate.</p>
 
   <div class="step-box">
     <div class="step-num">1</div>
@@ -560,7 +569,7 @@
   <div class="step-box">
     <div class="step-num">2</div>
     <div class="step-text">
-      <strong>Tap the drink that was given.</strong>
+      <strong>Tap the drink you took.</strong>
     </div>
   </div>
 
@@ -571,15 +580,27 @@
     </div>
   </div>
 
-  <div class="warning">Do not use this unless the manager has approved the drink. Every entry is recorded and reviewed.</div>
+  <div class="warning">Only log drinks that fall under the agreed staff allowance. Every entry is recorded against you and shows on the Z report — don't use this for anything else.</div>
 
 
   <!-- SECTION 9 -->
   <h2>11 &nbsp; End of Day</h2>
 
-  <p>The staff member closing the pub runs the end-of-day. Don't wait for the manager — if you're locking up, you do the close.</p>
+  <p>If you're locking up, you run the end-of-day. There's nothing to wait on — just follow the steps below.</p>
 
-  <div class="tip"><strong>Before you start:</strong> physically count all the notes and coins in the till. Write the total down on a piece of paper — you'll type it in below. Don't skip this step; without it the variance is meaningless.</div>
+  <h3>The numbers, in plain English</h3>
+  <ul>
+    <li><strong>Opening Float</strong> — the £200 in cash that was put into the till at the start of the day to give change from. This is pre-filled at £200 and almost never needs changing.</li>
+    <li><strong>Cash Received</strong> — every cash payment that went through the till today. The system fills this in automatically; you don't enter it.</li>
+    <li><strong>Cashback Given</strong> / <strong>Prize Wins</strong> — money paid out of the drawer for those purposes. Filled in automatically.</li>
+    <li><strong>Expected in Till</strong> — what should be in the drawer right now: <em>Float + Cash Received − Cashback − Prize Wins</em>. The system works this out for you.</li>
+    <li><strong>Actual Cash</strong> — what's actually in the drawer when you count it. <strong>You enter this.</strong></li>
+    <li><strong>Variance</strong> — Actual minus Expected. £0.00 means it balances. A small variance is normal; a big one means something went wrong during the day.</li>
+  </ul>
+
+  <div class="tip"><strong>Before you start:</strong> physically count all the notes and coins in the drawer (including the £200 float — count everything). Write the total on a piece of paper. You'll type it into the <strong>Actual Cash</strong> field below.</div>
+
+  <div class="tip"><strong>Open tabs are fine.</strong> You do <em>not</em> need to settle outstanding tabs before closing the day. Tabs roll forward automatically — they appear on tomorrow's reports and the customer can settle next time they're in.</div>
 
   <div class="step-box">
     <div class="step-num">1</div>
@@ -645,8 +666,96 @@
   </div>
 
 
-  <!-- SECTION 10 -->
-  <h2>12 &nbsp; Common Problems</h2>
+  <!-- SECTION 12 -->
+  <h2>12 &nbsp; Resetting Your PIN</h2>
+
+  <h3>If you know your current PIN and want to change it</h3>
+
+  <div class="step-box">
+    <div class="step-num">1</div>
+    <div class="step-text">
+      <strong>Sign in to the till as normal.</strong>
+    </div>
+  </div>
+
+  <div class="step-box">
+    <div class="step-num">2</div>
+    <div class="step-text">
+      <strong>Go to the <strong>Members</strong> page from the menu.</strong>
+    </div>
+  </div>
+
+  <div class="step-box">
+    <div class="step-num">3</div>
+    <div class="step-text">
+      <strong>Find your name in the list and tap your row to open your profile.</strong>
+    </div>
+  </div>
+
+  <div class="step-box">
+    <div class="step-num">4</div>
+    <div class="step-text">
+      <strong>Press the <span class="badge badge-gray">Set PIN</span> button.</strong>
+      <span>The button only appears on staff profiles, not regular member profiles.</span>
+    </div>
+  </div>
+
+  <div class="step-box">
+    <div class="step-num">5</div>
+    <div class="step-text">
+      <strong>Enter your current PIN, then your new PIN twice.</strong>
+      <span>Your new PIN takes effect immediately. Use it the next time you sign in.</span>
+    </div>
+  </div>
+
+  <h3>If you've forgotten your PIN</h3>
+  <p>You can't reset a forgotten PIN from the till — there's no "forgot PIN" link, by design (otherwise anyone could lock out anyone else). Message the EPOS WhatsApp chat asking for a PIN reset and your PIN will be wiped on the back end so you can set a new one next time you sign in.</p>
+
+
+  <!-- SECTION 13 -->
+  <h2>13 &nbsp; Printer Setup</h2>
+
+  <p>Each till talks to its own receipt printer over the pub's WiFi. The printer's IP address has to be set on the till for receipts to print and the cash drawer to open.</p>
+
+  <h3>Which IP to use</h3>
+  <table>
+    <thead><tr><th>Till location</th><th>Printer IP</th></tr></thead>
+    <tbody>
+      <tr><td>Main bar till</td><td><code>192.168.0.247</code></td></tr>
+      <tr><td>Members-side till</td><td><code>192.168.0.250</code></td></tr>
+    </tbody>
+  </table>
+
+  <h3>How to set or check it</h3>
+
+  <div class="step-box">
+    <div class="step-num">1</div>
+    <div class="step-text">
+      <strong>Go to the <strong>Settings</strong> page from the menu.</strong>
+    </div>
+  </div>
+
+  <div class="step-box">
+    <div class="step-num">2</div>
+    <div class="step-text">
+      <strong>Find the <strong>Receipt Printer</strong> section.</strong>
+      <span>Type the IP address from the table above into the <em>Printer IP Address</em> field, matching it to the till you're using.</span>
+    </div>
+  </div>
+
+  <div class="step-box">
+    <div class="step-num">3</div>
+    <div class="step-text">
+      <strong>Press <span class="badge badge-gray">Save</span>, then <span class="badge badge-gray">Test Print</span>.</strong>
+      <span>A small test receipt should print and the cash drawer should kick open. If both happen, you're set up. If not, see Common Problems.</span>
+    </div>
+  </div>
+
+  <div class="tip">You only need to do this once per till — the IP is saved in the till's settings. If the till ever gets reset or replaced, you'll need to enter it again.</div>
+
+
+  <!-- SECTION 14 -->
+  <h2>14 &nbsp; Common Problems</h2>
 
   <p>Try the steps in <strong>What to try</strong> first. If something is still broken after that, raise it in the <strong>EPOS WhatsApp chat</strong> — that's the fastest way to get a fix.</p>
 
