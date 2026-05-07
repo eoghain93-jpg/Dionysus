@@ -14,7 +14,8 @@ export default function ZReportModal({ date, onClose, onDayClose }) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [data, setData] = useState(null)
-  const [openingFloat, setOpeningFloat] = useState(0)
+  // £200 is the standard opening float — pre-fill so staff don't have to type it
+  const [openingFloat, setOpeningFloat] = useState(200)
   const [actualCash, setActualCash] = useState(0)
   const [closing, setClosing] = useState(false)
   const [closeError, setCloseError] = useState(null)
@@ -314,6 +315,7 @@ export default function ZReportModal({ date, onClose, onDayClose }) {
                         step="0.01"
                         value={openingFloat}
                         onChange={e => setOpeningFloat(parseFloat(e.target.value) || 0)}
+                        onFocus={e => e.target.select()}
                         aria-label="Opening float"
                         className="w-24 bg-slate-700 border border-slate-600 rounded-lg px-2 py-1.5 text-white text-sm text-right focus:outline-none focus:ring-2 focus:ring-blue-500"
                       />
@@ -382,6 +384,7 @@ export default function ZReportModal({ date, onClose, onDayClose }) {
                         step="0.01"
                         value={actualCash}
                         onChange={e => setActualCash(parseFloat(e.target.value) || 0)}
+                        onFocus={e => e.target.select()}
                         aria-label="Actual cash"
                         className="w-24 bg-slate-700 border border-slate-600 rounded-lg px-2 py-1.5 text-white text-sm text-right focus:outline-none focus:ring-2 focus:ring-blue-500"
                       />
