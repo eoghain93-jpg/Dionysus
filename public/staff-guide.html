@@ -371,7 +371,7 @@
     <div class="step-num">2</div>
     <div class="step-text">
       <strong>Type in the amount the customer handed you.</strong>
-      <span>For example: if they gave you a £20 note, type 20.</span>
+      <span>Use the on-screen number pad. For round amounts there are quick buttons (£5, £10, £20, £50). If the customer paid the exact total, tap the green <span class="badge badge-green">Exact</span> button to fill it in instantly. The <strong>.</strong> key on the pad lets you enter pence, e.g. <code>5.40</code>.</span>
     </div>
   </div>
 
@@ -579,6 +579,8 @@
 
   <p>The staff member closing the pub runs the end-of-day. Don't wait for the manager — if you're locking up, you do the close.</p>
 
+  <div class="tip"><strong>Before you start:</strong> physically count all the notes and coins in the till. Write the total down on a piece of paper — you'll type it in below. Don't skip this step; without it the variance is meaningless.</div>
+
   <div class="step-box">
     <div class="step-num">1</div>
     <div class="step-text">
@@ -597,28 +599,50 @@
   <div class="step-box">
     <div class="step-num">3</div>
     <div class="step-text">
-      <strong>Count the cash in the till and enter the totals.</strong>
-      <span>Enter the opening float and the actual cash counted. The till will work out the variance against the expected amount.</span>
+      <strong>Confirm the <strong>Opening Float</strong> field shows £200.00.</strong>
+      <span>This is pre-filled because £200 is the standard opening float. Only change it if today's float was actually different.</span>
     </div>
   </div>
 
   <div class="step-box">
     <div class="step-num">4</div>
     <div class="step-text">
-      <strong>Check the Tabs page for any open tabs.</strong>
-      <span>Settle anything that needs to be cleared before close.</span>
+      <strong>Type the actual cash you counted into the <strong>Actual Cash</strong> field.</strong>
+      <span>Tap the field and type the figure (e.g. <code>274.60</code>). The field will highlight when you tap it so the existing 0 will be replaced automatically.</span>
     </div>
   </div>
 
   <div class="step-box">
     <div class="step-num">5</div>
     <div class="step-text">
-      <strong>Press <span class="badge badge-red">Close Day</span> when everything reconciles.</strong>
-      <span>This locks the till for the day and emails the report to the manager automatically. The next staff member will need to log back in to start a new day.</span>
+      <strong>Check the <strong>Variance</strong> line.</strong>
+      <span>£0.00 is perfect. A few pence either way is fine. If it's more than a couple of pounds out, recount the cash before going further — it's much easier to fix now than tomorrow.</span>
     </div>
   </div>
 
-  <div class="tip">If the variance is more than a few pounds out, double-check your count before pressing Close Day. Note any anomaly somewhere the manager can see it.</div>
+  <div class="step-box">
+    <div class="step-num">6</div>
+    <div class="step-text">
+      <strong>Glance at the rest of the report.</strong>
+      <span>The summary shows Total Revenue, Cash, Card, Cashback Given, Prize Wins, Outstanding Tabs, and Week to Date. Make sure nothing looks obviously wrong.</span>
+    </div>
+  </div>
+
+  <div class="step-box">
+    <div class="step-num">7</div>
+    <div class="step-text">
+      <strong>Press <span class="badge badge-red">Close Day</span>.</strong>
+      <span>The report emails to the manager automatically and the till locks for the night. The next staff member will need to PIN in to start the new day. <strong>Once you've pressed this, you can't undo it</strong>, so make sure the Actual Cash figure is right first.</span>
+    </div>
+  </div>
+
+  <div class="tip"><strong>Common mistakes to avoid:</strong>
+    <ul style="margin: 0.5rem 0 0 1.25rem; padding: 0;">
+      <li>Forgetting to enter Actual Cash — the variance will be wildly negative (e.g. -£274.60) and the manager will assume the till is short.</li>
+      <li>Closing Day before checking the count — recount cash if anything looks off.</li>
+      <li>Leaving cash in the drawer overnight different to the £200 float — keep £200 in for tomorrow's float, bank or safe-store the rest.</li>
+    </ul>
+  </div>
 
 
   <!-- SECTION 10 -->
@@ -643,8 +667,8 @@
       <td>EPOS WhatsApp chat</td>
     </tr>
     <tr>
-      <td>The drawer didn't open after a cash sale</td>
-      <td>1. Make sure the printer is plugged in (the drawer is wired through it).<br>2. Go to Settings and press <span class="badge badge-gray">Open Drawer</span> to open it manually.</td>
+      <td>The drawer didn't open after a cash or card sale</td>
+      <td>1. Make sure the printer is plugged in (the drawer is wired through it).<br>2. Go to Settings and press <span class="badge badge-gray">Open Drawer</span> to open it manually.<br>(Note: tab orders don't open the drawer — no money changes hands at that point.)</td>
       <td>EPOS WhatsApp chat</td>
     </tr>
     <tr>
