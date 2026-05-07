@@ -20,32 +20,40 @@ export async function fetchMembers() {
 }
 
 export async function searchMembersByName(name) {
+  // When online, always go to Supabase so tab_balance is fresh. IndexedDB
+  // is only an offline fallback — caching tab_balance leads to stale
+  // figures in the basket after settlements / new tab orders.
+  const { isOnline } = useSyncStore.getState()
+  if (isOnline) {
+    const { data } = await supabase
+      .from('members')
+      .select('*')
+      .eq('active', true)
+      .ilike('name', `%${name}%`)
+      .order('name')
+      .limit(8)
+    if (data?.length) await db.members.bulkPut(data)
+    return data ?? []
+  }
   const lower = name.toLowerCase()
-  const local = await db.members.filter(m => m.active && m.name.toLowerCase().includes(lower)).toArray()
-  if (local.length > 0) return local
-
-  const { data } = await supabase
-    .from('members')
-    .select('*')
-    .eq('active', true)
-    .ilike('name', `%${name}%`)
-    .order('name')
-    .limit(8)
-  return data ?? []
+  return db.members.filter(m => m.active && m.name.toLowerCase().includes(lower)).toArray()
 }
 
 export async function findMemberByNumber(membership_number) {
-  const local = await db.members.where('membership_number').equals(membership_number).first()
-  if (local) return local
-
-  const { data, error } = await supabase
-    .from('members')
-    .select('*')
-    .eq('membership_number', membership_number)
-    .single()
-  if (error) return null
-  await db.members.put(data)
-  return data
+  // Online: always fetch from Supabase so tab_balance reflects reality.
+  // Cache is only used as an offline fallback.
+  const { isOnline } = useSyncStore.getState()
+  if (isOnline) {
+    const { data, error } = await supabase
+      .from('members')
+      .select('*')
+      .eq('membership_number', membership_number)
+      .single()
+    if (error) return null
+    await db.members.put(data)
+    return data
+  }
+  return await db.members.where('membership_number').equals(membership_number).first()
 }
 
 export async function upsertMember(member) {
