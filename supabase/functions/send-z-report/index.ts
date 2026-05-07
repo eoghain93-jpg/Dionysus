@@ -51,6 +51,7 @@ interface ZReportBody {
   staffDrinks: StaffDrinkSummary[]
   weekToDateRevenue?: number
   outstandingTabs?: number
+  recipientOverride?: string  // optional comma-separated list to send only to these addresses (validation/resends)
 }
 
 function fmt(n: number): string {
@@ -161,7 +162,7 @@ export async function handler(
     },
     body: JSON.stringify({
       from: 'epos@fairmile.club',
-      to: managerEmail.split(',').map(e => e.trim()),
+      to: (body.recipientOverride ?? managerEmail).split(',').map(e => e.trim()).filter(Boolean),
       subject: `Z Report — ${body.reportDate}`,
       text: emailText,
     }),
