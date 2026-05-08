@@ -125,6 +125,7 @@ export default function ZReportModal({ date, onClose, onDayClose }) {
           prizeWins: data.prizeWins ?? { total: 0, machine1: 0, machine2: 0 },
           weekToDateRevenue: data.weekToDateRevenue ?? 0,
           outstandingTabs: data.outstandingTabs ?? 0,
+          weekSummary: data.weekSummary ?? null,
         },
       })
 
@@ -271,6 +272,57 @@ export default function ZReportModal({ date, onClose, onDayClose }) {
                   )}
                 </div>
               </section>
+
+              {data.weekSummary && (
+                <section aria-labelledby="z-week-heading">
+                  <h3 id="z-week-heading" className="text-sm font-semibold text-slate-400 uppercase tracking-wide mb-3">
+                    Week Summary <span className="text-slate-500 text-xs ml-2 normal-case">{data.weekSummary.weekStart} → {data.weekSummary.weekEnd}</span>
+                  </h3>
+                  <div className="bg-slate-800/60 rounded-xl p-4 space-y-3">
+                    {/* Daily breakdown */}
+                    <div className="space-y-1">
+                      {data.weekSummary.daily.map(d => (
+                        <Row key={d.date} label={<span className="text-slate-400 text-xs">{new Date(`${d.date}T12:00:00Z`).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })}</span>}>
+                          <span className="text-white text-sm tabular-nums">{fmt(d.total)}</span>
+                        </Row>
+                      ))}
+                    </div>
+                    <div className="border-t border-slate-700/50" />
+                    <Row label={<span className="text-slate-300 font-semibold">Week Total</span>}>
+                      <span className="text-emerald-400 font-bold tabular-nums">{fmt(data.weekSummary.weekRevenue)}</span>
+                    </Row>
+                    <Row label="Last Week">
+                      <span className="text-slate-400 text-sm tabular-nums">{fmt(data.weekSummary.previousWeekRevenue)}</span>
+                    </Row>
+                    {data.weekSummary.weekOnWeekDelta != null && (
+                      <Row label="Change">
+                        <span className={`text-sm font-semibold tabular-nums ${data.weekSummary.weekOnWeekDelta >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                          {data.weekSummary.weekOnWeekDelta >= 0 ? '+' : ''}{data.weekSummary.weekOnWeekDelta.toFixed(1)}%
+                        </span>
+                      </Row>
+                    )}
+                    <div className="border-t border-slate-700/50" />
+                    <Row label="Wastage (week)"><span className="text-red-400 text-sm tabular-nums">{fmt(data.weekSummary.wastageTotal)}</span></Row>
+                    <Row label="Staff Drinks (week)"><span className="text-orange-400 text-sm tabular-nums">{fmt(data.weekSummary.staffDrinksTotal)}</span></Row>
+                    {data.weekSummary.topProducts.length > 0 && (
+                      <>
+                        <div className="border-t border-slate-700/50" />
+                        <p className="text-slate-400 text-xs uppercase tracking-wide">Top sellers (week)</p>
+                        <ol className="space-y-1">
+                          {data.weekSummary.topProducts.map((p, i) => (
+                            <li key={i} className="flex items-center gap-2 text-sm">
+                              <span className="text-slate-500 text-xs font-mono w-5 text-right">{i + 1}</span>
+                              <span className="flex-1 text-white truncate">{p.name}</span>
+                              <span className="text-slate-400 text-xs tabular-nums">×{p.qty}</span>
+                              <span className="text-emerald-400 text-sm tabular-nums">{fmt(p.revenue)}</span>
+                            </li>
+                          ))}
+                        </ol>
+                      </>
+                    )}
+                  </div>
+                </section>
+              )}
 
               <ReportSection
                 id="z-wastage-heading"

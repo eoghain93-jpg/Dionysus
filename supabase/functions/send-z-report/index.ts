@@ -42,6 +42,18 @@ interface StaffDrinkSummary {
   value: number
 }
 
+interface WeekSummary {
+  weekStart: string
+  weekEnd: string
+  daily: Array<{ date: string; cash: number; card: number; total: number }>
+  weekRevenue: number
+  topProducts: TopProduct[]
+  wastageTotal: number
+  staffDrinksTotal: number
+  previousWeekRevenue: number
+  weekOnWeekDelta: number | null
+}
+
 interface ZReportBody {
   reportDate: string
   salesSummary: SalesSummary
@@ -51,6 +63,7 @@ interface ZReportBody {
   staffDrinks: StaffDrinkSummary[]
   weekToDateRevenue?: number
   outstandingTabs?: number
+  weekSummary?: WeekSummary | null
   recipientOverride?: string  // optional comma-separated list to send only to these addresses (validation/resends)
 }
 
@@ -96,6 +109,31 @@ function buildEmailText(body: ZReportBody): string {
     `Actual Cash:       ${fmt(c.actualCash)}`,
     `Variance:          ${fmt(c.variance)}`,
   ]
+
+  if (body.weekSummary) {
+    const w = body.weekSummary
+    lines.push('', `WEEK SUMMARY (${w.weekStart} → ${w.weekEnd})`, '-'.repeat(40))
+    for (const d of w.daily) {
+      const dayName = new Date(`${d.date}T12:00:00Z`).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })
+      lines.push(`${dayName.padEnd(20)} ${fmt(d.total)}`)
+    }
+    lines.push('-'.repeat(40))
+    lines.push(`Week Total:        ${fmt(w.weekRevenue)}`)
+    lines.push(`Last Week:         ${fmt(w.previousWeekRevenue)}`)
+    if (w.weekOnWeekDelta != null) {
+      const sign = w.weekOnWeekDelta >= 0 ? '+' : ''
+      lines.push(`Change:            ${sign}${w.weekOnWeekDelta.toFixed(1)}%`)
+    }
+    lines.push(`Wastage (week):    ${fmt(w.wastageTotal)}`)
+    lines.push(`Staff Drinks:      ${fmt(w.staffDrinksTotal)}`)
+    if (w.topProducts.length > 0) {
+      lines.push('', 'Top sellers (week)')
+      for (let i = 0; i < w.topProducts.length; i++) {
+        const p = w.topProducts[i]
+        lines.push(`${String(i + 1).padStart(2, ' ')}. ${p.name.padEnd(20)} x${p.qty}  ${fmt(p.revenue)}`)
+      }
+    }
+  }
 
   if (body.wastage?.length > 0) {
     lines.push('', 'WASTAGE', '-'.repeat(40))
