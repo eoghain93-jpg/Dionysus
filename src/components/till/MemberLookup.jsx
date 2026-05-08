@@ -17,6 +17,15 @@ export default function MemberLookup() {
 
   const hasNfc = typeof NDEFReader !== 'undefined'
 
+  // Auto-focus the search input whenever no member is selected. Removes the
+  // need for staff to click into the box before scanning a wallet pass —
+  // the QR data lands directly in the field and submits on Enter.
+  useEffect(() => {
+    if (!activeMember && inputRef.current) {
+      inputRef.current.focus()
+    }
+  }, [activeMember])
+
   // Barcode scanner: USB HID sends characters then Enter key
   // Capture fast bursts (< 100ms between chars) as a scan
   useEffect(() => {
