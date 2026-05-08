@@ -59,9 +59,34 @@ export async function findMemberByNumber(membership_number) {
 export async function upsertMember(member) {
   const { id, ...fields } = member
   if (id) {
+    // Snapshot the current email so we can detect a "new email added to a
+    // previously-emailless member" — that's the trigger for sending the
+    // wallet pass + invite belatedly.
+    const { data: prev } = await supabase
+      .from('members')
+      .select('email')
+      .eq('id', id)
+      .single()
+    const previouslyHadEmail = !!prev?.email
+
     const { data, error } = await supabase.from('members').update(fields).eq('id', id).select().single()
     if (error) throw error
     await db.members.put(data)
+
+    if (data.email && !previouslyHadEmail) {
+      // Email added for the first time — fire the same welcome flow a brand
+      // new member would have got: invite link + wallet pass.
+      supabase.functions.invoke('invite-member', {
+        body: { member_id: data.id, email: data.email },
+      }).then(({ error }) => {
+        if (error) console.error('Failed to send member invite:', error)
+      })
+      supabase.functions.invoke('send-wallet-pass-email', {
+        body: { member_id: data.id },
+      }).then(({ error }) => {
+        if (error) console.error('Failed to send wallet pass email:', error)
+      })
+    }
     return data
   } else {
     if (!fields.membership_number) {
