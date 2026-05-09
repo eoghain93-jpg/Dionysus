@@ -35,7 +35,7 @@ serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS_HEADERS })
   if (req.method !== 'POST') return json({ error: 'Method not allowed' }, 405)
 
-  let body: { member_id?: string }
+  let body: { member_id?: string; override_email?: string }
   try { body = await req.json() } catch { return json({ error: 'Invalid JSON body' }, 400) }
   if (!body.member_id) return json({ error: 'member_id required' }, 400)
 
@@ -156,7 +156,7 @@ serve(async (req) => {
     },
     body: JSON.stringify({
       from: FROM_ADDRESS,
-      to: [member.email],
+      to: [body.override_email ?? member.email],
       subject: `Your ${PUB_NAME} membership card`,
       html,
       text,
@@ -173,7 +173,7 @@ serve(async (req) => {
     return json({ error: `Resend returned ${resendRes.status}: ${errText}` }, 502)
   }
 
-  return json({ sent: true, to: member.email })
+  return json({ sent: true, to: body.override_email ?? member.email })
 })
 
 async function importRsaPrivateKey(pem: string): Promise<CryptoKey> {
