@@ -59,34 +59,14 @@ export async function findMemberByNumber(membership_number) {
 export async function upsertMember(member) {
   const { id, ...fields } = member
   if (id) {
-    // Snapshot the current email so we can detect a "new email added to a
-    // previously-emailless member" — that's the trigger for sending the
-    // wallet pass + invite belatedly.
-    const { data: prev } = await supabase
-      .from('members')
-      .select('email')
-      .eq('id', id)
-      .single()
-    const previouslyHadEmail = !!prev?.email
-
+    // Note: when an email is added to a previously-emailless member, the
+    // wallet pass + invite emails fire from the database trigger
+    // wallet_pass_on_email_add (migration 20260508120000). That guarantees
+    // the send happens regardless of which client made the change — till,
+    // dashboard, raw SQL — and isn't gated on a freshly deployed JS bundle.
     const { data, error } = await supabase.from('members').update(fields).eq('id', id).select().single()
     if (error) throw error
     await db.members.put(data)
-
-    if (data.email && !previouslyHadEmail) {
-      // Email added for the first time — fire the same welcome flow a brand
-      // new member would have got: invite link + wallet pass.
-      supabase.functions.invoke('invite-member', {
-        body: { member_id: data.id, email: data.email },
-      }).then(({ error }) => {
-        if (error) console.error('Failed to send member invite:', error)
-      })
-      supabase.functions.invoke('send-wallet-pass-email', {
-        body: { member_id: data.id },
-      }).then(({ error }) => {
-        if (error) console.error('Failed to send wallet pass email:', error)
-      })
-    }
     return data
   } else {
     if (!fields.membership_number) {
