@@ -22,6 +22,8 @@ interface TopProduct {
 
 interface CashReconciliation {
   openingFloat: number
+  till1OpeningFloat?: number
+  till2OpeningFloat?: number
   cashSales: number
   cashbackTotal?: number
   prizeWinsTotal?: number
@@ -101,7 +103,13 @@ function buildEmailText(body: ZReportBody): string {
     '',
     'CASH RECONCILIATION',
     '-'.repeat(40),
-    `Opening Float:     ${fmt(c.openingFloat)}`,
+    ...(c.till1OpeningFloat != null || c.till2OpeningFloat != null
+      ? [
+          `Float — Till 1:    ${fmt(c.till1OpeningFloat ?? 0)}`,
+          `Float — Till 2:    ${fmt(c.till2OpeningFloat ?? 0)}`,
+          `Float — Combined:  ${fmt(c.openingFloat)}`,
+        ]
+      : [`Opening Float:     ${fmt(c.openingFloat)}`]),
     `Cash Received:     ${fmt(c.cashSales)}`,
     `Cashback Given:    ${cashback > 0 ? `-${fmt(cashback)}` : '—'}`,
     `Prize Wins:        ${prizeWins > 0 ? `-${fmt(prizeWins)}` : '—'}`,

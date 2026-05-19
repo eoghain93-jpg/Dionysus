@@ -14,8 +14,10 @@ export default function ZReportModal({ date, onClose, onDayClose }) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [data, setData] = useState(null)
-  // £200 is the standard opening float — pre-fill so staff don't have to type it
+  // £200 is the standard opening float for till 1, £120 for till 2 — pre-filled
+  // so staff don't have to type them. Set till 2 to 0 on days it wasn't run.
   const [openingFloat, setOpeningFloat] = useState(200)
+  const [till2OpeningFloat, setTill2OpeningFloat] = useState(120)
   const [actualCash, setActualCash] = useState(0)
   const [closing, setClosing] = useState(false)
   const [closeError, setCloseError] = useState(null)
@@ -35,7 +37,8 @@ export default function ZReportModal({ date, onClose, onDayClose }) {
   // Prize-win vouchers are paid out as cash from the till, same accounting
   // treatment as cashback. Voucher itself is held separately for supplier
   // reimbursement, so it doesn't count toward actual_cash either.
-  const expectedInTill = openingFloat + cashSales - cashbackTotal - prizeWinsTotal
+  const combinedFloat = openingFloat + till2OpeningFloat
+  const expectedInTill = combinedFloat + cashSales - cashbackTotal - prizeWinsTotal
   const variance = actualCash - expectedInTill
 
   async function handleExportCSV() {
@@ -57,7 +60,9 @@ export default function ZReportModal({ date, onClose, onDayClose }) {
       ...topProducts.map(p => `${p.name},${p.qty},${p.revenue.toFixed(2)}`),
       '',
       'Cash Reconciliation',
-      `Opening Float,${openingFloat.toFixed(2)}`,
+      `Opening Float — Till 1,${openingFloat.toFixed(2)}`,
+      `Opening Float — Till 2,${till2OpeningFloat.toFixed(2)}`,
+      `Opening Float — Combined,${combinedFloat.toFixed(2)}`,
       `Cash Sales,${cashSales.toFixed(2)}`,
       `Cashback Given,-${(data.cashbackTotal ?? 0).toFixed(2)}`,
       `Prize Wins Paid Out,-${prizeWinsTotal.toFixed(2)}`,
@@ -92,7 +97,9 @@ export default function ZReportModal({ date, onClose, onDayClose }) {
     try {
       const { salesSummary: s, topProducts } = data
       const reconciliation = {
-        openingFloat,
+        openingFloat: combinedFloat,
+        till1OpeningFloat: openingFloat,
+        till2OpeningFloat,
         cashSales,
         cashbackTotal,
         prizeWinsTotal,
@@ -106,7 +113,7 @@ export default function ZReportModal({ date, onClose, onDayClose }) {
         .from('z_reports')
         .upsert({
           report_date: date,
-          opening_float: openingFloat,
+          opening_float: combinedFloat,
           actual_cash: actualCash,
           closed_at: new Date().toISOString(),
         }, { onConflict: 'report_date' })
@@ -350,13 +357,13 @@ export default function ZReportModal({ date, onClose, onDayClose }) {
                   Cash Reconciliation
                 </h3>
                 <div className="bg-slate-800/60 rounded-xl p-4 space-y-3">
-                  {/* Opening float */}
+                  {/* Opening float — till 1 */}
                   <div className="flex items-center justify-between gap-4">
                     <label
                       htmlFor="z-opening-float"
                       className="text-slate-300 text-sm shrink-0"
                     >
-                      Opening Float
+                      Opening Float — Till 1
                     </label>
                     <div className="flex items-center gap-1">
                       <span className="text-slate-400 text-sm">£</span>
@@ -368,7 +375,31 @@ export default function ZReportModal({ date, onClose, onDayClose }) {
                         value={openingFloat}
                         onChange={e => setOpeningFloat(parseFloat(e.target.value) || 0)}
                         onFocus={e => e.target.select()}
-                        aria-label="Opening float"
+                        aria-label="Opening float till 1"
+                        className="w-24 bg-slate-700 border border-slate-600 rounded-lg px-2 py-1.5 text-white text-sm text-right focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Opening float — till 2 (set to 0 if till 2 wasn't run today) */}
+                  <div className="flex items-center justify-between gap-4">
+                    <label
+                      htmlFor="z-opening-float-till2"
+                      className="text-slate-300 text-sm shrink-0"
+                    >
+                      Opening Float — Till 2
+                    </label>
+                    <div className="flex items-center gap-1">
+                      <span className="text-slate-400 text-sm">£</span>
+                      <input
+                        id="z-opening-float-till2"
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={till2OpeningFloat}
+                        onChange={e => setTill2OpeningFloat(parseFloat(e.target.value) || 0)}
+                        onFocus={e => e.target.select()}
+                        aria-label="Opening float till 2"
                         className="w-24 bg-slate-700 border border-slate-600 rounded-lg px-2 py-1.5 text-white text-sm text-right focus:outline-none focus:ring-2 focus:ring-blue-500"
                       />
                     </div>

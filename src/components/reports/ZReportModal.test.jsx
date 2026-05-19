@@ -256,8 +256,9 @@ describe('ZReportModal — Close Day', () => {
     render(<ZReportModal date={DATE} onClose={vi.fn()} onDayClose={vi.fn()} />)
     await waitFor(() => screen.getByRole('button', { name: /close day/i }))
 
-    // Set opening float to 50, actual cash to 165
-    fireEvent.change(screen.getByLabelText(/opening float/i), { target: { value: '50' } })
+    // Set till 1 float to 50, till 2 float to 0 (no second till today), actual cash to 165
+    fireEvent.change(screen.getByLabelText(/opening float till 1/i), { target: { value: '50' } })
+    fireEvent.change(screen.getByLabelText(/opening float till 2/i), { target: { value: '0' } })
     fireEvent.change(screen.getByLabelText(/actual cash/i), { target: { value: '165' } })
 
     fireEvent.click(screen.getByRole('button', { name: /close day/i }))
