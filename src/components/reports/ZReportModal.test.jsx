@@ -35,6 +35,7 @@ const REPORT_DATA = {
     cashTotal: 120.00,
     cashTotalByTill: { 'till-1': 120.00, 'till-2': 0 },
     cardTotal: 280.00,
+    cardTotalByTill: { 'till-1': 280.00, 'till-2': 0 },
     tabTotal: 50.00,
     refundsTotal: 15.00,
     netRevenue: 435.00,

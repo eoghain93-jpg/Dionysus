@@ -34,10 +34,13 @@ export default function ZReportModal({ date, onClose, onDayClose }) {
 
   // Per-till breakdowns — default to 0 when no data on that till
   const cashByTill = data?.salesSummary?.cashTotalByTill ?? { 'till-1': 0, 'till-2': 0 }
+  const cardByTill = data?.salesSummary?.cardTotalByTill ?? { 'till-1': 0, 'till-2': 0 }
   const cashbackByTill = data?.cashbackByTill ?? { 'till-1': 0, 'till-2': 0 }
   const prizeByTill = data?.prizeWins?.byTill ?? { 'till-1': 0, 'till-2': 0 }
   const till1Cash = cashByTill['till-1'] ?? 0
   const till2Cash = cashByTill['till-2'] ?? 0
+  const till1Card = cardByTill['till-1'] ?? 0
+  const till2Card = cardByTill['till-2'] ?? 0
   const till1Cashback = cashbackByTill['till-1'] ?? 0
   const till2Cashback = cashbackByTill['till-2'] ?? 0
   const till1Prize = prizeByTill['till-1'] ?? 0
@@ -80,7 +83,8 @@ export default function ZReportModal({ date, onClose, onDayClose }) {
       '',
       'Cash Reconciliation — Till 1',
       `Opening Float,${openingFloat.toFixed(2)}`,
-      `Cash Sales,${till1Cash.toFixed(2)}`,
+      `Cash Received,${till1Cash.toFixed(2)}`,
+      `Card Received,${till1Card.toFixed(2)}`,
       `Cashback Given,-${till1Cashback.toFixed(2)}`,
       `Prize Wins Paid Out,-${till1Prize.toFixed(2)}`,
       `Expected in Till,${till1Expected.toFixed(2)}`,
@@ -89,7 +93,8 @@ export default function ZReportModal({ date, onClose, onDayClose }) {
       '',
       'Cash Reconciliation — Till 2',
       `Opening Float,${till2OpeningFloat.toFixed(2)}`,
-      `Cash Sales,${till2Cash.toFixed(2)}`,
+      `Cash Received,${till2Cash.toFixed(2)}`,
+      `Card Received,${till2Card.toFixed(2)}`,
       `Cashback Given,-${till2Cashback.toFixed(2)}`,
       `Prize Wins Paid Out,-${till2Prize.toFixed(2)}`,
       `Expected in Till,${till2Expected.toFixed(2)}`,
@@ -147,6 +152,7 @@ export default function ZReportModal({ date, onClose, onDayClose }) {
           till1: {
             openingFloat,
             cashSales: till1Cash,
+            cardSales: till1Card,
             cashbackTotal: till1Cashback,
             prizeWinsTotal: till1Prize,
             expectedInTill: till1Expected,
@@ -156,6 +162,7 @@ export default function ZReportModal({ date, onClose, onDayClose }) {
           till2: {
             openingFloat: till2OpeningFloat,
             cashSales: till2Cash,
+            cardSales: till2Card,
             cashbackTotal: till2Cashback,
             prizeWinsTotal: till2Prize,
             expectedInTill: till2Expected,
@@ -421,6 +428,7 @@ export default function ZReportModal({ date, onClose, onDayClose }) {
                     floatValue={openingFloat}
                     onFloatChange={setOpeningFloat}
                     cashSales={till1Cash}
+                    cardSales={till1Card}
                     cashback={till1Cashback}
                     prizeWins={till1Prize}
                     expected={till1Expected}
@@ -437,6 +445,7 @@ export default function ZReportModal({ date, onClose, onDayClose }) {
                     floatValue={till2OpeningFloat}
                     onFloatChange={setTill2OpeningFloat}
                     cashSales={till2Cash}
+                    cardSales={till2Card}
                     cashback={till2Cashback}
                     prizeWins={till2Prize}
                     expected={till2Expected}
@@ -530,7 +539,7 @@ function Row({ label, children }) {
 
 function TillReconciliationCard({
   title, floatId, floatLabel, floatValue, onFloatChange,
-  cashSales, cashback, prizeWins, expected,
+  cashSales, cardSales, cashback, prizeWins, expected,
   actualId, actualLabel, actualValue, onActualChange, variance,
 }) {
   return (
@@ -559,6 +568,10 @@ function TillReconciliationCard({
 
       <Row label="Cash Received">
         <span className="text-white text-sm tabular-nums">{fmt(cashSales)}</span>
+      </Row>
+
+      <Row label="Card Received">
+        <span className="text-white text-sm tabular-nums">{fmt(cardSales ?? 0)}</span>
       </Row>
 
       <Row label="Cashback Given">

@@ -148,15 +148,19 @@ export async function fetchZReportData(date) {
   const refundsTotal = sum(refunds)
   const netRevenue   = totalRevenue - refundsTotal
 
-  // Per-till cash breakdown (default each till to 0 even if no orders today).
-  // The Z modal uses these to compute per-till variance.
+  // Per-till cash and card breakdowns (default each till to 0 even if no
+  // orders today). Cash drives the per-till variance calc; card is
+  // visibility-only (goes to bank, not the till drawer).
   const cashTotalByTill = { 'till-1': 0, 'till-2': 0 }
-  paid
-    .filter(o => o.payment_method === 'cash')
-    .forEach(o => {
-      const t = o.till_id || 'till-1'
+  const cardTotalByTill = { 'till-1': 0, 'till-2': 0 }
+  paid.forEach(o => {
+    const t = o.till_id || 'till-1'
+    if (o.payment_method === 'cash') {
       cashTotalByTill[t] = (cashTotalByTill[t] ?? 0) + (o.total_amount ?? 0)
-    })
+    } else if (o.payment_method === 'card') {
+      cardTotalByTill[t] = (cardTotalByTill[t] ?? 0) + (o.total_amount ?? 0)
+    }
+  })
 
   const salesSummary = {
     totalRevenue,
@@ -164,6 +168,7 @@ export async function fetchZReportData(date) {
     cashTotal,
     cashTotalByTill,
     cardTotal,
+    cardTotalByTill,
     refundsTotal,
     netRevenue,
   }

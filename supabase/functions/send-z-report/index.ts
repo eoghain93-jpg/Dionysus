@@ -23,6 +23,7 @@ interface TopProduct {
 interface TillReconciliation {
   openingFloat: number
   cashSales: number
+  cardSales?: number
   cashbackTotal: number
   prizeWinsTotal: number
   expectedInTill: number
@@ -92,6 +93,7 @@ function buildPerTillReconciliationLines(c: CashReconciliation): string[] {
     '-'.repeat(40),
     `Opening Float:     ${fmt(t.openingFloat)}`,
     `Cash Received:     ${fmt(t.cashSales)}`,
+    `Card Received:     ${fmt(t.cardSales ?? 0)}`,
     `Cashback Given:    ${t.cashbackTotal > 0 ? `-${fmt(t.cashbackTotal)}` : '—'}`,
     `Prize Wins:        ${t.prizeWinsTotal > 0 ? `-${fmt(t.prizeWinsTotal)}` : '—'}`,
     `Expected in Till:  ${fmt(t.expectedInTill)}`,
