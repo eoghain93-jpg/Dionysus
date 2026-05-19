@@ -33,11 +33,15 @@ const REPORT_DATA = {
     totalRevenue: 450.00,
     transactionCount: 38,
     cashTotal: 120.00,
+    cashTotalByTill: { 'till-1': 120.00, 'till-2': 0 },
     cardTotal: 280.00,
     tabTotal: 50.00,
     refundsTotal: 15.00,
     netRevenue: 435.00,
   },
+  cashbackTotal: 0,
+  cashbackByTill: { 'till-1': 0, 'till-2': 0 },
+  prizeWins: { total: 0, machine1: 0, machine2: 0, byTill: { 'till-1': 0, 'till-2': 0 } },
   topProducts: [
     { name: 'Guinness', qty: 42, revenue: 168.00 },
     { name: 'Lager',    qty: 30, revenue: 90.00 },
@@ -166,51 +170,57 @@ describe('ZReportModal — Top Products', () => {
 // ---- Cash Reconciliation section ----
 
 describe('ZReportModal — Cash Reconciliation', () => {
-  it('renders opening float input defaulting to 0', async () => {
+  it('renders till 1 opening float input defaulting to 200', async () => {
     render(<ZReportModal date={DATE} onClose={vi.fn()} onDayClose={vi.fn()} />)
     await waitFor(() => {
-      expect(screen.getByLabelText(/opening float/i)).toHaveValue(0)
+      expect(screen.getByLabelText(/opening float till 1/i)).toHaveValue(200)
     })
   })
 
-  it('renders actual cash input defaulting to 0', async () => {
+  it('renders till 1 actual cash input defaulting to 0', async () => {
     render(<ZReportModal date={DATE} onClose={vi.fn()} onDayClose={vi.fn()} />)
     await waitFor(() => {
-      expect(screen.getByLabelText(/actual cash/i)).toHaveValue(0)
+      expect(screen.getByLabelText(/actual cash till 1/i)).toHaveValue(0)
     })
   })
 
-  it('expectedInTill = openingFloat + cashSales', async () => {
+  it('combined expected = till1 (float + cash) + till2 (float + cash)', async () => {
     render(<ZReportModal date={DATE} onClose={vi.fn()} onDayClose={vi.fn()} />)
     await waitFor(() => {
-      // opening float = 0, cashSales = 120.00
-      expect(screen.getByTestId('z-expected-till')).toHaveTextContent('£120.00')
+      // till1: float 200 + cash 120 = 320. till2: float 120 + cash 0 = 120. Combined = 440
+      expect(screen.getByTestId('z-expected-till')).toHaveTextContent('£440.00')
     })
-    fireEvent.change(screen.getByLabelText(/opening float/i), { target: { value: '50' } })
-    expect(screen.getByTestId('z-expected-till')).toHaveTextContent('£170.00')
+    fireEvent.change(screen.getByLabelText(/opening float till 1/i), { target: { value: '50' } })
+    // till1: 50 + 120 = 170. till2: 120 + 0 = 120. Combined = 290
+    expect(screen.getByTestId('z-expected-till')).toHaveTextContent('£290.00')
   })
 
-  it('variance is expectedInTill - actualCash', async () => {
+  it('combined variance = sum of per-till variances', async () => {
     render(<ZReportModal date={DATE} onClose={vi.fn()} onDayClose={vi.fn()} />)
     await waitFor(() => {
       expect(screen.getByTestId('z-variance')).toBeInTheDocument()
     })
-    fireEvent.change(screen.getByLabelText(/actual cash/i), { target: { value: '115' } })
-    // actual=115, expected=120, variance = actual - expected = -5.00
+    // till1 expected = 320, set till1 actual = 315 → variance -5
+    // till2 expected = 120, set till2 actual = 120 → variance 0
+    // combined variance = -5
+    fireEvent.change(screen.getByLabelText(/actual cash till 1/i), { target: { value: '315' } })
+    fireEvent.change(screen.getByLabelText(/actual cash till 2/i), { target: { value: '120' } })
     expect(screen.getByTestId('z-variance')).toHaveTextContent('-£5.00')
   })
 
   it('variance has green styling when >= 0', async () => {
     render(<ZReportModal date={DATE} onClose={vi.fn()} onDayClose={vi.fn()} />)
     await waitFor(() => screen.getByTestId('z-variance'))
-    fireEvent.change(screen.getByLabelText(/actual cash/i), { target: { value: '120' } })
+    fireEvent.change(screen.getByLabelText(/actual cash till 1/i), { target: { value: '320' } })
+    fireEvent.change(screen.getByLabelText(/actual cash till 2/i), { target: { value: '120' } })
     expect(screen.getByTestId('z-variance')).toHaveClass('text-green-400')
   })
 
   it('variance has red styling when < 0', async () => {
     render(<ZReportModal date={DATE} onClose={vi.fn()} onDayClose={vi.fn()} />)
     await waitFor(() => screen.getByTestId('z-variance'))
-    fireEvent.change(screen.getByLabelText(/actual cash/i), { target: { value: '100' } })
+    fireEvent.change(screen.getByLabelText(/actual cash till 1/i), { target: { value: '300' } })
+    fireEvent.change(screen.getByLabelText(/actual cash till 2/i), { target: { value: '120' } })
     expect(screen.getByTestId('z-variance')).toHaveClass('text-red-400')
   })
 })
@@ -256,10 +266,11 @@ describe('ZReportModal — Close Day', () => {
     render(<ZReportModal date={DATE} onClose={vi.fn()} onDayClose={vi.fn()} />)
     await waitFor(() => screen.getByRole('button', { name: /close day/i }))
 
-    // Set till 1 float to 50, till 2 float to 0 (no second till today), actual cash to 165
+    // Set till 1 float to 50, till 2 float to 0 (no second till today), till 1 actual to 165
     fireEvent.change(screen.getByLabelText(/opening float till 1/i), { target: { value: '50' } })
     fireEvent.change(screen.getByLabelText(/opening float till 2/i), { target: { value: '0' } })
-    fireEvent.change(screen.getByLabelText(/actual cash/i), { target: { value: '165' } })
+    fireEvent.change(screen.getByLabelText(/actual cash till 1/i), { target: { value: '165' } })
+    fireEvent.change(screen.getByLabelText(/actual cash till 2/i), { target: { value: '0' } })
 
     fireEvent.click(screen.getByRole('button', { name: /close day/i }))
 

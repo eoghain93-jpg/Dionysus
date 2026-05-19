@@ -13,9 +13,28 @@ export async function fetchCashbackForDate(date) {
   const to   = `${date}T23:59:59`
   const { data, error } = await supabase
     .from('cashback_transactions')
-    .select('amount')
+    .select('amount, till_id')
     .gte('created_at', from)
     .lte('created_at', to)
   if (error) throw error
   return (data ?? []).reduce((sum, r) => sum + Number(r.amount), 0)
+}
+
+// Per-till breakdown — used by the Z report for per-till variance.
+// Defaults each till to 0 even if no cashback was given on that till.
+export async function fetchCashbackByTillForDate(date) {
+  const from = `${date}T00:00:00`
+  const to   = `${date}T23:59:59`
+  const { data, error } = await supabase
+    .from('cashback_transactions')
+    .select('amount, till_id')
+    .gte('created_at', from)
+    .lte('created_at', to)
+  if (error) throw error
+  const byTill = { 'till-1': 0, 'till-2': 0 }
+  ;(data ?? []).forEach(r => {
+    const t = r.till_id || 'till-1'
+    byTill[t] = (byTill[t] ?? 0) + Number(r.amount)
+  })
+  return byTill
 }

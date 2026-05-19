@@ -20,6 +20,16 @@ interface TopProduct {
   revenue: number
 }
 
+interface TillReconciliation {
+  openingFloat: number
+  cashSales: number
+  cashbackTotal: number
+  prizeWinsTotal: number
+  expectedInTill: number
+  actualCash: number
+  variance: number
+}
+
 interface CashReconciliation {
   openingFloat: number
   till1OpeningFloat?: number
@@ -30,6 +40,7 @@ interface CashReconciliation {
   expectedInTill: number
   actualCash: number
   variance: number
+  perTill?: { till1: TillReconciliation; till2: TillReconciliation }
 }
 
 interface WastageItem {
@@ -74,6 +85,31 @@ function fmt(n: number): string {
   return n < 0 ? `-£${abs}` : `£${abs}`
 }
 
+function buildPerTillReconciliationLines(c: CashReconciliation): string[] {
+  const perTill = c.perTill!
+  const tillBlock = (title: string, t: TillReconciliation) => [
+    title,
+    '-'.repeat(40),
+    `Opening Float:     ${fmt(t.openingFloat)}`,
+    `Cash Received:     ${fmt(t.cashSales)}`,
+    `Cashback Given:    ${t.cashbackTotal > 0 ? `-${fmt(t.cashbackTotal)}` : '—'}`,
+    `Prize Wins:        ${t.prizeWinsTotal > 0 ? `-${fmt(t.prizeWinsTotal)}` : '—'}`,
+    `Expected in Till:  ${fmt(t.expectedInTill)}`,
+    `Actual Cash:       ${fmt(t.actualCash)}`,
+    `Variance:          ${fmt(t.variance)}`,
+    '',
+  ]
+  return [
+    ...tillBlock('CASH RECONCILIATION — TILL 1', perTill.till1),
+    ...tillBlock('CASH RECONCILIATION — TILL 2', perTill.till2),
+    'CASH RECONCILIATION — COMBINED',
+    '-'.repeat(40),
+    `Total Expected:    ${fmt(c.expectedInTill)}`,
+    `Total Actual Cash: ${fmt(c.actualCash)}`,
+    `Total Variance:    ${fmt(c.variance)}`,
+  ]
+}
+
 function buildEmailText(body: ZReportBody): string {
   const { reportDate, salesSummary: s, topProducts, cashReconciliation: c } = body
   const cashback   = c.cashbackTotal   ?? 0
@@ -101,21 +137,19 @@ function buildEmailText(body: ZReportBody): string {
       `${String(i + 1).padStart(2, ' ')}. ${p.name.padEnd(20)} x${p.qty}  ${fmt(p.revenue)}`
     ),
     '',
-    'CASH RECONCILIATION',
-    '-'.repeat(40),
-    ...(c.till1OpeningFloat != null || c.till2OpeningFloat != null
-      ? [
-          `Float — Till 1:    ${fmt(c.till1OpeningFloat ?? 0)}`,
-          `Float — Till 2:    ${fmt(c.till2OpeningFloat ?? 0)}`,
-          `Float — Combined:  ${fmt(c.openingFloat)}`,
-        ]
-      : [`Opening Float:     ${fmt(c.openingFloat)}`]),
-    `Cash Received:     ${fmt(c.cashSales)}`,
-    `Cashback Given:    ${cashback > 0 ? `-${fmt(cashback)}` : '—'}`,
-    `Prize Wins:        ${prizeWins > 0 ? `-${fmt(prizeWins)}` : '—'}`,
-    `Expected in Till:  ${fmt(c.expectedInTill)}`,
-    `Actual Cash:       ${fmt(c.actualCash)}`,
-    `Variance:          ${fmt(c.variance)}`,
+    ...(c.perTill
+      ? buildPerTillReconciliationLines(c)
+      : [
+          'CASH RECONCILIATION',
+          '-'.repeat(40),
+          `Opening Float:     ${fmt(c.openingFloat)}`,
+          `Cash Received:     ${fmt(c.cashSales)}`,
+          `Cashback Given:    ${cashback > 0 ? `-${fmt(cashback)}` : '—'}`,
+          `Prize Wins:        ${prizeWins > 0 ? `-${fmt(prizeWins)}` : '—'}`,
+          `Expected in Till:  ${fmt(c.expectedInTill)}`,
+          `Actual Cash:       ${fmt(c.actualCash)}`,
+          `Variance:          ${fmt(c.variance)}`,
+        ]),
   ]
 
   if (body.weekSummary) {

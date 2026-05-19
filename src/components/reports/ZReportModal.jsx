@@ -18,7 +18,8 @@ export default function ZReportModal({ date, onClose, onDayClose }) {
   // so staff don't have to type them. Set till 2 to 0 on days it wasn't run.
   const [openingFloat, setOpeningFloat] = useState(200)
   const [till2OpeningFloat, setTill2OpeningFloat] = useState(120)
-  const [actualCash, setActualCash] = useState(0)
+  const [till1Actual, setTill1Actual] = useState(0)
+  const [till2Actual, setTill2Actual] = useState(0)
   const [closing, setClosing] = useState(false)
   const [closeError, setCloseError] = useState(null)
 
@@ -31,15 +32,33 @@ export default function ZReportModal({ date, onClose, onDayClose }) {
       .finally(() => setLoading(false))
   }, [date])
 
+  // Per-till breakdowns — default to 0 when no data on that till
+  const cashByTill = data?.salesSummary?.cashTotalByTill ?? { 'till-1': 0, 'till-2': 0 }
+  const cashbackByTill = data?.cashbackByTill ?? { 'till-1': 0, 'till-2': 0 }
+  const prizeByTill = data?.prizeWins?.byTill ?? { 'till-1': 0, 'till-2': 0 }
+  const till1Cash = cashByTill['till-1'] ?? 0
+  const till2Cash = cashByTill['till-2'] ?? 0
+  const till1Cashback = cashbackByTill['till-1'] ?? 0
+  const till2Cashback = cashbackByTill['till-2'] ?? 0
+  const till1Prize = prizeByTill['till-1'] ?? 0
+  const till2Prize = prizeByTill['till-2'] ?? 0
+
+  // Per-till reconciliation. Each till is its own variance source — combining
+  // them masks compensating errors (till 1 +£5, till 2 -£5 → looks fine).
+  const till1Expected = openingFloat + till1Cash - till1Cashback - till1Prize
+  const till2Expected = till2OpeningFloat + till2Cash - till2Cashback - till2Prize
+  const till1Variance = till1Actual - till1Expected
+  const till2Variance = till2Actual - till2Expected
+
+  // Combined totals — used by the existing single-float DB column and by
+  // anyone glancing at the bottom line.
   const cashSales = data?.salesSummary?.cashTotal ?? 0
   const cashbackTotal = data?.cashbackTotal ?? 0
   const prizeWinsTotal = data?.prizeWins?.total ?? 0
-  // Prize-win vouchers are paid out as cash from the till, same accounting
-  // treatment as cashback. Voucher itself is held separately for supplier
-  // reimbursement, so it doesn't count toward actual_cash either.
   const combinedFloat = openingFloat + till2OpeningFloat
-  const expectedInTill = combinedFloat + cashSales - cashbackTotal - prizeWinsTotal
-  const variance = actualCash - expectedInTill
+  const expectedInTill = till1Expected + till2Expected
+  const actualCash = till1Actual + till2Actual
+  const variance = till1Variance + till2Variance
 
   async function handleExportCSV() {
     if (!data) return
@@ -59,10 +78,26 @@ export default function ZReportModal({ date, onClose, onDayClose }) {
       'Name,Qty,Revenue',
       ...topProducts.map(p => `${p.name},${p.qty},${p.revenue.toFixed(2)}`),
       '',
-      'Cash Reconciliation',
-      `Opening Float — Till 1,${openingFloat.toFixed(2)}`,
-      `Opening Float — Till 2,${till2OpeningFloat.toFixed(2)}`,
-      `Opening Float — Combined,${combinedFloat.toFixed(2)}`,
+      'Cash Reconciliation — Till 1',
+      `Opening Float,${openingFloat.toFixed(2)}`,
+      `Cash Sales,${till1Cash.toFixed(2)}`,
+      `Cashback Given,-${till1Cashback.toFixed(2)}`,
+      `Prize Wins Paid Out,-${till1Prize.toFixed(2)}`,
+      `Expected in Till,${till1Expected.toFixed(2)}`,
+      `Actual Cash,${till1Actual.toFixed(2)}`,
+      `Variance,${till1Variance.toFixed(2)}`,
+      '',
+      'Cash Reconciliation — Till 2',
+      `Opening Float,${till2OpeningFloat.toFixed(2)}`,
+      `Cash Sales,${till2Cash.toFixed(2)}`,
+      `Cashback Given,-${till2Cashback.toFixed(2)}`,
+      `Prize Wins Paid Out,-${till2Prize.toFixed(2)}`,
+      `Expected in Till,${till2Expected.toFixed(2)}`,
+      `Actual Cash,${till2Actual.toFixed(2)}`,
+      `Variance,${till2Variance.toFixed(2)}`,
+      '',
+      'Cash Reconciliation — Combined',
+      `Opening Float,${combinedFloat.toFixed(2)}`,
       `Cash Sales,${cashSales.toFixed(2)}`,
       `Cashback Given,-${(data.cashbackTotal ?? 0).toFixed(2)}`,
       `Prize Wins Paid Out,-${prizeWinsTotal.toFixed(2)}`,
@@ -106,6 +141,28 @@ export default function ZReportModal({ date, onClose, onDayClose }) {
         expectedInTill,
         actualCash,
         variance,
+        // Per-till breakdown so the email can render two reconciliation
+        // sections plus a combined footer.
+        perTill: {
+          till1: {
+            openingFloat,
+            cashSales: till1Cash,
+            cashbackTotal: till1Cashback,
+            prizeWinsTotal: till1Prize,
+            expectedInTill: till1Expected,
+            actualCash: till1Actual,
+            variance: till1Variance,
+          },
+          till2: {
+            openingFloat: till2OpeningFloat,
+            cashSales: till2Cash,
+            cashbackTotal: till2Cashback,
+            prizeWinsTotal: till2Prize,
+            expectedInTill: till2Expected,
+            actualCash: till2Actual,
+            variance: till2Variance,
+          },
+        },
       }
 
       // 1. Upsert z_reports row (idempotent — retry-safe if email failed previously)
@@ -356,126 +413,53 @@ export default function ZReportModal({ date, onClose, onDayClose }) {
                 >
                   Cash Reconciliation
                 </h3>
-                <div className="bg-slate-800/60 rounded-xl p-4 space-y-3">
-                  {/* Opening float — till 1 */}
-                  <div className="flex items-center justify-between gap-4">
-                    <label
-                      htmlFor="z-opening-float"
-                      className="text-slate-300 text-sm shrink-0"
-                    >
-                      Opening Float — Till 1
-                    </label>
-                    <div className="flex items-center gap-1">
-                      <span className="text-slate-400 text-sm">£</span>
-                      <input
-                        id="z-opening-float"
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        value={openingFloat}
-                        onChange={e => setOpeningFloat(parseFloat(e.target.value) || 0)}
-                        onFocus={e => e.target.select()}
-                        aria-label="Opening float till 1"
-                        className="w-24 bg-slate-700 border border-slate-600 rounded-lg px-2 py-1.5 text-white text-sm text-right focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      />
-                    </div>
-                  </div>
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                  <TillReconciliationCard
+                    title="Till 1"
+                    floatId="z-opening-float"
+                    floatLabel="Opening float till 1"
+                    floatValue={openingFloat}
+                    onFloatChange={setOpeningFloat}
+                    cashSales={till1Cash}
+                    cashback={till1Cashback}
+                    prizeWins={till1Prize}
+                    expected={till1Expected}
+                    actualId="z-actual-cash"
+                    actualLabel="Actual cash till 1"
+                    actualValue={till1Actual}
+                    onActualChange={setTill1Actual}
+                    variance={till1Variance}
+                  />
+                  <TillReconciliationCard
+                    title="Till 2"
+                    floatId="z-opening-float-till2"
+                    floatLabel="Opening float till 2"
+                    floatValue={till2OpeningFloat}
+                    onFloatChange={setTill2OpeningFloat}
+                    cashSales={till2Cash}
+                    cashback={till2Cashback}
+                    prizeWins={till2Prize}
+                    expected={till2Expected}
+                    actualId="z-actual-cash-till2"
+                    actualLabel="Actual cash till 2"
+                    actualValue={till2Actual}
+                    onActualChange={setTill2Actual}
+                    variance={till2Variance}
+                  />
+                </div>
 
-                  {/* Opening float — till 2 (set to 0 if till 2 wasn't run today) */}
-                  <div className="flex items-center justify-between gap-4">
-                    <label
-                      htmlFor="z-opening-float-till2"
-                      className="text-slate-300 text-sm shrink-0"
-                    >
-                      Opening Float — Till 2
-                    </label>
-                    <div className="flex items-center gap-1">
-                      <span className="text-slate-400 text-sm">£</span>
-                      <input
-                        id="z-opening-float-till2"
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        value={till2OpeningFloat}
-                        onChange={e => setTill2OpeningFloat(parseFloat(e.target.value) || 0)}
-                        onFocus={e => e.target.select()}
-                        aria-label="Opening float till 2"
-                        className="w-24 bg-slate-700 border border-slate-600 rounded-lg px-2 py-1.5 text-white text-sm text-right focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Cash received (auto from orders, payment_method=cash) */}
-                  <Row label="Cash Received">
-                    <span className="text-white text-sm tabular-nums">{fmt(cashSales)}</span>
-                  </Row>
-
-                  {/* Cashback given */}
-                  <Row label="Cashback Given">
-                    <span className={`text-sm tabular-nums ${cashbackTotal > 0 ? 'text-red-400 font-semibold' : 'text-slate-500'}`}>
-                      {cashbackTotal > 0 ? `-${fmt(cashbackTotal)}` : '—'}
-                    </span>
-                  </Row>
-
-                  {/* Prize wins paid out */}
-                  <div className="flex justify-between text-sm">
-                    <span className="text-slate-400">Prize Wins Paid Out</span>
-                    <span className="text-red-400" data-testid="z-prize-wins-total">
-                      -{fmt(prizeWinsTotal)}
-                    </span>
-                  </div>
-                  {prizeWinsTotal > 0 && (
-                    <div className="pl-4 space-y-1 text-xs">
-                      <div className="flex justify-between">
-                        <span className="text-slate-500">Machine 1</span>
-                        <span className="text-red-400/80" data-testid="z-prize-wins-m1">
-                          -{fmt(data.prizeWins?.machine1 ?? 0)}
-                        </span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-slate-500">Machine 2</span>
-                        <span className="text-red-400/80" data-testid="z-prize-wins-m2">
-                          -{fmt(data.prizeWins?.machine2 ?? 0)}
-                        </span>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Expected in till */}
-                  <Row label="Expected in Till">
+                {/* Combined footer — visible at-a-glance totals */}
+                <div className="bg-slate-900/60 border border-slate-700 rounded-xl p-4 mt-3 space-y-2">
+                  <p className="text-xs text-slate-400 uppercase tracking-wide">Combined</p>
+                  <Row label="Total Expected">
                     <span className="text-white font-semibold tabular-nums" data-testid="z-expected-till">
                       {fmt(expectedInTill)}
                     </span>
                   </Row>
-
-                  <div className="border-t border-slate-700/50 my-1" />
-
-                  {/* Actual cash */}
-                  <div className="flex items-center justify-between gap-4">
-                    <label
-                      htmlFor="z-actual-cash"
-                      className="text-slate-300 text-sm shrink-0"
-                    >
-                      Actual Cash
-                    </label>
-                    <div className="flex items-center gap-1">
-                      <span className="text-slate-400 text-sm">£</span>
-                      <input
-                        id="z-actual-cash"
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        value={actualCash}
-                        onChange={e => setActualCash(parseFloat(e.target.value) || 0)}
-                        onFocus={e => e.target.select()}
-                        aria-label="Actual cash"
-                        className="w-24 bg-slate-700 border border-slate-600 rounded-lg px-2 py-1.5 text-white text-sm text-right focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Variance */}
-                  <Row label="Variance">
+                  <Row label="Total Actual Cash">
+                    <span className="text-white font-semibold tabular-nums">{fmt(actualCash)}</span>
+                  </Row>
+                  <Row label="Total Variance">
                     <span
                       data-testid="z-variance"
                       className={`font-bold tabular-nums ${variance >= 0 ? 'text-green-400' : 'text-red-400'}`}
@@ -483,6 +467,23 @@ export default function ZReportModal({ date, onClose, onDayClose }) {
                       {fmt(variance)}
                     </span>
                   </Row>
+                  {prizeWinsTotal > 0 && (
+                    <div className="pl-1 pt-1 border-t border-slate-700/50 space-y-1 text-xs">
+                      <div className="flex justify-between">
+                        <span className="text-slate-500">Prize Wins · Machine 1</span>
+                        <span className="text-red-400/80" data-testid="z-prize-wins-m1">
+                          -{fmt(data.prizeWins?.machine1 ?? 0)}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-slate-500">Prize Wins · Machine 2</span>
+                        <span className="text-red-400/80" data-testid="z-prize-wins-m2">
+                          -{fmt(data.prizeWins?.machine2 ?? 0)}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                  <span data-testid="z-prize-wins-total" className="hidden">-{fmt(prizeWinsTotal)}</span>
                 </div>
               </section>
 
@@ -523,6 +524,86 @@ function Row({ label, children }) {
     <div className="flex items-center justify-between gap-3">
       <span className="text-slate-400 text-sm">{label}</span>
       {children}
+    </div>
+  )
+}
+
+function TillReconciliationCard({
+  title, floatId, floatLabel, floatValue, onFloatChange,
+  cashSales, cashback, prizeWins, expected,
+  actualId, actualLabel, actualValue, onActualChange, variance,
+}) {
+  return (
+    <div className="bg-slate-800/60 rounded-xl p-4 space-y-3">
+      <p className="text-xs text-slate-400 uppercase tracking-wide">{title}</p>
+
+      <div className="flex items-center justify-between gap-4">
+        <label htmlFor={floatId} className="text-slate-300 text-sm shrink-0">
+          Opening Float
+        </label>
+        <div className="flex items-center gap-1">
+          <span className="text-slate-400 text-sm">£</span>
+          <input
+            id={floatId}
+            type="number"
+            min="0"
+            step="0.01"
+            value={floatValue}
+            onChange={e => onFloatChange(parseFloat(e.target.value) || 0)}
+            onFocus={e => e.target.select()}
+            aria-label={floatLabel}
+            className="w-24 bg-slate-700 border border-slate-600 rounded-lg px-2 py-1.5 text-white text-sm text-right focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+      </div>
+
+      <Row label="Cash Received">
+        <span className="text-white text-sm tabular-nums">{fmt(cashSales)}</span>
+      </Row>
+
+      <Row label="Cashback Given">
+        <span className={`text-sm tabular-nums ${cashback > 0 ? 'text-red-400 font-semibold' : 'text-slate-500'}`}>
+          {cashback > 0 ? `-${fmt(cashback)}` : '—'}
+        </span>
+      </Row>
+
+      <Row label="Prize Wins Paid Out">
+        <span className={`text-sm tabular-nums ${prizeWins > 0 ? 'text-red-400 font-semibold' : 'text-slate-500'}`}>
+          {prizeWins > 0 ? `-${fmt(prizeWins)}` : '—'}
+        </span>
+      </Row>
+
+      <div className="border-t border-slate-700/50 my-1" />
+
+      <Row label="Expected in Till">
+        <span className="text-white font-semibold tabular-nums">{fmt(expected)}</span>
+      </Row>
+
+      <div className="flex items-center justify-between gap-4">
+        <label htmlFor={actualId} className="text-slate-300 text-sm shrink-0">
+          Actual Cash
+        </label>
+        <div className="flex items-center gap-1">
+          <span className="text-slate-400 text-sm">£</span>
+          <input
+            id={actualId}
+            type="number"
+            min="0"
+            step="0.01"
+            value={actualValue}
+            onChange={e => onActualChange(parseFloat(e.target.value) || 0)}
+            onFocus={e => e.target.select()}
+            aria-label={actualLabel}
+            className="w-24 bg-slate-700 border border-slate-600 rounded-lg px-2 py-1.5 text-white text-sm text-right focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+      </div>
+
+      <Row label="Variance">
+        <span className={`font-bold tabular-nums ${variance >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+          {fmt(variance)}
+        </span>
+      </Row>
     </div>
   )
 }

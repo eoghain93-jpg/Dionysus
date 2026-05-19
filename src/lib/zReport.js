@@ -1,6 +1,6 @@
 import { supabase } from './supabase'
 import { fetchWastageForDate, fetchStaffDrinksForDate } from './stockMovements'
-import { fetchCashbackForDate } from './cashback'
+import { fetchCashbackForDate, fetchCashbackByTillForDate } from './cashback'
 import { fetchPrizeWinsForDate } from './prizeWins'
 
 function getWeekStartISO(dateStr) {
@@ -129,7 +129,7 @@ export async function fetchZReportData(date) {
   // members.tab_balance and surfaces as Outstanding Tabs.
   const { data: orders, error: ordersError } = await supabase
     .from('orders')
-    .select('id, total_amount, payment_method, status')
+    .select('id, total_amount, payment_method, status, till_id')
     .gte('created_at', from)
     .lte('created_at', to)
 
@@ -148,10 +148,21 @@ export async function fetchZReportData(date) {
   const refundsTotal = sum(refunds)
   const netRevenue   = totalRevenue - refundsTotal
 
+  // Per-till cash breakdown (default each till to 0 even if no orders today).
+  // The Z modal uses these to compute per-till variance.
+  const cashTotalByTill = { 'till-1': 0, 'till-2': 0 }
+  paid
+    .filter(o => o.payment_method === 'cash')
+    .forEach(o => {
+      const t = o.till_id || 'till-1'
+      cashTotalByTill[t] = (cashTotalByTill[t] ?? 0) + (o.total_amount ?? 0)
+    })
+
   const salesSummary = {
     totalRevenue,
     transactionCount: paid.filter(o => o.payment_method !== 'tab').length,
     cashTotal,
+    cashTotalByTill,
     cardTotal,
     refundsTotal,
     netRevenue,
@@ -207,10 +218,11 @@ export async function fetchZReportData(date) {
     .gt('tab_balance', 0)
   const outstandingTabs = (tabData ?? []).reduce((s, m) => s + Number(m.tab_balance), 0)
 
-  const [wastage, staffDrinks, cashbackTotal, prizeWins] = await Promise.all([
+  const [wastage, staffDrinks, cashbackTotal, cashbackByTill, prizeWins] = await Promise.all([
     fetchWastageForDate(date),
     fetchStaffDrinksForDate(date),
     fetchCashbackForDate(date),
+    fetchCashbackByTillForDate(date),
     fetchPrizeWinsForDate(date),
   ])
 
@@ -218,5 +230,5 @@ export async function fetchZReportData(date) {
   // other day still produces the standard daily report.
   const weekSummary = isWeekEnd(date) ? await buildWeekSummary(date) : null
 
-  return { salesSummary, topProducts, wastage, staffDrinks, cashbackTotal, prizeWins, weekToDateRevenue, outstandingTabs, weekSummary }
+  return { salesSummary, topProducts, wastage, staffDrinks, cashbackTotal, cashbackByTill, prizeWins, weekToDateRevenue, outstandingTabs, weekSummary }
 }
