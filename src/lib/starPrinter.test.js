@@ -135,22 +135,41 @@ describe('printReceipt — with IP set', () => {
     expect(found).toBe(true)
   })
 
-  it('body contains drawer pulse for cash payment (BEL)', async () => {
+  it('makes two fetch calls for cash payment — receipt then drawer', async () => {
+    // Drawer kick is a separate TCP connection so the printer has fully processed
+    // the cut before it receives the BEL byte.
+    await printReceipt({ ...RECEIPT, paymentMethod: 'cash' })
+    expect(fetch).toHaveBeenCalledTimes(2)
+  })
+
+  it('makes two fetch calls for card payment — receipt then drawer', async () => {
+    await printReceipt({ ...RECEIPT, paymentMethod: 'card' })
+    expect(fetch).toHaveBeenCalledTimes(2)
+  })
+
+  it('drawer call (second fetch) contains BEL byte for cash payment', async () => {
     // Star mC-Print3 fires the drawer on a single BEL byte (0x07) using the
-    // printer's default pulse timing. No ESC prefix needed on this unit.
+    // printer's default pulse timing.
+    await printReceipt({ ...RECEIPT, paymentMethod: 'cash' })
+    const arr = Array.from(fetch.mock.calls[1][1].body)
+    expect(arr).toEqual([0x07])
+  })
+
+  it('drawer call (second fetch) contains BEL byte for card payment', async () => {
+    await printReceipt({ ...RECEIPT, paymentMethod: 'card' })
+    const arr = Array.from(fetch.mock.calls[1][1].body)
+    expect(arr).toEqual([0x07])
+  })
+
+  it('receipt body does NOT contain drawer pulse — drawer is a separate call', async () => {
     await printReceipt({ ...RECEIPT, paymentMethod: 'cash' })
     const arr = Array.from(fetch.mock.calls[0][1].body)
-    expect(arr).toContain(0x07)
+    expect(arr).not.toContain(0x07)
   })
 
-  it('body contains drawer pulse for card payment (staff need access to receipt drawer)', async () => {
-    await printReceipt({ ...RECEIPT, paymentMethod: 'card' })
-    const arr = Array.from(fetch.mock.calls[0][1].body)
-    expect(arr).toContain(0x07)
-  })
-
-  it('body does NOT contain drawer pulse for tab payment', async () => {
+  it('tab payment makes one fetch call — no drawer', async () => {
     await printReceipt({ ...RECEIPT, paymentMethod: 'tab' })
+    expect(fetch).toHaveBeenCalledTimes(1)
     const arr = Array.from(fetch.mock.calls[0][1].body)
     expect(arr).not.toContain(0x07)
   })

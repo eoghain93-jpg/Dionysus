@@ -69,13 +69,13 @@ function concat(...arrays) {
   return out
 }
 
-function buildReceiptBytes({ orderId, total, paymentMethod, createdAt, includeDrawer }) {
+function buildReceiptBytes({ orderId, total, paymentMethod, createdAt }) {
   const dateTime = formatDate(createdAt)
   const receiptRef = String(orderId).slice(-8).toUpperCase()
   const methodLabel = paymentMethod.charAt(0).toUpperCase() + paymentMethod.slice(1)
   const totalStr = `£${Number(total).toFixed(2)}`
 
-  const parts = [
+  return concat(
     INIT,
     SET_UK_CHARSET,
     ALIGN_CENTER,
@@ -92,9 +92,7 @@ function buildReceiptBytes({ orderId, total, paymentMethod, createdAt, includeDr
     ALIGN_CENTER,
     encodePrinterText('\nThank you for your visit\n'),
     FEED_AND_CUT,
-  ]
-  if (includeDrawer) parts.push(DRAWER_KICK)
-  return concat(...parts)
+  )
 }
 
 function buildDrawerBytes() {
@@ -131,20 +129,19 @@ async function sendBytes(ip, bytes) {
 
 export async function printReceipt({ orderId, total, paymentMethod, createdAt }) {
   const ip = getPrinterIp()
-  const bytes = buildReceiptBytes({
-    orderId,
-    total,
-    paymentMethod,
-    createdAt,
-    // Open the drawer for any real money transaction (cash or card). Tabs
-    // don't need it since no money is changing hands at this point.
-    includeDrawer: paymentMethod === 'cash' || paymentMethod === 'card',
-  })
+  const bytes = buildReceiptBytes({ orderId, total, paymentMethod, createdAt })
   if (!ip) {
     console.info('[starPrinter] Simulation mode — no IP set:', bytes.length, 'bytes')
     return
   }
   await sendBytes(ip, bytes)
+  // Drawer kick is a separate TCP connection so the printer has fully processed
+  // the cut before it receives the BEL byte. Bundling them in the same byte
+  // stream works on some firmware but silently fails on others (observed on
+  // till 2). Tabs don't open the drawer — no money changes hands at that point.
+  if (paymentMethod === 'cash' || paymentMethod === 'card') {
+    await sendBytes(ip, buildDrawerBytes())
+  }
 }
 
 export async function openDrawer() {
