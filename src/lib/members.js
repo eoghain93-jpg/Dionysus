@@ -1,6 +1,7 @@
 import { supabase } from './supabase'
 import { db } from './db'
 import { useSyncStore } from '../stores/syncStore'
+import { getTillId } from './till'
 
 export async function fetchMembers() {
   const { isOnline } = useSyncStore.getState()
@@ -59,11 +60,11 @@ export async function findMemberByNumber(membership_number) {
 export async function upsertMember(member) {
   const { id, ...fields } = member
   if (id) {
-    // Note: when an email is added to a previously-emailless member, the
-    // wallet pass + invite emails fire from the database trigger
-    // wallet_pass_on_email_add (migration 20260508120000). That guarantees
-    // the send happens regardless of which client made the change — till,
-    // dashboard, raw SQL — and isn't gated on a freshly deployed JS bundle.
+    // Note: whenever a member's email is added OR changed, the wallet pass
+    // fires from the database trigger wallet_pass_on_email_add (migrations
+    // 20260508120000 + 20260513210000). That guarantees the send happens
+    // regardless of which client made the change — till, dashboard, raw SQL
+    // — and isn't gated on a freshly deployed JS bundle.
     const { data, error } = await supabase.from('members').update(fields).eq('id', id).select().single()
     if (error) throw error
     await db.members.put(data)
@@ -151,6 +152,6 @@ export async function settleTab(member_id, amount, payment_method) {
     payment_method,
     total_amount: amount,
     status: 'paid',
-    till_id: 'till-1',
+    till_id: getTillId(),
   })
 }
