@@ -22,12 +22,8 @@ function encodePrinterText(str) {
   return Uint8Array.from(out)
 }
 
-// Star Line Mode / ESC-POS byte sequences
+// ESC/POS byte sequences
 const ESC = 0x1B
-const GS = 0x1D
-const LF = 0x0A
-const FF = 0x0C
-const BEL = 0x07
 
 const INIT = Uint8Array.of(ESC, 0x40)              // ESC @
 // ESC R 3 = select UK international char set, which remaps byte 0x23 to £.
@@ -40,9 +36,12 @@ const BOLD_OFF = Uint8Array.of(ESC, 0x45, 0x00)    // ESC E 0
 // ESC d 3 = feed minimum lines and partial cut. Replaces FORM_FEED + PARTIAL_CUT
 // which was over-feeding paper.
 const FEED_AND_CUT = Uint8Array.of(ESC, 0x64, 0x03)
-// Star printers fire drawer 1 on a single BEL byte (0x07) with default pulse
-// timing — confirmed working on this mC-Print3 unit. No buffer flush needed.
-const DRAWER_KICK = Uint8Array.of(BEL)
+// ESC p 0 t1 t2 — ESC/POS cash drawer kick on DK1 connector.
+// BEL (0x07) only works in Star Line Mode; ESC p works in both Star Line Mode
+// and ESC/POS mode, so it covers units configured either way. t1/t2 are
+// on/off pulse times in 2 ms units — 50 (100 ms) is long enough for all
+// common drawer models.
+const DRAWER_KICK = Uint8Array.of(ESC, 0x70, 0x00, 50, 50)
 
 export function getPrinterIp() {
   return localStorage.getItem(PRINTER_IP_KEY)

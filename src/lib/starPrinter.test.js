@@ -147,18 +147,17 @@ describe('printReceipt — with IP set', () => {
     expect(fetch).toHaveBeenCalledTimes(2)
   })
 
-  it('drawer call (second fetch) contains BEL byte for cash payment', async () => {
-    // Star mC-Print3 fires the drawer on a single BEL byte (0x07) using the
-    // printer's default pulse timing.
+  it('drawer call (second fetch) is ESC p 0 t1 t2 for cash payment', async () => {
+    // ESC/POS cash drawer kick — works in both Star Line Mode and ESC/POS mode.
     await printReceipt({ ...RECEIPT, paymentMethod: 'cash' })
     const arr = Array.from(fetch.mock.calls[1][1].body)
-    expect(arr).toEqual([0x07])
+    expect(arr).toEqual([0x1B, 0x70, 0x00, 50, 50])
   })
 
-  it('drawer call (second fetch) contains BEL byte for card payment', async () => {
+  it('drawer call (second fetch) is ESC p 0 t1 t2 for card payment', async () => {
     await printReceipt({ ...RECEIPT, paymentMethod: 'card' })
     const arr = Array.from(fetch.mock.calls[1][1].body)
-    expect(arr).toEqual([0x07])
+    expect(arr).toEqual([0x1B, 0x70, 0x00, 50, 50])
   })
 
   it('receipt body does NOT contain drawer pulse — drawer is a separate call', async () => {
@@ -217,11 +216,11 @@ describe('openDrawer — with IP set', () => {
     expect(headers['X-Printer-IP']).toBe('192.168.1.100')
   })
 
-  it('body contains drawer pulse (BEL)', async () => {
-    // Star mC-Print3 fires the drawer on a single BEL byte (0x07).
+  it('body is ESC p 0 t1 t2 drawer command', async () => {
+    // ESC/POS cash drawer kick — works in both Star Line Mode and ESC/POS mode.
     await openDrawer()
     const arr = Array.from(fetch.mock.calls[0][1].body)
-    expect(arr).toContain(0x07)
+    expect(arr).toEqual([0x1B, 0x70, 0x00, 50, 50])
   })
 
   it('body does NOT contain receipt content', async () => {
