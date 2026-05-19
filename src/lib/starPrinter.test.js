@@ -135,42 +135,49 @@ describe('printReceipt — with IP set', () => {
     expect(found).toBe(true)
   })
 
-  it('makes two fetch calls for cash payment — receipt then drawer', async () => {
-    // Drawer kick is a separate TCP connection so the printer has fully processed
-    // the cut before it receives the BEL byte.
+  it('body contains ESC p drawer command for cash payment', async () => {
+    // ESC p 0 t1 t2 — bundled in the same byte stream so the printer processes
+    // cut → drawer atomically on one TCP connection.
     await printReceipt({ ...RECEIPT, paymentMethod: 'cash' })
-    expect(fetch).toHaveBeenCalledTimes(2)
+    expect(fetch).toHaveBeenCalledTimes(1)
+    const body = Array.from(fetch.mock.calls[0][1].body)
+    // Find ESC p 0 50 50 sequence anywhere in the body
+    let found = false
+    for (let i = 0; i < body.length - 4; i++) {
+      if (body[i] === 0x1B && body[i+1] === 0x70 && body[i+2] === 0x00 && body[i+3] === 50 && body[i+4] === 50) {
+        found = true
+        break
+      }
+    }
+    expect(found).toBe(true)
   })
 
-  it('makes two fetch calls for card payment — receipt then drawer', async () => {
+  it('body contains ESC p drawer command for card payment', async () => {
     await printReceipt({ ...RECEIPT, paymentMethod: 'card' })
-    expect(fetch).toHaveBeenCalledTimes(2)
+    expect(fetch).toHaveBeenCalledTimes(1)
+    const body = Array.from(fetch.mock.calls[0][1].body)
+    let found = false
+    for (let i = 0; i < body.length - 4; i++) {
+      if (body[i] === 0x1B && body[i+1] === 0x70 && body[i+2] === 0x00 && body[i+3] === 50 && body[i+4] === 50) {
+        found = true
+        break
+      }
+    }
+    expect(found).toBe(true)
   })
 
-  it('drawer call (second fetch) is ESC p 0 t1 t2 for cash payment', async () => {
-    // ESC/POS cash drawer kick — works in both Star Line Mode and ESC/POS mode.
-    await printReceipt({ ...RECEIPT, paymentMethod: 'cash' })
-    const arr = Array.from(fetch.mock.calls[1][1].body)
-    expect(arr).toEqual([0x1B, 0x70, 0x00, 50, 50])
-  })
-
-  it('drawer call (second fetch) is ESC p 0 t1 t2 for card payment', async () => {
-    await printReceipt({ ...RECEIPT, paymentMethod: 'card' })
-    const arr = Array.from(fetch.mock.calls[1][1].body)
-    expect(arr).toEqual([0x1B, 0x70, 0x00, 50, 50])
-  })
-
-  it('receipt body does NOT contain drawer pulse — drawer is a separate call', async () => {
-    await printReceipt({ ...RECEIPT, paymentMethod: 'cash' })
-    const arr = Array.from(fetch.mock.calls[0][1].body)
-    expect(arr).not.toContain(0x07)
-  })
-
-  it('tab payment makes one fetch call — no drawer', async () => {
+  it('body does NOT contain drawer command for tab payment', async () => {
     await printReceipt({ ...RECEIPT, paymentMethod: 'tab' })
     expect(fetch).toHaveBeenCalledTimes(1)
-    const arr = Array.from(fetch.mock.calls[0][1].body)
-    expect(arr).not.toContain(0x07)
+    const body = Array.from(fetch.mock.calls[0][1].body)
+    let found = false
+    for (let i = 0; i < body.length - 4; i++) {
+      if (body[i] === 0x1B && body[i+1] === 0x70) {
+        found = true
+        break
+      }
+    }
+    expect(found).toBe(false)
   })
 
   it('throws when bridge returns non-2xx status', async () => {

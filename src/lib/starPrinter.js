@@ -37,10 +37,10 @@ const BOLD_OFF = Uint8Array.of(ESC, 0x45, 0x00)    // ESC E 0
 // which was over-feeding paper.
 const FEED_AND_CUT = Uint8Array.of(ESC, 0x64, 0x03)
 // ESC p 0 t1 t2 — ESC/POS cash drawer kick on DK1 connector.
-// BEL (0x07) only works in Star Line Mode; ESC p works in both Star Line Mode
-// and ESC/POS mode, so it covers units configured either way. t1/t2 are
-// on/off pulse times in 2 ms units — 50 (100 ms) is long enough for all
-// common drawer models.
+// t1/t2 are on/off pulse times in 2 ms units; 50 = 100 ms, which is long
+// enough for all common drawer solenoids. Sent in the same byte stream as the
+// receipt so the printer processes cut → drawer atomically on one TCP
+// connection — a second connection races the cutter and can be silently dropped.
 const DRAWER_KICK = Uint8Array.of(ESC, 0x70, 0x00, 50, 50)
 
 export function getPrinterIp() {
@@ -68,13 +68,13 @@ function concat(...arrays) {
   return out
 }
 
-function buildReceiptBytes({ orderId, total, paymentMethod, createdAt }) {
+function buildReceiptBytes({ orderId, total, paymentMethod, createdAt, includeDrawer }) {
   const dateTime = formatDate(createdAt)
   const receiptRef = String(orderId).slice(-8).toUpperCase()
   const methodLabel = paymentMethod.charAt(0).toUpperCase() + paymentMethod.slice(1)
   const totalStr = `£${Number(total).toFixed(2)}`
 
-  return concat(
+  const parts = [
     INIT,
     SET_UK_CHARSET,
     ALIGN_CENTER,
@@ -91,12 +91,12 @@ function buildReceiptBytes({ orderId, total, paymentMethod, createdAt }) {
     ALIGN_CENTER,
     encodePrinterText('\nThank you for your visit\n'),
     FEED_AND_CUT,
-  )
+  ]
+  if (includeDrawer) parts.push(DRAWER_KICK)
+  return concat(...parts)
 }
 
 function buildDrawerBytes() {
-  // Real-time drawer kick bypasses the print buffer, so no form feed needed
-  // (and no form feed = no paper movement / cut).
   return DRAWER_KICK
 }
 
@@ -128,19 +128,21 @@ async function sendBytes(ip, bytes) {
 
 export async function printReceipt({ orderId, total, paymentMethod, createdAt }) {
   const ip = getPrinterIp()
-  const bytes = buildReceiptBytes({ orderId, total, paymentMethod, createdAt })
+  const bytes = buildReceiptBytes({
+    orderId,
+    total,
+    paymentMethod,
+    createdAt,
+    // Drawer kick is in the same byte stream as the receipt so the printer
+    // processes cut → drawer atomically. A separate TCP connection races the
+    // cutter mechanism and can be silently dropped. Tabs don't open the drawer.
+    includeDrawer: paymentMethod === 'cash' || paymentMethod === 'card',
+  })
   if (!ip) {
     console.info('[starPrinter] Simulation mode — no IP set:', bytes.length, 'bytes')
     return
   }
   await sendBytes(ip, bytes)
-  // Drawer kick is a separate TCP connection so the printer has fully processed
-  // the cut before it receives the BEL byte. Bundling them in the same byte
-  // stream works on some firmware but silently fails on others (observed on
-  // till 2). Tabs don't open the drawer — no money changes hands at that point.
-  if (paymentMethod === 'cash' || paymentMethod === 'card') {
-    await sendBytes(ip, buildDrawerBytes())
-  }
 }
 
 export async function openDrawer() {
