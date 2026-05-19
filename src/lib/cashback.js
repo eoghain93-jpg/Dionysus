@@ -1,6 +1,7 @@
 import { supabase } from './supabase'
+import { getTillId } from './till'
 
-export async function recordCashback(amount, staff_id, till_id = 'till-1') {
+export async function recordCashback(amount, staff_id, till_id = getTillId()) {
   const { error } = await supabase
     .from('cashback_transactions')
     .insert({ amount, staff_id, till_id })

@@ -1,6 +1,7 @@
 import { supabase } from './supabase'
 import { db } from './db'
 import { useSyncStore } from '../stores/syncStore'
+import { getTillId } from './till'
 
 export async function fetchProducts() {
   const { isOnline } = useSyncStore.getState()
@@ -37,7 +38,7 @@ export async function upsertProduct(product) {
   }
 }
 
-export async function logStockMovement({ product_id, type, quantity, notes, till_id = 'till-1' }) {
+export async function logStockMovement({ product_id, type, quantity, notes, till_id = getTillId() }) {
   const movement = { product_id, type, quantity, notes, till_id, created_at: new Date().toISOString() }
   const { isOnline } = useSyncStore.getState()
 

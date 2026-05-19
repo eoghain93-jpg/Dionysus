@@ -1,13 +1,14 @@
 import { supabase } from './supabase'
+import { getTillId } from './till'
 
-export async function logWastage(product_id, quantity, till_id = 'till-1') {
+export async function logWastage(product_id, quantity, till_id = getTillId()) {
   const { error } = await supabase
     .from('stock_movements')
     .insert({ product_id, quantity, type: 'wastage', till_id })
   if (error) throw error
 }
 
-export async function logStaffDrink(product_id, quantity, member_id, till_id = 'till-1') {
+export async function logStaffDrink(product_id, quantity, member_id, till_id = getTillId()) {
   const { error } = await supabase
     .from('stock_movements')
     .insert({ product_id, quantity, type: 'staff_drink', member_id, till_id })

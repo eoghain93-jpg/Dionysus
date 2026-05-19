@@ -4,6 +4,7 @@ import { fetchProducts } from '../lib/products'
 import { fetchActivePromotions } from '../lib/promotions'
 import { supabase } from '../lib/supabase'
 import { addToTabBalance } from '../lib/members'
+import { getTillId } from '../lib/till'
 import { db } from '../lib/db'
 import { printReceipt } from '../lib/starPrinter'
 import { useToastStore } from '../hooks/useToast'
@@ -63,7 +64,7 @@ export default function TillPage() {
       payment_method: paymentMethod,
       total_amount: total,
       status: 'paid',
-      till_id: 'till-1',
+      till_id: getTillId(),
       created_at: new Date().toISOString(),
     }
     const items = currentItems.map(i => ({

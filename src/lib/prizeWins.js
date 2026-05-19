@@ -1,6 +1,7 @@
 import { supabase } from './supabase'
+import { getTillId } from './till'
 
-export async function recordPrizeWin(amount, machine, staff_id, till_id = 'till-1') {
+export async function recordPrizeWin(amount, machine, staff_id, till_id = getTillId()) {
   const { error } = await supabase
     .from('prize_wins')
     .insert({ amount, machine, staff_id, till_id })
