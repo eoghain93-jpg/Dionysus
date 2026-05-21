@@ -156,12 +156,18 @@ function buildEmailText(body: ZReportBody): string {
 
   if (body.weekSummary) {
     const w = body.weekSummary
-    lines.push('', `WEEK SUMMARY (${w.weekStart} → ${w.weekEnd})`, '-'.repeat(40))
+    lines.push('', `WEEK SUMMARY (${w.weekStart} → ${w.weekEnd})`, '-'.repeat(56))
+    lines.push(
+      `${'Day'.padEnd(16)} ${'Cash'.padStart(11)} ${'Card'.padStart(11)} ${'Total'.padStart(11)}`
+    )
+    lines.push('-'.repeat(56))
     for (const d of w.daily) {
       const dayName = new Date(`${d.date}T12:00:00Z`).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })
-      lines.push(`${dayName.padEnd(20)} ${fmt(d.total)}`)
+      lines.push(
+        `${dayName.padEnd(16)} ${fmt(d.cash).padStart(11)} ${fmt(d.card).padStart(11)} ${fmt(d.total).padStart(11)}`
+      )
     }
-    lines.push('-'.repeat(40))
+    lines.push('-'.repeat(56))
     lines.push(`Week Total:        ${fmt(w.weekRevenue)}`)
     lines.push(`Last Week:         ${fmt(w.previousWeekRevenue)}`)
     if (w.weekOnWeekDelta != null) {

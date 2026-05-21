@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Fragment } from 'react'
 import { supabase } from '../../lib/supabase'
 import { fetchZReportData } from '../../lib/zReport'
 import { useSessionStore } from '../../stores/sessionStore'
@@ -350,12 +350,21 @@ export default function ZReportModal({ date, onClose, onDayClose }) {
                     Week Summary <span className="text-slate-500 text-xs ml-2 normal-case">{data.weekSummary.weekStart} → {data.weekSummary.weekEnd}</span>
                   </h3>
                   <div className="bg-slate-800/60 rounded-xl p-4 space-y-3">
-                    {/* Daily breakdown */}
-                    <div className="space-y-1">
+                    {/* Daily breakdown — cash / card / total */}
+                    <div className="grid grid-cols-[1fr_auto_auto_auto] gap-x-4 gap-y-1 text-sm tabular-nums">
+                      <span className="text-slate-500 text-xs uppercase tracking-wide">Day</span>
+                      <span className="text-slate-500 text-xs uppercase tracking-wide text-right">Cash</span>
+                      <span className="text-slate-500 text-xs uppercase tracking-wide text-right">Card</span>
+                      <span className="text-slate-500 text-xs uppercase tracking-wide text-right">Total</span>
                       {data.weekSummary.daily.map(d => (
-                        <Row key={d.date} label={<span className="text-slate-400 text-xs">{new Date(`${d.date}T12:00:00Z`).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })}</span>}>
-                          <span className="text-white text-sm tabular-nums">{fmt(d.total)}</span>
-                        </Row>
+                        <Fragment key={d.date}>
+                          <span className="text-slate-400 text-xs self-center">
+                            {new Date(`${d.date}T12:00:00Z`).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })}
+                          </span>
+                          <span className="text-slate-300 text-right">{fmt(d.cash)}</span>
+                          <span className="text-slate-300 text-right">{fmt(d.card)}</span>
+                          <span className="text-white text-right">{fmt(d.total)}</span>
+                        </Fragment>
                       ))}
                     </div>
                     <div className="border-t border-slate-700/50" />
