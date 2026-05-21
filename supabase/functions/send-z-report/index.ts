@@ -234,11 +234,39 @@ export async function handler(
   if (!body.topProducts) return json({ error: 'topProducts required' }, 400)
   if (!body.cashReconciliation) return json({ error: 'cashReconciliation required' }, 400)
 
-  const managerEmail = getEnv('MANAGER_EMAIL')
-  if (!managerEmail) return json({ error: 'MANAGER_EMAIL not configured' }, 500)
-
   const resendKey = getEnv('RESEND_API_KEY')
   if (!resendKey) return json({ error: 'RESEND_API_KEY not configured' }, 500)
+
+  // Recipient list resolution:
+  //   1. recipientOverride (one-off resends, validation)
+  //   2. z_report_recipients table (active=true rows)
+  //   3. MANAGER_EMAIL env (defensive fallback if the table is empty)
+  let recipients: string[] = []
+  if (body.recipientOverride) {
+    recipients = body.recipientOverride.split(',').map(e => e.trim()).filter(Boolean)
+  } else {
+    const supabaseUrl = getEnv('SUPABASE_URL')
+    const serviceKey = getEnv('SUPABASE_SERVICE_ROLE_KEY')
+    if (supabaseUrl && serviceKey) {
+      try {
+        const r = await fetchFn(
+          `${supabaseUrl}/rest/v1/z_report_recipients?active=eq.true&select=email`,
+          { headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` } },
+        )
+        if (r.ok) {
+          const rows = await r.json() as Array<{ email: string }>
+          recipients = rows.map(row => row.email).filter(Boolean)
+        }
+      } catch {
+        // fall through to MANAGER_EMAIL fallback
+      }
+    }
+    if (recipients.length === 0) {
+      const fallback = getEnv('MANAGER_EMAIL')
+      if (fallback) recipients = fallback.split(',').map(e => e.trim()).filter(Boolean)
+    }
+  }
+  if (recipients.length === 0) return json({ error: 'no recipients configured' }, 500)
 
   const emailText = buildEmailText(body)
 
@@ -250,7 +278,7 @@ export async function handler(
     },
     body: JSON.stringify({
       from: 'epos@fairmile.club',
-      to: (body.recipientOverride ?? managerEmail).split(',').map(e => e.trim()).filter(Boolean),
+      to: recipients,
       subject: `Z Report — ${body.reportDate}`,
       text: emailText,
     }),
