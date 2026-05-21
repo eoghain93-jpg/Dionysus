@@ -1,9 +1,12 @@
 import { Wifi, WifiOff, RefreshCw } from 'lucide-react'
 import { useSyncStore } from '../stores/syncStore'
+import { getTillId } from '../lib/till'
 
 export default function StatusBar() {
   const { isOnline, pendingCount } = useSyncStore()
   const syncing = isOnline && pendingCount > 0
+  const tillId = getTillId()
+  const tillLabel = tillId.toUpperCase().replace('-', ' ')
 
   return (
     <div
@@ -25,6 +28,13 @@ export default function StatusBar() {
             : 'Online'
           : `Offline${pendingCount > 0 ? ` — ${pendingCount} transaction${pendingCount > 1 ? 's' : ''} pending` : ''}`
         }
+      </span>
+      <span
+        className="ml-auto px-1.5 py-0.5 rounded bg-slate-800/80 text-slate-300 font-mono text-[10px] tracking-wide"
+        aria-label={`Active till: ${tillLabel}`}
+        data-testid="till-badge"
+      >
+        {tillLabel}
       </span>
     </div>
   )
