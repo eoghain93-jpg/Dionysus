@@ -13,7 +13,8 @@ vi.mock('../components/members/SettleTabModal', () => ({
   default: ({ member, onClose, onSettled }) => (
     <div role="dialog">
       <span>Settle {member.name}</span>
-      <button onClick={onSettled}>Confirm Settle</button>
+      <button onClick={() => onSettled(member.tab_balance)}>Confirm Settle</button>
+      <button onClick={() => onSettled(5)}>Confirm Partial Settle</button>
       <button onClick={onClose}>Cancel</button>
     </div>
   ),
@@ -134,6 +135,17 @@ describe('TabsPage', () => {
     await waitFor(() => {
       expect(screen.queryByText('Alice')).not.toBeInTheDocument()
       expect(screen.getByText('Bob')).toBeInTheDocument()
+    })
+  })
+
+  it('keeps member in list with updated balance after partial settlement', async () => {
+    render(<TabsPage />)
+    await waitFor(() => screen.getAllByRole('button', { name: /settle/i }))
+    fireEvent.click(screen.getByRole('button', { name: /settle tab for alice/i }))
+    fireEvent.click(screen.getByText('Confirm Partial Settle'))
+    await waitFor(() => {
+      expect(screen.getByText('Alice')).toBeInTheDocument()
+      expect(screen.getByText('£10.50')).toBeInTheDocument()
     })
   })
 

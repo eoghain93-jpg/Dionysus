@@ -47,9 +47,15 @@ export default function TabsPage() {
     }
   }
 
-  function handleSettled(memberId) {
+  function handleSettled(memberId, settledAmount) {
     setSettlingMember(null)
-    setTabs(prev => prev.filter(m => m.id !== memberId))
+    setTabs(prev => {
+      const member = prev.find(t => t.id === memberId)
+      if (!member) return prev
+      const newBalance = Math.max(0, Number(member.tab_balance) - settledAmount)
+      if (newBalance === 0) return prev.filter(t => t.id !== memberId)
+      return prev.map(t => t.id === memberId ? { ...t, tab_balance: newBalance } : t)
+    })
   }
 
   function handleAdjusted(member, delta) {
@@ -214,7 +220,7 @@ export default function TabsPage() {
         <SettleTabModal
           member={settlingMember}
           onClose={() => setSettlingMember(null)}
-          onSettled={() => { const id = settlingMember.id; handleSettled(id) }}
+          onSettled={(settledAmount) => { const id = settlingMember.id; handleSettled(id, settledAmount) }}
         />
       )}
 

@@ -77,7 +77,7 @@ export default function SettleTabModal({ member, onClose, onSettled }) {
       useToastStore.getState().addToast('Print failed — check printer connection', 'error')
     }
 
-    onSettled()
+    onSettled(val)
   }
 
   return (
