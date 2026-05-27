@@ -167,8 +167,12 @@ function buildEmailText(body: ZReportBody): string {
         `${dayName.padEnd(16)} ${fmt(d.cash).padStart(11)} ${fmt(d.card).padStart(11)} ${fmt(d.total).padStart(11)}`
       )
     }
+    const weekCash = w.daily.reduce((s, d) => s + d.cash, 0)
+    const weekCard = w.daily.reduce((s, d) => s + d.card, 0)
     lines.push('-'.repeat(56))
-    lines.push(`Week Total:        ${fmt(w.weekRevenue)}`)
+    lines.push(
+      `${'TOTAL'.padEnd(16)} ${fmt(weekCash).padStart(11)} ${fmt(weekCard).padStart(11)} ${fmt(w.weekRevenue).padStart(11)}`
+    )
     lines.push(`Last Week:         ${fmt(w.previousWeekRevenue)}`)
     if (w.weekOnWeekDelta != null) {
       const sign = w.weekOnWeekDelta >= 0 ? '+' : ''

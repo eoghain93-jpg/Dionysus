@@ -366,11 +366,18 @@ export default function ZReportModal({ date, onClose, onDayClose }) {
                           <span className="text-white text-right">{fmt(d.total)}</span>
                         </Fragment>
                       ))}
+                      <span className="col-span-4 border-t border-slate-700/50 mt-1" />
+                      <span className="text-slate-300 text-xs font-semibold uppercase tracking-wide self-center">Total</span>
+                      <span className="text-emerald-400 font-semibold text-right">
+                        {fmt(data.weekSummary.daily.reduce((s, d) => s + d.cash, 0))}
+                      </span>
+                      <span className="text-emerald-400 font-semibold text-right">
+                        {fmt(data.weekSummary.daily.reduce((s, d) => s + d.card, 0))}
+                      </span>
+                      <span className="text-emerald-400 font-bold text-right">
+                        {fmt(data.weekSummary.weekRevenue)}
+                      </span>
                     </div>
-                    <div className="border-t border-slate-700/50" />
-                    <Row label={<span className="text-slate-300 font-semibold">Week Total</span>}>
-                      <span className="text-emerald-400 font-bold tabular-nums">{fmt(data.weekSummary.weekRevenue)}</span>
-                    </Row>
                     <Row label="Last Week">
                       <span className="text-slate-400 text-sm tabular-nums">{fmt(data.weekSummary.previousWeekRevenue)}</span>
                     </Row>
