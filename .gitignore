@@ -30,3 +30,9 @@ dist-ssr
 
 # Git worktrees
 .worktrees
+
+# Supabase CLI local cache (project-ref, versions, etc.) — local-only
+supabase/.temp/
+
+# Claude Code per-session state — local-only
+.claude/
