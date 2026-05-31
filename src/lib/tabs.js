@@ -62,6 +62,34 @@ export async function adjustTabBalance(member_id, amount, reason, staff_id) {
 }
 
 export async function removeOrderFromTab(order_id, member_id, order_total) {
+  // 1. Restore stock for each item on the voided order. We do this BEFORE
+  //    marking the order voided so that a failure leaves the data in a
+  //    safe intermediate state (tab balance still right, stock unchanged)
+  //    rather than half-rolled. Restock movements use the DB trigger to
+  //    increment products.stock_quantity automatically.
+  const { data: items, error: itemsError } = await supabase
+    .from('order_items')
+    .select('product_id, quantity')
+    .eq('order_id', order_id)
+  if (itemsError) throw itemsError
+
+  if (items?.length) {
+    const now = new Date().toISOString()
+    const restocks = items
+      .filter(i => i.product_id)
+      .map(i => ({
+        product_id: i.product_id,
+        type: 'restock',
+        quantity: i.quantity,
+        notes: `Restored from voided order ${order_id}`,
+        created_at: now,
+      }))
+    if (restocks.length > 0) {
+      const { error: stockError } = await supabase.from('stock_movements').insert(restocks)
+      if (stockError) throw stockError
+    }
+  }
+
   const { error: orderError } = await supabase
     .from('orders')
     .update({ status: 'voided' })

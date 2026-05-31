@@ -160,7 +160,16 @@ describe('adjustTabBalance', () => {
 })
 
 describe('removeOrderFromTab', () => {
-  it('sets order payment_method to removed and deducts from tab balance', async () => {
+  it('voids the order, restocks line items, and deducts from tab balance', async () => {
+    const itemsSelect = vi.fn().mockReturnThis()
+    const itemsEq = vi.fn().mockResolvedValue({
+      data: [
+        { product_id: 'prod-a', quantity: 2 },
+        { product_id: 'prod-b', quantity: 1 },
+      ],
+      error: null,
+    })
+    const stockInsert = vi.fn().mockResolvedValue({ error: null })
     const orderUpdate = vi.fn().mockReturnThis()
     const orderEq = vi.fn().mockResolvedValue({ error: null })
     const memberSelect = vi.fn().mockReturnThis()
@@ -170,6 +179,8 @@ describe('removeOrderFromTab', () => {
     const memberEqUpdate = vi.fn().mockResolvedValue({ error: null })
 
     supabase.from.mockImplementation((table) => {
+      if (table === 'order_items') return { select: itemsSelect, eq: itemsEq }
+      if (table === 'stock_movements') return { insert: stockInsert }
       if (table === 'orders') return { update: orderUpdate, eq: orderEq }
       if (table === 'members') return {
         select: memberSelect,
@@ -179,11 +190,20 @@ describe('removeOrderFromTab', () => {
       }
       return {}
     })
+    itemsSelect.mockReturnValue({ eq: itemsEq })
     orderUpdate.mockReturnValue({ eq: orderEq })
     memberUpdate.mockReturnValue({ eq: memberEqUpdate })
 
     await removeOrderFromTab('order-1', 'member-1', 15.50)
 
-    expect(orderUpdate).toHaveBeenCalledWith({ payment_method: 'removed' })
+    // Voids the order
+    expect(orderUpdate).toHaveBeenCalledWith({ status: 'voided' })
+    // Inserts restock movements (DB trigger handles stock_quantity update)
+    expect(stockInsert).toHaveBeenCalledWith([
+      expect.objectContaining({ product_id: 'prod-a', type: 'restock', quantity: 2 }),
+      expect.objectContaining({ product_id: 'prod-b', type: 'restock', quantity: 1 }),
+    ])
+    // Deducts the order total from member tab balance
+    expect(memberUpdate).toHaveBeenCalledWith({ tab_balance: 4.5 })
   })
 })

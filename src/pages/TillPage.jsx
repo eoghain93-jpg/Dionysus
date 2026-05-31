@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { ShoppingCart } from 'lucide-react'
-import { fetchProducts } from '../lib/products'
+import { fetchProducts, logSaleMovements } from '../lib/products'
 import { fetchActivePromotions } from '../lib/promotions'
 import { supabase } from '../lib/supabase'
 import { addToTabBalance } from '../lib/members'
@@ -91,6 +91,10 @@ export default function TillPage() {
             paymentMethod === 'tab' && currentMember
               ? addToTabBalance(currentMember.id, total)
               : Promise.resolve(),
+            // Decrement stock for each item sold. DB trigger
+            // apply_stock_movement updates products.stock_quantity
+            // automatically from the inserted movement rows.
+            logSaleMovements(items, order.till_id),
           ])
         } else {
           await db.pendingOrders.add({ order, items })

@@ -18,6 +18,23 @@ export async function syncPendingOrders() {
 
       const itemsWithOrderId = order.items.map(i => ({ ...i, order_id: orderData.id }))
       await supabase.from('order_items').insert(itemsWithOrderId)
+
+      // Decrement stock for each item — DB trigger updates stock_quantity.
+      // Done at sync-time (not queue-time) so the movement timestamp matches
+      // when the sale actually landed in the canonical store.
+      const movements = order.items
+        .filter(i => i.product_id)
+        .map(i => ({
+          product_id: i.product_id,
+          type: 'sale',
+          quantity: i.quantity,
+          till_id: order.order.till_id ?? null,
+          created_at: order.order.created_at,
+        }))
+      if (movements.length > 0) {
+        await supabase.from('stock_movements').insert(movements)
+      }
+
       await db.pendingOrders.delete(localId)
     } catch (err) {
       console.error('Failed to sync order', err)
