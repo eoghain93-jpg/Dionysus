@@ -4,6 +4,7 @@ import { supabase } from '../../lib/supabase'
 import SettleTabModal from './SettleTabModal'
 import SetPinModal from './SetPinModal'
 import { isRenewalDueSoon } from './MemberList'
+import BlurredAmount from '../ui/BlurredAmount'
 
 /**
  * Full member profile overlay/panel.
@@ -157,9 +158,13 @@ export default function MemberProfile({ member, onClose, onEdit, onSettleTab }) 
 
             <div>
               <p className="text-slate-400 text-xs mb-0.5">Tab Balance</p>
-              <p className={hasTab ? 'text-blue-400 font-medium' : 'text-slate-400'}>
-                {hasTab ? formatCurrency(member.tab_balance) : 'None'}
-              </p>
+              {hasTab ? (
+                <BlurredAmount className="text-blue-400 font-medium">
+                  {formatCurrency(member.tab_balance)}
+                </BlurredAmount>
+              ) : (
+                <p className="text-slate-400">None</p>
+              )}
             </div>
           </div>
 

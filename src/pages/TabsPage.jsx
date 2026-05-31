@@ -5,6 +5,7 @@ import { fetchOpenTabs, fetchTabOrders } from '../lib/tabs'
 import SettleTabModal from '../components/members/SettleTabModal'
 import AdjustTabModal from '../components/members/AdjustTabModal'
 import { removeOrderFromTab } from '../lib/tabs'
+import BlurredAmount from '../components/ui/BlurredAmount'
 
 export default function TabsPage() {
   const [tabs, setTabs] = useState([])
@@ -95,7 +96,9 @@ export default function TabsPage() {
         {tabs.length > 0 && (
           <div className="text-right">
             <p className="text-slate-400 text-xs">Total outstanding</p>
-            <p className="text-white font-bold text-lg">£{total.toFixed(2)}</p>
+            <BlurredAmount className="text-white font-bold text-lg">
+              £{total.toFixed(2)}
+            </BlurredAmount>
           </div>
         )}
       </div>
@@ -132,10 +135,10 @@ export default function TabsPage() {
                         <p className="text-white text-sm font-medium truncate">{member.name}</p>
                         <p className="text-slate-400 text-xs">{member.membership_number}</p>
                       </div>
-                      <span className="text-white font-bold text-sm shrink-0">
-                        £{Number(member.tab_balance).toFixed(2)}
-                      </span>
                     </button>
+                    <BlurredAmount className="text-white font-bold text-sm shrink-0">
+                      £{Number(member.tab_balance).toFixed(2)}
+                    </BlurredAmount>
                     <button
                       onClick={() => setSettlingMember(member)}
                       aria-label={`Settle tab for ${member.name}`}

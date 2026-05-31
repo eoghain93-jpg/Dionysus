@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dionysus — Product Tile Mockup</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Karla:wght@400;500;600;700&family=Playfair+Display+SC:wght@400;700&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:       #020617;
+      --surface:  #0F172A;
+      --surface2: #1E293B;
+      --surface3: #334155;
+      --text:     #F8FAFC;
+      --muted:    #94A3B8;
+      --accent:   #3B82F6;
+      --cta:      #22C55E;
+      --amber:    #F59E0B;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Karla', sans-serif;
+      font-size: 15px;
+      line-height: 1.5;
+      padding: 2rem;
+    }
+
+    h1 { font-family: 'Playfair Display SC', serif; font-size: 1.5rem; margin-bottom: 0.25rem; }
+    h2 { font-family: 'Playfair Display SC', serif; font-size: 1rem; margin-bottom: 0.75rem; color: var(--muted); letter-spacing: 0.05em; text-transform: uppercase; font-size: 0.75rem; }
+
+    .page-header { margin-bottom: 2.5rem; }
+    .page-header p { color: var(--muted); font-size: 0.875rem; margin-top: 0.25rem; }
+
+    .section { margin-bottom: 3rem; }
+
+    .badge-row { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem; }
+    .badge { font-size: 0.65rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; padding: 0.2rem 0.6rem; border-radius: 999px; }
+    .badge-current { background: var(--surface3); color: var(--muted); }
+    .badge-rec   { background: #1d4ed8; color: #fff; }
+    .badge-alt   { background: var(--surface2); color: var(--muted); }
+
+    /* ── Grid ── */
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+      max-width: 680px;
+    }
+
+    /* ─────────────────────────────────────────────
+       OPTION 0 — Current (text only)
+    ───────────────────────────────────────────── */
+    .tile-current {
+      background: var(--surface2);
+      border-radius: 12px;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      min-height: 80px;
+      cursor: pointer;
+      position: relative;
+      transition: background 150ms;
+    }
+    .tile-current:hover { background: #293548; }
+    .tile-current .name  { font-size: 0.8125rem; font-weight: 600; color: var(--text); line-height: 1.3; }
+    .tile-current .cat   { font-size: 0.6875rem; color: var(--muted); text-transform: capitalize; }
+    .tile-current .price { font-size: 0.9375rem; font-weight: 700; color: var(--accent); margin-top: auto; }
+
+    /* ─────────────────────────────────────────────
+       OPTION A — Image header (Shopify style)
+    ───────────────────────────────────────────── */
+    .tile-a {
+      background: var(--surface2);
+      border-radius: 12px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      cursor: pointer;
+      position: relative;
+      transition: background 150ms;
+    }
+    .tile-a:hover { background: #293548; }
+    .tile-a .img {
+      width: 100%;
+      height: 80px;
+      object-fit: cover;
+      display: block;
+      background-size: cover;
+      background-position: center;
+      flex-shrink: 0;
+    }
+    .tile-a .body {
+      padding: 8px 10px 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      flex: 1;
+    }
+    .tile-a .name  { font-size: 0.8rem; font-weight: 600; color: var(--text); line-height: 1.3; }
+    .tile-a .price { font-size: 0.9rem; font-weight: 700; color: var(--accent); margin-top: 2px; }
+
+    /* ─────────────────────────────────────────────
+       OPTION B — Left thumbnail
+    ───────────────────────────────────────────── */
+    .tile-b {
+      background: var(--surface2);
+      border-radius: 12px;
+      padding: 10px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-height: 68px;
+      cursor: pointer;
+      transition: background 150ms;
+    }
+    .tile-b:hover { background: #293548; }
+    .tile-b .thumb {
+      width: 44px;
+      height: 44px;
+      border-radius: 8px;
+      flex-shrink: 0;
+      background-size: cover;
+      background-position: center;
+    }
+    .tile-b .info { flex: 1; min-width: 0; }
+    .tile-b .name  { font-size: 0.75rem; font-weight: 600; color: var(--text); line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .tile-b .price { font-size: 0.875rem; font-weight: 700; color: var(--accent); margin-top: 2px; }
+
+    /* ─────────────────────────────────────────────
+       OPTION C — Full-bleed background image
+    ───────────────────────────────────────────── */
+    .tile-c {
+      border-radius: 12px;
+      overflow: hidden;
+      min-height: 100px;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-end;
+      cursor: pointer;
+      position: relative;
+      transition: filter 150ms;
+    }
+    .tile-c:hover { filter: brightness(1.1); }
+    .tile-c .bg {
+      position: absolute;
+      inset: 0;
+      background-size: cover;
+      background-position: center;
+    }
+    .tile-c .overlay {
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(to top, rgba(2,6,23,0.92) 40%, rgba(2,6,23,0.2) 100%);
+    }
+    .tile-c .body {
+      position: relative;
+      padding: 8px 10px;
+    }
+    .tile-c .name  { font-size: 0.8rem; font-weight: 600; color: var(--text); line-height: 1.3; }
+    .tile-c .price { font-size: 0.9rem; font-weight: 700; color: var(--cta); margin-top: 2px; }
+
+    /* ── Shared badges ── */
+    .dot-low {
+      position: absolute;
+      top: 8px; right: 8px;
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: var(--amber);
+      z-index: 2;
+    }
+    .promo-tag {
+      position: absolute;
+      top: 8px; left: 8px;
+      background: var(--amber);
+      color: #0f172a;
+      font-size: 0.55rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      padding: 2px 6px;
+      border-radius: 999px;
+      z-index: 2;
+    }
+
+    /* ── Placeholder image colours ── */
+    .img-guinness  { background: linear-gradient(135deg, #1a0a00 0%, #3d1a00 60%, #7c3a00 100%); }
+    .img-carlsberg { background: linear-gradient(135deg, #0a1628 0%, #1a3a6e 60%, #2d5ca8 100%); }
+    .img-corona    { background: linear-gradient(135deg, #1a1400 0%, #3d3200 60%, #a08700 100%); }
+    .img-fosters   { background: linear-gradient(135deg, #001a0a 0%, #00401a 60%, #006630 100%); }
+    .img-smirnoff  { background: linear-gradient(135deg, #000d1a 0%, #001f40 60%, #003066 100%); }
+    .img-rekorderlig { background: linear-gradient(135deg, #1a0010 0%, #400030 60%, #800060 100%); }
+    .img-bulmers   { background: linear-gradient(135deg, #0d1a00 0%, #264d00 60%, #4d9900 100%); }
+    .img-nachos    { background: linear-gradient(135deg, #1a1000 0%, #402800 60%, #805000 100%); }
+
+    /* Icon overlays on placeholder images */
+    .img-icon {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.75rem;
+      filter: saturate(0) brightness(1.8) opacity(0.35);
+    }
+    .thumb .img-icon { font-size: 1.25rem; }
+
+    .note {
+      font-size: 0.75rem;
+      color: var(--muted);
+      margin-top: 0.75rem;
+      line-height: 1.5;
+    }
+    .note strong { color: var(--text); }
+
+    hr { border: none; border-top: 1px solid var(--surface2); margin: 2.5rem 0; }
+
+    /* B needs 2-col grid since tiles are wider */
+    .grid-b {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 8px;
+      max-width: 460px;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="page-header">
+    <h1>Product Tile Variants</h1>
+    <p>How product images could look on the Dionysus POS till screen</p>
+  </div>
+
+  <!-- CURRENT -->
+  <div class="section">
+    <div class="badge-row">
+      <span class="badge badge-current">Current</span>
+      Text only
+    </div>
+    <div class="grid">
+      <div class="tile-current">
+        <span class="dot-low"></span>
+        <span class="name">Guinness</span>
+        <span class="cat">Draught</span>
+        <span class="price">£7.40</span>
+      </div>
+      <div class="tile-current">
+        <span class="promo-tag">PROMO</span>
+        <span class="name" style="margin-top:14px">Carlsberg</span>
+        <span class="cat">Draught</span>
+        <span class="price">£4.50</span>
+      </div>
+      <div class="tile-current">
+        <span class="name">Rekorderlig</span>
+        <span class="cat">Bottle</span>
+        <span class="price">£6.40</span>
+      </div>
+      <div class="tile-current">
+        <span class="name">Smirnoff Ice</span>
+        <span class="cat">Bottle</span>
+        <span class="price">£5.25</span>
+      </div>
+    </div>
+    <p class="note">Staff must read every word to find the right product.</p>
+  </div>
+
+  <hr />
+
+  <!-- OPTION A -->
+  <div class="section">
+    <div class="badge-row">
+      <span class="badge badge-rec">Recommended</span>
+      Option A — Image header
+    </div>
+    <div class="grid">
+      <div class="tile-a">
+        <div class="img img-guinness" style="position:relative">
+          <div class="img-icon">🍺</div>
+          <span class="dot-low" style="top:6px;right:6px"></span>
+        </div>
+        <div class="body">
+          <span class="name">Guinness</span>
+          <span class="price">£7.40</span>
+        </div>
+      </div>
+      <div class="tile-a">
+        <div class="img img-carlsberg" style="position:relative">
+          <div class="img-icon">🍺</div>
+          <span class="promo-tag" style="top:6px;left:6px">PROMO</span>
+        </div>
+        <div class="body">
+          <span class="name">Carlsberg</span>
+          <span class="price">£4.50</span>
+        </div>
+      </div>
+      <div class="tile-a">
+        <div class="img img-rekorderlig" style="position:relative">
+          <div class="img-icon">🍹</div>
+        </div>
+        <div class="body">
+          <span class="name">Rekorderlig</span>
+          <span class="price">£6.40</span>
+        </div>
+      </div>
+      <div class="tile-a">
+        <div class="img img-smirnoff" style="position:relative">
+          <div class="img-icon">🍾</div>
+        </div>
+        <div class="body">
+          <span class="name">Smirnoff Ice</span>
+          <span class="price">£5.25</span>
+        </div>
+      </div>
+    </div>
+    <p class="note">
+      <strong>Pros:</strong> Scannable at a glance, badges still work, price always visible.<br>
+      <strong>Cons:</strong> Tiles are taller — fewer fit on screen. Needs product photos uploaded per item.<br>
+      <strong>Fallback:</strong> If no image is uploaded, show a coloured placeholder matching the category.
+    </p>
+  </div>
+
+  <hr />
+
+  <!-- OPTION B -->
+  <div class="section">
+    <div class="badge-row">
+      <span class="badge badge-alt">Option B</span>
+      Left thumbnail
+    </div>
+    <div class="grid-b">
+      <div class="tile-b">
+        <div class="thumb img-guinness">
+          <div class="img-icon" style="font-size:1.1rem">🍺</div>
+        </div>
+        <div class="info">
+          <div class="name">Guinness</div>
+          <div class="price">£7.40</div>
+        </div>
+        <span class="dot-low" style="position:static;width:8px;height:8px;flex-shrink:0;border-radius:50%;background:var(--amber)"></span>
+      </div>
+      <div class="tile-b">
+        <div class="thumb img-carlsberg">
+          <div class="img-icon" style="font-size:1.1rem">🍺</div>
+        </div>
+        <div class="info">
+          <div class="name">Carlsberg</div>
+          <div class="price" style="color:var(--amber)">£4.50 <span style="font-size:0.6rem;background:var(--amber);color:#0f172a;padding:1px 5px;border-radius:999px;font-weight:800;">PROMO</span></div>
+        </div>
+      </div>
+      <div class="tile-b">
+        <div class="thumb img-rekorderlig">
+          <div class="img-icon" style="font-size:1.1rem">🍹</div>
+        </div>
+        <div class="info">
+          <div class="name">Rekorderlig</div>
+          <div class="price">£6.40</div>
+        </div>
+      </div>
+      <div class="tile-b">
+        <div class="thumb img-smirnoff">
+          <div class="img-icon" style="font-size:1.1rem">🍾</div>
+        </div>
+        <div class="info">
+          <div class="name">Smirnoff Ice</div>
+          <div class="price">£5.25</div>
+        </div>
+      </div>
+    </div>
+    <p class="note">
+      <strong>Pros:</strong> More products fit per screen, compact, works well with long names.<br>
+      <strong>Cons:</strong> Thumbnail too small to identify quickly under bar lighting. Loses the visual "pop" of Option A.
+    </p>
+  </div>
+
+  <hr />
+
+  <!-- OPTION C -->
+  <div class="section">
+    <div class="badge-row">
+      <span class="badge badge-alt">Option C</span>
+      Full-bleed background
+    </div>
+    <div class="grid">
+      <div class="tile-c">
+        <div class="bg img-guinness"></div>
+        <div class="overlay"></div>
+        <span class="dot-low"></span>
+        <div class="body">
+          <div class="name">Guinness</div>
+          <div class="price">£7.40</div>
+        </div>
+      </div>
+      <div class="tile-c">
+        <div class="bg img-carlsberg"></div>
+        <div class="overlay"></div>
+        <span class="promo-tag">PROMO</span>
+        <div class="body">
+          <div class="name">Carlsberg</div>
+          <div class="price">£4.50</div>
+        </div>
+      </div>
+      <div class="tile-c">
+        <div class="bg img-rekorderlig"></div>
+        <div class="overlay"></div>
+        <div class="body">
+          <div class="name">Rekorderlig</div>
+          <div class="price">£6.40</div>
+        </div>
+      </div>
+      <div class="tile-c">
+        <div class="bg img-bulmers"></div>
+        <div class="overlay"></div>
+        <div class="body">
+          <div class="name">Bulmers</div>
+          <div class="price">£6.40</div>
+        </div>
+      </div>
+    </div>
+    <p class="note">
+      <strong>Pros:</strong> Most visually striking, atmospheric, matches the dark club aesthetic best.<br>
+      <strong>Cons:</strong> Text readability depends on photo quality — busy/bright photos need heavier overlay. Needs good photos.
+    </p>
+  </div>
+
+  <hr />
+
+  <!-- OPTION A — NO IMAGE FALLBACK -->
+  <div class="section">
+    <div class="badge-row">
+      <span class="badge badge-rec">Option A</span>
+      Fallback — no image uploaded yet
+    </div>
+    <div class="grid">
+      <div class="tile-a">
+        <div class="img" style="background: linear-gradient(135deg, #1E293B, #334155); position:relative; display:flex; align-items:center; justify-content:center;">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#475569" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+        </div>
+        <div class="body">
+          <span class="name">Guinness</span>
+          <span class="price">£7.40</span>
+        </div>
+      </div>
+      <div class="tile-a">
+        <div class="img" style="background: #1E293B; position:relative; display:flex; align-items:center; justify-content:center;">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#475569" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+        </div>
+        <div class="body">
+          <span class="name">Carlsberg</span>
+          <span class="price">£5.25</span>
+        </div>
+      </div>
+      <div class="tile-a">
+        <div class="img" style="background: #1E293B; position:relative; display:flex; align-items:center; justify-content:center;">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#475569" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+        </div>
+        <div class="body">
+          <span class="name">Rekorderlig</span>
+          <span class="price">£6.40</span>
+        </div>
+      </div>
+      <div class="tile-a">
+        <div class="img" style="background: #1E293B; position:relative; display:flex; align-items:center; justify-content:center;">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#475569" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+        </div>
+        <div class="body">
+          <span class="name">Smirnoff Ice</span>
+          <span class="price">£5.25</span>
+        </div>
+      </div>
+    </div>
+    <p class="note">
+      The fallback when no image is uploaded — still functional, same layout, just a placeholder icon. Products without images degrade gracefully and still work fine.
+    </p>
+  </div>
+
+</body>
+</html>

@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Banknote, CreditCard, Receipt, LogOut, Plus, Minus, X, Trash2, ChevronDown } from 'lucide-react'
 import { useTillStore } from '../../stores/tillStore'
 import CashPaymentModal from './CashPaymentModal'
+import BlurredAmount from '../ui/BlurredAmount'
 
 export default function OrderPanel({ onCheckout, onClose }) {
   const { orderItems, activeMember, clearMember, updateQuantity, removeItem, getTotal, clearOrder } = useTillStore()
@@ -36,8 +37,11 @@ export default function OrderPanel({ onCheckout, onClose }) {
             <div className="text-blue-400 text-xs font-medium uppercase tracking-wider">Member</div>
             <div className="text-white font-semibold text-sm">{activeMember.name}</div>
             {Number(activeMember.tab_balance) > 0 && (
-              <div className="text-blue-300 text-xs mt-0.5">
-                Tab: £{Number(activeMember.tab_balance).toFixed(2)}
+              <div className="text-blue-300 text-xs mt-0.5 flex items-center gap-1">
+                <span>Tab:</span>
+                <BlurredAmount className="text-blue-300">
+                  £{Number(activeMember.tab_balance).toFixed(2)}
+                </BlurredAmount>
               </div>
             )}
           </div>

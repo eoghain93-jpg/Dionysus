@@ -62,7 +62,10 @@ describe('MemberList', () => {
   it('shows tab balance formatted with £ when balance > 0', () => {
     const member = { ...baseMember, tab_balance: 12.5 }
     render(<MemberList members={[member]} onSelect={noop} onEdit={noop} />)
-    expect(screen.getByText('Tab: £12.50')).toBeInTheDocument()
+    // Label and amount are separate elements (amount is wrapped in
+    // BlurredAmount for customer-privacy reveal-on-tap).
+    expect(screen.getByText('Tab:')).toBeInTheDocument()
+    expect(screen.getByText('£12.50')).toBeInTheDocument()
   })
 
   it('hides tab balance when balance is 0', () => {

@@ -1,4 +1,5 @@
 import { Clock, Pencil } from '../../lib/icons'
+import BlurredAmount from '../ui/BlurredAmount'
 
 /**
  * Returns true if the member's renewal_date is within 30 days of today.
@@ -53,13 +54,6 @@ export default function MemberList({ members, onSelect, onEdit }) {
                 {member.membership_tier ?? 'member'}
               </span>
 
-              {/* Tab balance */}
-              {hasTab && (
-                <span className="text-blue-400 text-sm font-medium shrink-0">
-                  Tab: £{Number(member.tab_balance).toFixed(2)}
-                </span>
-              )}
-
               {/* Renewal alert — icon + text, never colour alone */}
               {renewalSoon && (
                 <span className="inline-flex items-center gap-1 text-amber-400 text-xs shrink-0" aria-label="Renewal due soon">
@@ -68,6 +62,18 @@ export default function MemberList({ members, onSelect, onEdit }) {
                 </span>
               )}
             </button>
+
+            {/* Tab balance — rendered outside the profile-open button so the
+                blur/reveal tap doesn't navigate. Visible to customers when
+                the till faces the bar, hence the BlurredAmount wrapper. */}
+            {hasTab && (
+              <span className="text-blue-400 text-sm font-medium shrink-0 flex items-center gap-1">
+                <span>Tab:</span>
+                <BlurredAmount className="text-blue-400">
+                  £{Number(member.tab_balance).toFixed(2)}
+                </BlurredAmount>
+              </span>
+            )}
 
             {/* Edit button */}
             <button
