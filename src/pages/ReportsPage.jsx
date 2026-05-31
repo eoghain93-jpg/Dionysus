@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useToastStore } from '../hooks/useToast'
-import { Download, BarChart2, TrendingUp, Clock, FileText } from '../lib/icons'
+import { Download, BarChart2, TrendingUp, Clock, FileText, Package } from '../lib/icons'
+import { Link } from 'react-router-dom'
 import DailySummary from '../components/reports/DailySummary'
 import BusiestHours from '../components/reports/BusiestHours'
 import TopProducts from '../components/reports/TopProducts'
@@ -83,6 +84,14 @@ export default function ReportsPage() {
             <Download size={16} aria-hidden="true" />
             {exporting ? 'Exporting…' : 'Export CSV'}
           </button>
+          {/* Stocktake — opens dedicated page with date range, table, CSV download, email */}
+          <Link
+            to="/stocktake"
+            className="flex items-center gap-2 px-4 min-h-[44px] rounded-xl bg-[#1E293B] hover:bg-slate-700 border border-slate-600 text-white text-sm font-semibold transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617]"
+          >
+            <Package size={16} aria-hidden="true" />
+            Stocktake
+          </Link>
           {/* Z Report */}
           <button
             onClick={() => setShowPinGate(true)}
