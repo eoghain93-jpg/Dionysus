@@ -2,31 +2,17 @@ import { render, screen, waitFor } from '@testing-library/react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import DailySummary from '../DailySummary'
 
-// Mock supabase
-vi.mock('../../../lib/supabase', () => {
-  const mockQuery = {
-    select: vi.fn(),
-    gte: vi.fn(),
-    lte: vi.fn(),
-  }
-  // Chain the query builder
-  mockQuery.select.mockReturnValue(mockQuery)
-  mockQuery.gte.mockReturnValue(mockQuery)
-  // lte returns a promise-like object (resolves with data)
-  mockQuery.lte.mockResolvedValue({ data: [], error: null })
-
-  return {
-    supabase: {
-      from: vi.fn(() => mockQuery),
-    },
-    __mockQuery: mockQuery,
-  }
+// Chainable supabase mock — resolves at await time so new chained filters
+// in DailySummary can't make it go stale
+vi.mock('../../../lib/supabase', async () => {
+  const { createSupabaseMock } = await import('../../../test/supabaseQueryMock')
+  return { supabase: createSupabaseMock() }
 })
+import { supabase } from '../../../lib/supabase'
 
 // Helper to configure the mock to resolve with specific orders
-async function setupMock(orders) {
-  const mod = await import('../../../lib/supabase')
-  mod.__mockQuery.lte.mockResolvedValue({ data: orders, error: null })
+function setupMock(orders) {
+  supabase.__configure({ orders: { data: orders } })
 }
 
 const DATE = '2026-03-09'
@@ -37,9 +23,10 @@ const paidTab  = { id: '3', total_amount: 5.50,  payment_method: 'tab',  status:
 const voided   = { id: '4', total_amount: 8.00,  payment_method: 'cash', status: 'voided' }
 
 describe('DailySummary', () => {
-  beforeEach(async () => {
+  beforeEach(() => {
     // Reset to empty orders before each test
-    await setupMock([])
+    supabase.__reset()
+    setupMock([])
   })
 
   it('shows total revenue for paid orders only', async () => {
@@ -51,12 +38,12 @@ describe('DailySummary', () => {
     })
   })
 
-  it('shows correct transaction count (paid orders only)', async () => {
+  it('shows correct transaction count (paid cash/card orders only, tabs excluded)', async () => {
     await setupMock([paidCash, paidCard, paidTab, voided])
     render(<DailySummary date={DATE} />)
 
     await waitFor(() => {
-      expect(screen.getByTestId('transaction-count')).toHaveTextContent('3')
+      expect(screen.getByTestId('transaction-count')).toHaveTextContent('2')
     })
   })
 
@@ -87,13 +74,14 @@ describe('DailySummary', () => {
     })
   })
 
-  it('shows tab total from paid tab orders', async () => {
+  it('excludes tab orders from revenue and shows no tab total (tabs are IOUs)', async () => {
     await setupMock([paidCash, paidCard, paidTab])
     render(<DailySummary date={DATE} />)
 
     await waitFor(() => {
-      expect(screen.getByTestId('tab-total')).toHaveTextContent('£5.50')
+      expect(screen.getByTestId('total-revenue')).toHaveTextContent('£30.00')
     })
+    expect(screen.queryByTestId('tab-total')).not.toBeInTheDocument()
   })
 
   it('shows zero revenue when there are no paid orders', async () => {
@@ -132,7 +120,6 @@ describe('DailySummary', () => {
     await waitFor(() => {
       expect(screen.getByTestId('cash-total')).toHaveTextContent('£12.50')
       expect(screen.getByTestId('card-total')).toHaveTextContent('£0.00')
-      expect(screen.getByTestId('tab-total')).toHaveTextContent('£0.00')
     })
   })
 })

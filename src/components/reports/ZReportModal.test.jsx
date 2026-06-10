@@ -36,7 +36,6 @@ const REPORT_DATA = {
     cashTotalByTill: { 'till-1': 120.00, 'till-2': 0 },
     cardTotal: 280.00,
     cardTotalByTill: { 'till-1': 280.00, 'till-2': 0 },
-    tabTotal: 50.00,
     refundsTotal: 15.00,
     netRevenue: 435.00,
   },
@@ -111,11 +110,12 @@ describe('ZReportModal — Sales Summary', () => {
     })
   })
 
-  it('displays tab total', async () => {
+  it('does not display a tab total (tabs are IOUs, excluded from cash-basis revenue)', async () => {
     render(<ZReportModal date={DATE} onClose={vi.fn()} onDayClose={vi.fn()} />)
     await waitFor(() => {
-      expect(screen.getByTestId('z-tab-total')).toHaveTextContent('£50.00')
+      expect(screen.getByTestId('z-total-revenue')).toBeInTheDocument()
     })
+    expect(screen.queryByTestId('z-tab-total')).not.toBeInTheDocument()
   })
 
   it('displays refunds total as negative', async () => {

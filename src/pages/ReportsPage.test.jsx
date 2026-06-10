@@ -1,6 +1,10 @@
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { render, screen, fireEvent } from '@testing-library/react'
+import { describe, it, expect, vi } from 'vitest'
+import { MemoryRouter } from 'react-router-dom'
 import ReportsPage from './ReportsPage'
+
+// The page renders a <Link to="/stocktake">, so it needs router context
+const renderPage = () => render(<ReportsPage />, { wrapper: MemoryRouter })
 
 // Mock child report components so they don't make real queries
 vi.mock('../components/reports/DailySummary', () => ({
@@ -32,38 +36,32 @@ vi.mock('../components/till/PinGate', () => ({
 }))
 
 // Mock supabase for Export CSV
-vi.mock('../lib/supabase', () => ({
-  supabase: {
-    from: vi.fn(() => ({
-      select: vi.fn().mockReturnThis(),
-      gte: vi.fn().mockReturnThis(),
-      lte: vi.fn().mockReturnThis(),
-      order: vi.fn().mockResolvedValue({ data: [], error: null }),
-    })),
-  },
-}))
+vi.mock('../lib/supabase', async () => {
+  const { createSupabaseMock } = await import('../test/supabaseQueryMock')
+  return { supabase: createSupabaseMock() }
+})
 
 describe('ReportsPage — Z Report button', () => {
   it('renders a Z Report button', () => {
-    render(<ReportsPage />)
+    renderPage()
     expect(screen.getByRole('button', { name: /z report/i })).toBeInTheDocument()
   })
 
   it('clicking Z Report shows the PinGate', () => {
-    render(<ReportsPage />)
+    renderPage()
     fireEvent.click(screen.getByRole('button', { name: /z report/i }))
     expect(screen.getByTestId('pin-gate')).toBeInTheDocument()
   })
 
   it('PinGate is not shown initially', () => {
-    render(<ReportsPage />)
+    renderPage()
     expect(screen.queryByTestId('pin-gate')).not.toBeInTheDocument()
   })
 })
 
 describe('ReportsPage — PinGate flow', () => {
   it('entering PIN hides PinGate and shows ZReportModal', () => {
-    render(<ReportsPage />)
+    renderPage()
     fireEvent.click(screen.getByRole('button', { name: /z report/i }))
     fireEvent.click(screen.getByRole('button', { name: /enter pin/i }))
     expect(screen.queryByTestId('pin-gate')).not.toBeInTheDocument()
@@ -71,7 +69,7 @@ describe('ReportsPage — PinGate flow', () => {
   })
 
   it('cancelling PinGate hides it without showing ZReportModal', () => {
-    render(<ReportsPage />)
+    renderPage()
     fireEvent.click(screen.getByRole('button', { name: /z report/i }))
     fireEvent.click(screen.getByRole('button', { name: /cancel pin/i }))
     expect(screen.queryByTestId('pin-gate')).not.toBeInTheDocument()
@@ -81,7 +79,7 @@ describe('ReportsPage — PinGate flow', () => {
 
 describe('ReportsPage — ZReportModal flow', () => {
   function openModal() {
-    render(<ReportsPage />)
+    renderPage()
     fireEvent.click(screen.getByRole('button', { name: /z report/i }))
     fireEvent.click(screen.getByRole('button', { name: /enter pin/i }))
   }
