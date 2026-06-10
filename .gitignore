@@ -36,3 +36,4 @@ supabase/.temp/
 
 # Claude Code per-session state — local-only
 .claude/
+supabase/.branches/
