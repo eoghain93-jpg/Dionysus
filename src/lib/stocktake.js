@@ -1,4 +1,5 @@
 import { supabase } from './supabase'
+import { fetchAllPages } from './fetchAllPages'
 
 // Stocktake report builder.
 //
@@ -28,16 +29,17 @@ export async function fetchStocktakeData(startDate, endDate) {
     .order('name')
   if (pErr) throw pErr
 
-  // Paid orders in the period
-  const { data: orders, error: oErr } = await supabase
+  // Paid orders in the period. Paged — a 30-day window is 3,000+ orders,
+  // well past the 1000-row PostgREST cap, which previously truncated the
+  // sold figures silently.
+  const orders = await fetchAllPages(() => supabase
     .from('orders')
     .select('id')
     .eq('status', 'paid')
     .gte('created_at', from)
-    .lte('created_at', to)
-  if (oErr) throw oErr
+    .lte('created_at', to))
 
-  const orderIds = (orders ?? []).map(o => o.id)
+  const orderIds = orders.map(o => o.id)
 
   // Order items batched to stay under URL length limits
   const items = []
@@ -61,12 +63,11 @@ export async function fetchStocktakeData(startDate, endDate) {
     soldRev.set(it.product_id, (soldRev.get(it.product_id) ?? 0) + r)
   }
 
-  const { data: moves, error: mErr } = await supabase
+  const moves = await fetchAllPages(() => supabase
     .from('stock_movements')
     .select('product_id, quantity, type')
     .gte('created_at', from)
-    .lte('created_at', to)
-  if (mErr) throw mErr
+    .lte('created_at', to))
 
   const wasteQty = new Map()
   const sdQty = new Map()

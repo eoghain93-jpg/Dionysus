@@ -1,4 +1,5 @@
 import { supabase } from './supabase'
+import { fetchAllPages } from './fetchAllPages'
 
 // Monthly accountant report builder.
 //
@@ -27,21 +28,9 @@ export function monthLabel(monthISO) {
 
 const sum = (arr, pick) => arr.reduce((s, r) => s + Number(pick(r) ?? 0), 0)
 
-// PostgREST caps responses at 1000 rows; a month of pub trading is well
-// past that (May 2026: 3,000+ orders), so every month-wide query pages
-// through .range() until a short page signals the end.
-const PAGE_SIZE = 1000
-
-async function fetchAll(buildQuery) {
-  const rows = []
-  for (let offset = 0; ; offset += PAGE_SIZE) {
-    const { data, error } = await buildQuery().range(offset, offset + PAGE_SIZE - 1)
-    if (error) throw error
-    rows.push(...(data ?? []))
-    if (!data || data.length < PAGE_SIZE) break
-  }
-  return rows
-}
+// A month of pub trading is 3,000+ orders — every month-wide query must
+// page past the PostgREST row cap (see fetchAllPages).
+const fetchAll = fetchAllPages
 
 /**
  * @param {string} monthISO  YYYY-MM

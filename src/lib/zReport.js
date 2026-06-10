@@ -1,4 +1,5 @@
 import { supabase } from './supabase'
+import { fetchAllPages } from './fetchAllPages'
 import { fetchWastageForDate, fetchStaffDrinksForDate } from './stockMovements'
 import { fetchCashbackForDate, fetchCashbackByTillForDate } from './cashback'
 import { fetchPrizeWinsForDate } from './prizeWins'
@@ -30,15 +31,15 @@ async function buildWeekSummary(date) {
   const prevWeekEnd   = addDaysISO(weekStart, -1)        // previous Friday
   const prevWeekStart = addDaysISO(prevWeekEnd, -6)      // previous Saturday
 
-  // All paid cash+card orders this week (with items so we can build top products)
-  const { data: orders } = await supabase
+  // All paid cash+card orders this week — paginated: a busy week pushes
+  // past the 1000-row PostgREST cap, which would silently clip revenue
+  const weekOrders = await fetchAllPages(() => supabase
     .from('orders')
     .select('id, total_amount, payment_method, created_at, status')
     .gte('created_at', weekFrom)
     .lte('created_at', weekTo)
     .eq('status', 'paid')
-    .in('payment_method', ['cash', 'card'])
-  const weekOrders = orders ?? []
+    .in('payment_method', ['cash', 'card']))
 
   // Daily breakdown Sat → Fri
   const dailyMap = {}
@@ -58,45 +59,45 @@ async function buildWeekSummary(date) {
   const daily = Object.values(dailyMap)
   const weekRevenue = daily.reduce((s, d) => s + d.total, 0)
 
-  // Top products this week — query order_items joined to orders for this week
-  const orderIds = weekOrders.map(o => o.id)
-  let topProducts = []
-  if (orderIds.length > 0) {
-    const { data: items } = await supabase
-      .from('order_items')
-      .select('product_id, quantity, unit_price, products(name)')
-      .in('order_id', orderIds)
-    const map = {}
-    for (const it of items ?? []) {
-      const k = it.product_id
-      if (!map[k]) map[k] = { name: it.products?.name ?? 'Unknown', qty: 0, revenue: 0 }
-      map[k].qty += it.quantity ?? 0
-      map[k].revenue += (it.quantity ?? 0) * (it.unit_price ?? 0)
-    }
-    topProducts = Object.values(map).sort((a, b) => b.revenue - a.revenue).slice(0, 10)
+  // Top products this week — joined server-side on the parent order: a
+  // week of order ids is far too many to pass as an .in() URL filter
+  const items = await fetchAllPages(() => supabase
+    .from('order_items')
+    .select('product_id, quantity, unit_price, products(name), orders!inner(created_at, status, payment_method)')
+    .gte('orders.created_at', weekFrom)
+    .lte('orders.created_at', weekTo)
+    .eq('orders.status', 'paid')
+    .in('orders.payment_method', ['cash', 'card']))
+  const map = {}
+  for (const it of items) {
+    const k = it.product_id
+    if (!map[k]) map[k] = { name: it.products?.name ?? 'Unknown', qty: 0, revenue: 0 }
+    map[k].qty += it.quantity ?? 0
+    map[k].revenue += (it.quantity ?? 0) * (it.unit_price ?? 0)
   }
+  const topProducts = Object.values(map).sort((a, b) => b.revenue - a.revenue).slice(0, 10)
 
   // Wastage / staff drinks totals across the week
-  const { data: wasteRows } = await supabase
+  const wasteRows = await fetchAllPages(() => supabase
     .from('stock_movements')
     .select('quantity, type, products(standard_price)')
     .in('type', ['wastage', 'staff_drink'])
     .gte('created_at', weekFrom)
-    .lte('created_at', weekTo)
-  const wastageTotal     = (wasteRows ?? []).filter(r => r.type === 'wastage')
+    .lte('created_at', weekTo))
+  const wastageTotal     = wasteRows.filter(r => r.type === 'wastage')
     .reduce((s, r) => s + r.quantity * (r.products?.standard_price ?? 0), 0)
-  const staffDrinksTotal = (wasteRows ?? []).filter(r => r.type === 'staff_drink')
+  const staffDrinksTotal = wasteRows.filter(r => r.type === 'staff_drink')
     .reduce((s, r) => s + r.quantity * (r.products?.standard_price ?? 0), 0)
 
   // Previous full week revenue for w-o-w change
-  const { data: prevOrders } = await supabase
+  const prevOrders = await fetchAllPages(() => supabase
     .from('orders')
     .select('total_amount')
     .gte('created_at', `${prevWeekStart}T00:00:00`)
     .lte('created_at', `${prevWeekEnd}T23:59:59`)
     .eq('status', 'paid')
-    .in('payment_method', ['cash', 'card'])
-  const previousWeekRevenue = (prevOrders ?? []).reduce((s, o) => s + (o.total_amount ?? 0), 0)
+    .in('payment_method', ['cash', 'card']))
+  const previousWeekRevenue = prevOrders.reduce((s, o) => s + (o.total_amount ?? 0), 0)
   const weekOnWeekDelta = previousWeekRevenue > 0
     ? ((weekRevenue - previousWeekRevenue) / previousWeekRevenue) * 100
     : null
@@ -127,15 +128,11 @@ export async function fetchZReportData(date) {
   // settlement — both put real money in the till). Tab orders are IOUs, not
   // revenue, so they're excluded entirely; what's owed lives on
   // members.tab_balance and surfaces as Outstanding Tabs.
-  const { data: orders, error: ordersError } = await supabase
+  const allOrders = await fetchAllPages(() => supabase
     .from('orders')
     .select('id, total_amount, payment_method, status, till_id')
     .gte('created_at', from)
-    .lte('created_at', to)
-
-  if (ordersError) throw ordersError
-
-  const allOrders = orders ?? []
+    .lte('created_at', to))
   const paid    = allOrders.filter(o => o.status === 'paid')
   const refunds = allOrders.filter(o => o.status === 'refunded')
 
@@ -173,49 +170,45 @@ export async function fetchZReportData(date) {
     netRevenue,
   }
 
-  // 2. Fetch order items for the date to build top products
-  const orderIds = allOrders.map(o => o.id)
-  let topProducts = []
+  // 2. Order items for the date to build top products — joined server-side
+  // on the parent order's created_at: a busy day's worth of order ids made
+  // the old .in() filter URL grow without bound.
+  const items = await fetchAllPages(() => supabase
+    .from('order_items')
+    .select('product_id, quantity, unit_price, products(name), orders!inner(created_at)')
+    .gte('orders.created_at', from)
+    .lte('orders.created_at', to))
 
-  if (orderIds.length > 0) {
-    const { data: items, error: itemsError } = await supabase
-      .from('order_items')
-      .select('product_id, quantity, unit_price, products(name)')
-      .in('order_id', orderIds)
+  const map = {}
+  items.forEach(item => {
+    const key = item.product_id
+    const name = item.products?.name ?? 'Unknown'
+    const qty = item.quantity ?? 0
+    const revenue = qty * (item.unit_price ?? 0)
+    if (!map[key]) {
+      map[key] = { name, qty: 0, revenue: 0 }
+    }
+    map[key].qty     += qty
+    map[key].revenue += revenue
+  })
 
-    if (itemsError) throw itemsError
-
-    const map = {}
-    ;(items ?? []).forEach(item => {
-      const key = item.product_id
-      const name = item.products?.name ?? 'Unknown'
-      const qty = item.quantity ?? 0
-      const revenue = qty * (item.unit_price ?? 0)
-      if (!map[key]) {
-        map[key] = { name, qty: 0, revenue: 0 }
-      }
-      map[key].qty     += qty
-      map[key].revenue += revenue
-    })
-
-    topProducts = Object.values(map)
-      .sort((a, b) => b.revenue - a.revenue)
-      .slice(0, 10)
-  }
+  const topProducts = Object.values(map)
+    .sort((a, b) => b.revenue - a.revenue)
+    .slice(0, 10)
 
   const monday = getWeekStartISO(date)
   const weekFrom = `${monday}T00:00:00`
   const weekTo   = `${date}T23:59:59`
 
-  const { data: weekOrders } = await supabase
+  const weekOrders = await fetchAllPages(() => supabase
     .from('orders')
     .select('total_amount, payment_method, status')
     .gte('created_at', weekFrom)
     .lte('created_at', weekTo)
     .eq('status', 'paid')
-    .in('payment_method', ['cash', 'card'])
+    .in('payment_method', ['cash', 'card']))
 
-  const weekToDateRevenue = (weekOrders ?? []).reduce((s, o) => s + (o.total_amount ?? 0), 0)
+  const weekToDateRevenue = weekOrders.reduce((s, o) => s + (o.total_amount ?? 0), 0)
 
   const { data: tabData } = await supabase
     .from('members')
