@@ -15,44 +15,33 @@ anything.
 | `supabase/functions/verify-pin` | 5 failed attempts → 15-minute lock; covers verify mode AND set-mode `current_pin`; returns `{ valid:false, reason:'locked', retryAfterSeconds }` |
 | Till bundle | `DeviceGate` wraps the app: one-time device sign-in, session persists in localStorage and auto-refreshes; till_id syncs from `till_devices`; PIN screens show a calm lockout countdown |
 
-## Production rollout — IN THIS ORDER
+## Production rollout — single push, pub closed
 
-Do this while the pub is closed. Steps 4→5 have a sub-minute window where
-the till can't read data (signed in but not yet registered as a device), so
-have the step-5 SQL ready to paste.
+Already done ahead of time (2026-06-10):
+- pin_attempts migration applied to production; updated verify-pin deployed
+  (brute-force lockout has been live since then)
+- Device auth users created: `till-1@fairmile.club`, `till-2@fairmile.club`
+  (passwords held by Eoghain — never in this repo)
+- Device registration is migration `20260610180000_register_till_devices.sql`
+  (guarded — no-ops where the auth users don't exist), so it lands in the
+  same db push as the policies: no manual-SQL race window.
 
-1. **Create the device auth users** (Dashboard → Authentication → Add user):
-   - `till-1@<your-domain>` with a strong unique password
-   - `till-2@<your-domain>` likewise (when the second till arrives)
-   - Tick "Auto Confirm User". Note each user's UUID.
-   - These are DEVICE credentials, not staff logins — write them down once,
-     they're entered once per till and never again.
+The repo is git-connected to both deploy paths: a push to master triggers
+`.github/workflows/migrate.yml` (supabase db push) AND the Vercel project
+(club-epos) which serves the till bundle. So the flip is ONE push:
 
-2. **Deploy the updated verify-pin function** (safe before the migrations —
-   it only needs pin_attempts at lock time; do it together with step 4):
-   ```bash
-   supabase functions deploy verify-pin
-   ```
+1. **Pub closed.** Be at the till (or able to reach it).
+2. `git push` master. Wait for the GitHub Action to go green and Vercel to
+   finish deploying (~2 minutes).
+3. **At the till:** reload the app (the PWA auto-updates on reload). It shows
+   "Connect This Till" — enter `till-1@fairmile.club` + its password once.
+4. Staff PIN screen appears; log in and **ring a test sale**.
+5. **Run the verification checklist below** (the anon/member parts are
+   runnable from any machine with curl).
 
-3. **Deploy the new till bundle.** Each till now shows "Connect This Till" —
-   enter that till's device email + password once. (Old policies are still
-   active, so the till keeps working normally after sign-in.)
-
-4. **Apply the migrations:**
-   ```bash
-   supabase db push --linked
-   ```
-
-5. **Immediately register the devices** (Dashboard → SQL editor — paste,
-   replacing the UUIDs from step 1):
-   ```sql
-   insert into till_devices (auth_user_id, till_id, name) values
-     ('<till-1-user-uuid>', 'till-1', 'Main bar till');
-   -- add till-2 when it exists:
-   -- ('<till-2-user-uuid>', 'till-2', 'Lounge till');
-   ```
-
-6. **Run the verification checklist below.**
+The brief window during step 2–3 where new policies meet the old cached
+bundle just means failed requests on a closed pub's till; the reload clears
+it.
 
 Rollback: if anything is wrong, re-creating the permissive policies restores
 the old behaviour instantly (`create policy "Allow all" on <table> for all
