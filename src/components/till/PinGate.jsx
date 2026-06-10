@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Delete, X, ShieldCheck } from 'lucide-react'
+import { Delete, X, ShieldCheck, Clock } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { useSessionStore } from '../../stores/sessionStore'
+import { useLockoutCountdown } from '../../hooks/useLockoutCountdown'
 
 const PIN_KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'back', '0', 'clear']
 
@@ -19,6 +20,7 @@ export default function PinGate({ onConfirm, onCancel, label }) {
   const [digits, setDigits] = useState('')
   const [verifying, setVerifying] = useState(false)
   const [error, setError] = useState(null)
+  const { isLocked, remainingLabel, lock } = useLockoutCountdown()
 
   const activeStaff = useSessionStore(s => s.activeStaff)
 
@@ -38,6 +40,9 @@ export default function PinGate({ onConfirm, onCancel, label }) {
 
       if (data.valid) {
         onConfirm()
+      } else if (data.reason === 'locked') {
+        setDigits('')
+        lock(data.retryAfterSeconds)
       } else {
         setError('Incorrect PIN. Please try again.')
         setDigits('')
@@ -48,7 +53,7 @@ export default function PinGate({ onConfirm, onCancel, label }) {
     } finally {
       setVerifying(false)
     }
-  }, [onConfirm])
+  }, [onConfirm, lock])
 
   // Auto-submit when 4 digits entered
   useEffect(() => {
@@ -58,7 +63,7 @@ export default function PinGate({ onConfirm, onCancel, label }) {
   }, [digits, activeStaff, handleVerify])
 
   function handleKey(key) {
-    if (verifying) return
+    if (verifying || isLocked) return
     setError(null)
     if (key === 'back') {
       setDigits(d => d.slice(0, -1))
@@ -119,8 +124,23 @@ export default function PinGate({ onConfirm, onCancel, label }) {
           <p className="text-center text-slate-400 text-sm">Verifying…</p>
         )}
 
+        {/* Locked — calm countdown, not an error: the lock protects the PIN
+            and resolves itself; staff just need to know when */}
+        {isLocked && (
+          <div
+            role="status"
+            className="text-amber-300 text-sm text-center bg-amber-400/10 px-4 py-3 rounded-xl space-y-1"
+          >
+            <p className="flex items-center justify-center gap-1.5 font-semibold">
+              <Clock size={14} aria-hidden="true" />
+              PIN locked after too many attempts
+            </p>
+            <p>Try again in {remainingLabel}, or cancel and ask another staff member.</p>
+          </div>
+        )}
+
         {/* Error */}
-        {error && (
+        {!isLocked && error && (
           <p role="alert" className="text-red-400 text-sm text-center bg-red-400/10 px-4 py-2 rounded-xl">
             {error}
           </p>
@@ -132,7 +152,7 @@ export default function PinGate({ onConfirm, onCancel, label }) {
             <button
               key={key}
               onClick={() => handleKey(key)}
-              disabled={verifying}
+              disabled={verifying || isLocked}
               aria-label={
                 key === 'back' ? 'Backspace' :
                 key === 'clear' ? 'Clear PIN' :

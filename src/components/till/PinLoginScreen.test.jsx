@@ -20,6 +20,15 @@ const STAFF = [
   { id: 'staff-2', name: 'Bob', membership_tier: 'staff' },
 ]
 
+async function selectStaffAndEnterPin(pin = '1234') {
+  fireEvent.change(await screen.findByRole('combobox', { name: /staff member/i }), {
+    target: { value: 'staff-1' },
+  })
+  for (const d of pin) {
+    fireEvent.click(screen.getByRole('button', { name: d }))
+  }
+}
+
 function setupFromMock(staffList = STAFF) {
   mockFrom.mockReturnValue({
     select: vi.fn().mockReturnThis(),
@@ -194,5 +203,31 @@ describe('PinLoginScreen', () => {
     })
     render(<PinLoginScreen />)
     expect(await screen.findByRole('alert')).toHaveTextContent(/could not load staff/i)
+  })
+
+  // ── Lockout ────────────────────────────────────────────────────────────────
+  it('shows a calm countdown message when the PIN is locked', async () => {
+    mockInvoke.mockResolvedValue({
+      data: { valid: false, reason: 'locked', retryAfterSeconds: 900 },
+      error: null,
+    })
+    render(<PinLoginScreen />)
+    await selectStaffAndEnterPin()
+    const status = await screen.findByRole('status')
+    expect(status).toHaveTextContent(/locked after too many attempts/i)
+    expect(status).toHaveTextContent(/15:00/)
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
+  it('disables the numpad while locked and does not log anyone in', async () => {
+    mockInvoke.mockResolvedValue({
+      data: { valid: false, reason: 'locked', retryAfterSeconds: 900 },
+      error: null,
+    })
+    render(<PinLoginScreen />)
+    await selectStaffAndEnterPin()
+    await screen.findByRole('status')
+    expect(screen.getByRole('button', { name: '5' })).toBeDisabled()
+    expect(useSessionStore.getState().activeStaff).toBeNull()
   })
 })

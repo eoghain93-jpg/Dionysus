@@ -46,6 +46,14 @@ export function bootstrapTillId() {
   }
 }
 
+// Persist an explicit till id — used after device sign-in, when the
+// till_devices row tells us authoritatively which till this device is.
+export function setTillId(till_id) {
+  if (typeof localStorage === 'undefined') return
+  if (!/^till-\d+$/.test(till_id ?? '')) return
+  localStorage.setItem(TILL_ID_KEY, till_id)
+}
+
 export function getTillId() {
   if (typeof localStorage === 'undefined') return DEFAULT_TILL_ID
 

@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react'
-import { Delete, X, Lock } from 'lucide-react'
+import { useState, useEffect, useCallback } from 'react'
+import { Delete, X, Lock, Clock } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { useSessionStore } from '../../stores/sessionStore'
+import { useLockoutCountdown } from '../../hooks/useLockoutCountdown'
 import SetPinModal from '../members/SetPinModal'
 
 const PIN_KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'back', '0', 'clear']
@@ -15,6 +16,7 @@ export default function PinLoginScreen() {
   const [error, setError] = useState(null)
   const [fetchError, setFetchError] = useState(null)
   const [showSetPin, setShowSetPin] = useState(false)
+  const { isLocked, remainingLabel, lock } = useLockoutCountdown()
 
   const { setActiveStaff } = useSessionStore()
 
@@ -38,14 +40,8 @@ export default function PinLoginScreen() {
       })
   }, [])
 
-  useEffect(() => {
-    if (digits.length === 4 && selectedId) {
-      handleVerify(selectedId, digits)
-    }
-  }, [digits, selectedId])
-
   function handleKey(key) {
-    if (verifying) return
+    if (verifying || isLocked) return
     setError(null)
     if (key === 'back') {
       setDigits(d => d.slice(0, -1))
@@ -56,7 +52,7 @@ export default function PinLoginScreen() {
     }
   }
 
-  async function handleVerify(memberId, pin) {
+  const handleVerify = useCallback(async (memberId, pin) => {
     setVerifying(true)
     setError(null)
     try {
@@ -73,6 +69,9 @@ export default function PinLoginScreen() {
       } else if (data.reason === 'no_pin') {
         setDigits('')
         setShowSetPin(true)
+      } else if (data.reason === 'locked') {
+        setDigits('')
+        lock(data.retryAfterSeconds)
       } else {
         setError('Incorrect PIN. Please try again.')
         setDigits('')
@@ -83,7 +82,14 @@ export default function PinLoginScreen() {
     } finally {
       setVerifying(false)
     }
-  }
+  }, [setActiveStaff, lock])
+
+  // Auto-submit when 4 digits entered
+  useEffect(() => {
+    if (digits.length === 4 && selectedId) {
+      handleVerify(selectedId, digits)
+    }
+  }, [digits, selectedId, handleVerify])
 
   const selectedMember = staffList.find(s => s.id === selectedId) ?? null
 
@@ -151,7 +157,22 @@ export default function PinLoginScreen() {
 
         {verifying && <p className="text-center text-slate-400 text-sm">Verifying…</p>}
 
-        {error && (
+        {/* Locked — calm countdown, not an error: the lock protects the PIN
+            and resolves itself; staff just need to know when */}
+        {isLocked && (
+          <div
+            role="status"
+            className="text-amber-300 text-sm text-center bg-amber-400/10 px-4 py-3 rounded-xl space-y-1"
+          >
+            <p className="flex items-center justify-center gap-1.5 font-semibold">
+              <Clock size={14} aria-hidden="true" />
+              PIN locked after too many attempts
+            </p>
+            <p>Try again in {remainingLabel}. Another staff member can log in meanwhile.</p>
+          </div>
+        )}
+
+        {!isLocked && error && (
           <p role="alert" className="text-red-400 text-sm text-center bg-red-400/10 px-4 py-2 rounded-xl">
             {error}
           </p>
@@ -162,7 +183,7 @@ export default function PinLoginScreen() {
             <button
               key={key}
               onClick={() => handleKey(key)}
-              disabled={verifying}
+              disabled={verifying || isLocked}
               aria-label={key === 'back' ? 'Backspace' : key === 'clear' ? 'Clear PIN' : key}
               className="bg-slate-800 hover:bg-slate-700 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold py-5 rounded-2xl text-2xl transition-all duration-150 cursor-pointer flex items-center justify-center border border-slate-700"
             >

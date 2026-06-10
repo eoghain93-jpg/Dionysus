@@ -151,6 +151,52 @@ describe('PinGate', () => {
     expect(onCancel).toHaveBeenCalledOnce()
   })
 
+  // ── Lockout ────────────────────────────────────────────────────────────────
+  it('shows a calm countdown message when the PIN is locked', async () => {
+    mockInvoke.mockResolvedValue({
+      data: { valid: false, reason: 'locked', retryAfterSeconds: 900 },
+      error: null,
+    })
+    renderGate()
+    ;['1', '2', '3', '4'].forEach(d =>
+      fireEvent.click(screen.getByRole('button', { name: d }))
+    )
+    const status = await screen.findByRole('status')
+    expect(status).toHaveTextContent(/locked after too many attempts/i)
+    expect(status).toHaveTextContent(/15:00/)
+    // not styled as an error — no alert role
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
+  it('disables the numpad while locked', async () => {
+    mockInvoke.mockResolvedValue({
+      data: { valid: false, reason: 'locked', retryAfterSeconds: 900 },
+      error: null,
+    })
+    renderGate()
+    ;['1', '2', '3', '4'].forEach(d =>
+      fireEvent.click(screen.getByRole('button', { name: d }))
+    )
+    await screen.findByRole('status')
+    expect(screen.getByRole('button', { name: '5' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: /clear pin/i })).toBeDisabled()
+  })
+
+  it('still allows cancelling while locked', async () => {
+    const onCancel = vi.fn()
+    mockInvoke.mockResolvedValue({
+      data: { valid: false, reason: 'locked', retryAfterSeconds: 900 },
+      error: null,
+    })
+    renderGate({ onCancel })
+    ;['1', '2', '3', '4'].forEach(d =>
+      fireEvent.click(screen.getByRole('button', { name: d }))
+    )
+    await screen.findByRole('status')
+    fireEvent.click(screen.getByRole('button', { name: /^cancel$/i }))
+    expect(onCancel).toHaveBeenCalledOnce()
+  })
+
   // ── Verifying state ────────────────────────────────────────────────────────
   it('shows verifying indicator while awaiting response', async () => {
     mockInvoke.mockReturnValue(new Promise(() => {}))
