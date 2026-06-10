@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useToastStore } from '../hooks/useToast'
-import { Download, BarChart2, TrendingUp, Clock, FileText, Package } from '../lib/icons'
+import { Download, BarChart2, TrendingUp, Clock, FileText, Package, Calendar } from '../lib/icons'
 import { Link } from 'react-router-dom'
 import DailySummary from '../components/reports/DailySummary'
 import BusiestHours from '../components/reports/BusiestHours'
@@ -91,6 +91,14 @@ export default function ReportsPage() {
           >
             <Package size={16} aria-hidden="true" />
             Stocktake
+          </Link>
+          {/* Monthly report — month picker, daily takings, totals, CSV + email for the accountant */}
+          <Link
+            to="/monthly-report"
+            className="flex items-center gap-2 px-4 min-h-[44px] rounded-xl bg-[#1E293B] hover:bg-slate-700 border border-slate-600 text-white text-sm font-semibold transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617]"
+          >
+            <Calendar size={16} aria-hidden="true" />
+            Monthly
           </Link>
           {/* Z Report */}
           <button

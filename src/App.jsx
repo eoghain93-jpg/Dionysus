@@ -9,6 +9,7 @@ import PromosPage from './pages/PromosPage'
 import TabsPage from './pages/TabsPage'
 import SettingsPage from './pages/SettingsPage'
 import StocktakePage from './pages/StocktakePage'
+import MonthlyReportPage from './pages/MonthlyReportPage'
 
 export default function App() {
   return (
@@ -22,6 +23,7 @@ export default function App() {
           <Route path="/promos" element={<PromosPage />} />
           <Route path="/reports" element={<ReportsPage />} />
           <Route path="/stocktake" element={<StocktakePage />} />
+          <Route path="/monthly-report" element={<MonthlyReportPage />} />
           <Route path="/settings" element={<SettingsPage />} />
         </Routes>
       </Layout>
