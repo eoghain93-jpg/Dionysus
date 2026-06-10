@@ -1,5 +1,6 @@
 import { supabase } from './supabase'
 import { db } from './db'
+import { createOrderWithItems } from './orders'
 import { useSyncStore } from '../stores/syncStore'
 
 export async function syncPendingOrders() {
@@ -7,34 +8,13 @@ export async function syncPendingOrders() {
   if (pending.length === 0) return
 
   for (const item of pending) {
-    const { localId, ...order } = item
+    const { localId, order, items } = item
     try {
-      const { data: orderData, error } = await supabase
-        .from('orders')
-        .insert(order.order)
-        .select()
-        .single()
-      if (error) throw error
-
-      const itemsWithOrderId = order.items.map(i => ({ ...i, order_id: orderData.id }))
-      await supabase.from('order_items').insert(itemsWithOrderId)
-
-      // Decrement stock for each item — DB trigger updates stock_quantity.
-      // Done at sync-time (not queue-time) so the movement timestamp matches
-      // when the sale actually landed in the canonical store.
-      const movements = order.items
-        .filter(i => i.product_id)
-        .map(i => ({
-          product_id: i.product_id,
-          type: 'sale',
-          quantity: i.quantity,
-          till_id: order.order.till_id ?? null,
-          created_at: order.order.created_at,
-        }))
-      if (movements.length > 0) {
-        await supabase.from('stock_movements').insert(movements)
-      }
-
+      // One atomic RPC: order + items + sale stock movements + tab balance.
+      // The order carries its client-generated id, so if a previous sync got
+      // the order in but crashed before deleting the queue entry, this
+      // replay is a no-op server-side (ON CONFLICT DO NOTHING).
+      await createOrderWithItems(order, items)
       await db.pendingOrders.delete(localId)
     } catch (err) {
       console.error('Failed to sync order', err)
@@ -58,7 +38,7 @@ export async function syncPendingStockMovements() {
 }
 
 export async function syncAll() {
-  const { setOnline, setPendingCount } = useSyncStore.getState()
+  const { setPendingCount } = useSyncStore.getState()
   await syncPendingOrders()
   await syncPendingStockMovements()
   const remaining = (await db.pendingOrders.count()) + (await db.pendingStockMovements.count())

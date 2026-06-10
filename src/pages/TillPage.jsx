@@ -1,11 +1,9 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { ShoppingCart } from 'lucide-react'
-import { fetchProducts, logSaleMovements } from '../lib/products'
+import { fetchProducts } from '../lib/products'
 import { fetchActivePromotions } from '../lib/promotions'
-import { supabase } from '../lib/supabase'
-import { addToTabBalance } from '../lib/members'
+import { newOrderId, saveOrder } from '../lib/orders'
 import { getTillId } from '../lib/till'
-import { db } from '../lib/db'
 import { printReceipt } from '../lib/starPrinter'
 import { useToastStore } from '../hooks/useToast'
 import { useTillStore } from '../stores/tillStore'
@@ -33,7 +31,7 @@ export default function TillPage() {
   const [showPrizeWin, setShowPrizeWin] = useState(false)
   const [showShotBundle, setShowShotBundle] = useState(false)
   const [showMobileOrder, setShowMobileOrder] = useState(false)
-  const { orderItems, activeMember, clearOrder, loadPromos, getTotal } = useTillStore()
+  const { orderItems, clearOrder, loadPromos, getTotal } = useTillStore()
   const setMembersOnlyMode = useTillStore(s => s.setMembersOnlyMode)
   const { isOnline } = useSyncStore()
   const { activeStaff } = useSessionStore()
@@ -60,6 +58,9 @@ export default function TillPage() {
     const currentMember = useTillStore.getState().activeMember
 
     const order = {
+      // Client-generated id: the create_order_with_items RPC upserts on it,
+      // so an offline order replayed by sync can never duplicate.
+      id: newOrderId(),
       member_id: currentMember?.id ?? null,
       payment_method: paymentMethod,
       total_amount: total,
@@ -74,48 +75,19 @@ export default function TillPage() {
       member_price_applied: i.member_price_applied,
     }))
 
-    let orderId = `OFF-${Date.now()}`
-
-    // Save the order — if anything in this block throws (network blip,
-    // auth error, IndexedDB issue), we still proceed to print + clearOrder
-    // below. Without this defence, an exception here leaves the till stuck:
-    // orderItems still populated, payment buttons disabled because `paying`
-    // never gets reset.
-    try {
-      if (isOnline) {
-        const { data, error } = await supabase.from('orders').insert(order).select().single()
-        if (!error) {
-          orderId = data.id
-          await Promise.all([
-            supabase.from('order_items').insert(items.map(i => ({ ...i, order_id: data.id }))),
-            paymentMethod === 'tab' && currentMember
-              ? addToTabBalance(currentMember.id, total)
-              : Promise.resolve(),
-            // Decrement stock for each item sold. DB trigger
-            // apply_stock_movement updates products.stock_quantity
-            // automatically from the inserted movement rows.
-            logSaleMovements(items, order.till_id),
-          ])
-        } else {
-          await db.pendingOrders.add({ order, items })
-          useToastStore.getState().addToast('Saved offline — will sync', 'error')
-        }
-      } else {
-        await db.pendingOrders.add({ order, items })
-      }
-    } catch (err) {
-      console.error('Order save failed:', err)
-      try {
-        await db.pendingOrders.add({ order, items })
-        useToastStore.getState().addToast('Saved offline — will sync', 'error')
-      } catch (queueErr) {
-        console.error('Offline queue also failed:', queueErr)
-        useToastStore.getState().addToast('Order save failed — check sync', 'error')
-      }
+    // One atomic RPC writes the order, items, sale stock movements and any
+    // tab balance increment; on failure the order falls back to the offline
+    // queue. saveOrder never throws — whatever happens we proceed to print +
+    // clearOrder below so the till can't get stuck mid-sale.
+    const saved = await saveOrder(order, items, isOnline)
+    if (saved === 'fallback') {
+      useToastStore.getState().addToast('Saved offline — will sync', 'error')
+    } else if (saved === 'failed') {
+      useToastStore.getState().addToast('Order save failed — check sync', 'error')
     }
 
     try {
-      await printReceipt({ orderId, total, paymentMethod, createdAt: order.created_at })
+      await printReceipt({ orderId: order.id, total, paymentMethod, createdAt: order.created_at })
     } catch (err) {
       console.error('Print failed:', err)
       useToastStore.getState().addToast('Print failed — check printer connection', 'error')

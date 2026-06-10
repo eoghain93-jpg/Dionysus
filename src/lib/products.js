@@ -54,25 +54,3 @@ export async function logStockMovement({ product_id, type, quantity, notes, till
     await db.pendingStockMovements.add(movement)
   }
 }
-
-// Bulk insert sale-type stock movements for an order's items. Called after
-// a successful checkout so stock_quantity decrements per pint / bottle /
-// measure sold. If offline (or the bulk insert fails), the movements are
-// queued individually for sync.
-export async function logSaleMovements(items, till_id = getTillId()) {
-  if (!items?.length) return
-  const movements = items.map(i => ({
-    product_id: i.product_id,
-    type: 'sale',
-    quantity: i.quantity,
-    till_id,
-    created_at: new Date().toISOString(),
-  }))
-  const { isOnline } = useSyncStore.getState()
-  if (isOnline) {
-    const { error } = await supabase.from('stock_movements').insert(movements)
-    if (!error) return
-    // Insert failed mid-checkout (network blip) — queue per-row for sync.
-  }
-  await db.pendingStockMovements.bulkAdd(movements)
-}
