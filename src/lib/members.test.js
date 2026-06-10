@@ -75,20 +75,26 @@ describe('upsertMember', () => {
 })
 
 describe('settleTab', () => {
-  function setupMocks(balance) {
+  // The balance maths happens server-side in the adjust_tab_balance RPC
+  // (atomic UPDATE, clamped at zero); the mock returns the post-update
+  // balance the server would compute.
+  function setupMocks(newBalanceFromRpc) {
+    supabase.rpc.mockResolvedValue({ data: newBalanceFromRpc, error: null })
     supabase.__configure({
-      // first call: select tab_balance, second call: update
-      members: [{ data: { tab_balance: balance } }, { error: null }],
-      orders: { error: null },
+      members: { error: null }, // last_settled_at stamp update
+      orders: { error: null },  // settlement order insert
     })
   }
 
-  const memberUpdatePayload = () => supabase.__chain('members', 1).update.mock.calls[0][0]
   const ordersInsert = () => supabase.__chain('orders').insert
 
-  it('deducts the full amount when paying the full balance', async () => {
-    setupMocks(15.50)
+  it('settles via the atomic RPC and records a settlement order', async () => {
+    setupMocks(0)
     await settleTab('member-1', 15.50, 'cash')
+    expect(supabase.rpc).toHaveBeenCalledWith('adjust_tab_balance', {
+      p_member_id: 'member-1',
+      p_delta: -15.50,
+    })
     expect(ordersInsert()).toHaveBeenCalledWith(expect.objectContaining({
       member_id: 'member-1',
       payment_method: 'cash',
@@ -98,44 +104,52 @@ describe('settleTab', () => {
   })
 
   it('deducts a partial amount leaving remainder on tab', async () => {
-    setupMocks(15.50)
+    setupMocks(5.50)
     await settleTab('member-1', 10.00, 'card')
+    expect(supabase.rpc).toHaveBeenCalledWith('adjust_tab_balance', {
+      p_member_id: 'member-1',
+      p_delta: -10.00,
+    })
     expect(ordersInsert()).toHaveBeenCalledWith(expect.objectContaining({
       total_amount: 10.00,
       payment_method: 'card',
     }))
   })
 
-  it('does not allow balance to go below zero', async () => {
-    setupMocks(5.00)
-    // overpayment — should clamp to 0
-    await settleTab('member-1', 100.00, 'cash')
-    expect(memberUpdatePayload().tab_balance).toBe(0)
-  })
-
   it('stamps last_settled_at when the balance hits zero (full settlement)', async () => {
-    setupMocks(15.50)
+    setupMocks(0)
     await settleTab('member-1', 15.50, 'cash')
-    const updatePayload = memberUpdatePayload()
-    expect(updatePayload.tab_balance).toBe(0)
+    const updatePayload = supabase.__chain('members').update.mock.calls[0][0]
     expect(updatePayload.last_settled_at).toEqual(expect.any(String))
     // ISO 8601 timestamp shape
     expect(updatePayload.last_settled_at).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/)
   })
 
   it('does NOT stamp last_settled_at on a partial settlement', async () => {
-    setupMocks(15.50)
+    setupMocks(5.50)
     await settleTab('member-1', 10.00, 'card')
-    const updatePayload = memberUpdatePayload()
-    expect(updatePayload.tab_balance).toBe(5.50)
-    expect(updatePayload.last_settled_at).toBeUndefined()
+    expect(supabase.__chain('members')).toBeUndefined() // no members update at all
   })
 
-  it('stamps last_settled_at on overpayment (clamped to zero)', async () => {
-    setupMocks(5.00)
+  it('stamps last_settled_at on overpayment (server clamps the balance to zero)', async () => {
+    setupMocks(0) // RPC returns 0 even though delta exceeded the balance
     await settleTab('member-1', 100.00, 'cash')
-    const updatePayload = memberUpdatePayload()
-    expect(updatePayload.tab_balance).toBe(0)
+    expect(supabase.rpc).toHaveBeenCalledWith('adjust_tab_balance', {
+      p_member_id: 'member-1',
+      p_delta: -100.00,
+    })
+    const updatePayload = supabase.__chain('members').update.mock.calls[0][0]
     expect(updatePayload.last_settled_at).toEqual(expect.any(String))
+  })
+
+  it('throws when the RPC fails (Supabase returns errors, not throws)', async () => {
+    supabase.rpc.mockResolvedValue({ data: null, error: { message: 'member not found' } })
+    await expect(settleTab('member-1', 10.00, 'cash')).rejects.toThrow('member not found')
+  })
+
+  it('throws when the settlement order insert fails', async () => {
+    supabase.rpc.mockResolvedValue({ data: 5.50, error: null })
+    supabase.__configure({ orders: { error: { message: 'insert failed' } } })
+    await expect(settleTab('member-1', 10.00, 'cash')).rejects.toThrow('insert failed')
   })
 })

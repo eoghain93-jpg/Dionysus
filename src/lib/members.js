@@ -2,6 +2,7 @@ import { supabase } from './supabase'
 import { db } from './db'
 import { useSyncStore } from '../stores/syncStore'
 import { getTillId } from './till'
+import { applyTabDelta } from './tabs'
 
 export async function fetchMembers() {
   const { isOnline } = useSyncStore.getState()
@@ -106,52 +107,29 @@ export async function upsertMember(member) {
   }
 }
 
-export async function addToTabBalance(member_id, amount) {
-  const { data: member, error: fetchError } = await supabase
-    .from('members')
-    .select('tab_balance')
-    .eq('id', member_id)
-    .single()
-  if (fetchError) throw fetchError
-  // Number() guard: tab_balance can come back as a string from some
-  // Supabase / Postgres configs; without it `+` would string-concat.
-  const newBalance = Number(member?.tab_balance ?? 0) + Number(amount)
-  const { error } = await supabase
-    .from('members')
-    .update({ tab_balance: newBalance })
-    .eq('id', member_id)
-  if (error) throw error
-}
-
 export async function settleTab(member_id, amount, payment_method) {
-  // Re-fetch current balance to avoid stale-read overwrite
-  const { data: member, error: fetchError } = await supabase
-    .from('members')
-    .select('tab_balance')
-    .eq('id', member_id)
-    .single()
-  if (fetchError) throw fetchError
-
-  const newBalance = Math.max(0, Number(member.tab_balance) - amount)
+  // Atomic decrement via the adjust_tab_balance RPC (clamped at zero
+  // server-side) — no read-modify-write, so a concurrent tab order on the
+  // other till can't be lost.
+  const newBalance = await applyTabDelta(member_id, -amount)
 
   // Only stamp last_settled_at on a FULL settlement (balance hits zero).
   // Partial settlements leave the tab open with previous orders still on
   // it, so we must keep the line items visible in the Tabs view.
-  const updateFields = { tab_balance: newBalance }
   if (newBalance === 0) {
-    updateFields.last_settled_at = new Date().toISOString()
+    const { error } = await supabase
+      .from('members')
+      .update({ last_settled_at: new Date().toISOString() })
+      .eq('id', member_id)
+    if (error) throw error
   }
-  const { error } = await supabase
-    .from('members')
-    .update(updateFields)
-    .eq('id', member_id)
-  if (error) throw error
 
-  await supabase.from('orders').insert({
+  const { error: orderError } = await supabase.from('orders').insert({
     member_id,
     payment_method,
     total_amount: amount,
     status: 'paid',
     till_id: getTillId(),
   })
+  if (orderError) throw orderError
 }

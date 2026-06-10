@@ -40,25 +40,26 @@ export async function fetchTabOrders(member_id) {
   return data ?? []
 }
 
+// Apply a delta to a member's tab balance in one atomic UPDATE via the
+// adjust_tab_balance RPC (clamped at zero server-side). Returns the new
+// balance. Never read-modify-write tab_balance from JS — two tills hitting
+// the same member concurrently would lose an update.
+export async function applyTabDelta(member_id, delta) {
+  const { data, error } = await supabase.rpc('adjust_tab_balance', {
+    p_member_id: member_id,
+    p_delta: delta,
+  })
+  if (error) throw error
+  return Number(data)
+}
+
 export async function adjustTabBalance(member_id, amount, reason, staff_id) {
   const { error: adjError } = await supabase
     .from('tab_adjustments')
     .insert({ member_id, amount, reason, staff_id })
   if (adjError) throw adjError
 
-  const { data: member, error: fetchError } = await supabase
-    .from('members')
-    .select('tab_balance')
-    .eq('id', member_id)
-    .single()
-  if (fetchError) throw fetchError
-
-  const newBalance = Number(member.tab_balance) + amount
-  const { error: updateError } = await supabase
-    .from('members')
-    .update({ tab_balance: Math.max(0, newBalance) })
-    .eq('id', member_id)
-  if (updateError) throw updateError
+  await applyTabDelta(member_id, amount)
 }
 
 export async function removeOrderFromTab(order_id, member_id, order_total) {
@@ -96,17 +97,5 @@ export async function removeOrderFromTab(order_id, member_id, order_total) {
     .eq('id', order_id)
   if (orderError) throw orderError
 
-  const { data: member, error: fetchError } = await supabase
-    .from('members')
-    .select('tab_balance')
-    .eq('id', member_id)
-    .single()
-  if (fetchError) throw fetchError
-
-  const newBalance = Math.max(0, Number(member.tab_balance) - order_total)
-  const { error: updateError } = await supabase
-    .from('members')
-    .update({ tab_balance: newBalance })
-    .eq('id', member_id)
-  if (updateError) throw updateError
+  await applyTabDelta(member_id, -order_total)
 }

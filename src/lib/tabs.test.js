@@ -6,7 +6,7 @@ vi.mock('./supabase', async () => {
   return { supabase: createSupabaseMock() }
 })
 import { supabase } from './supabase'
-import { fetchOpenTabs, fetchTabOrders, adjustTabBalance, removeOrderFromTab } from './tabs'
+import { fetchOpenTabs, fetchTabOrders, adjustTabBalance, removeOrderFromTab, applyTabDelta } from './tabs'
 
 beforeEach(() => supabase.__reset())
 
@@ -96,13 +96,27 @@ describe('fetchTabOrders', () => {
   })
 })
 
-describe('adjustTabBalance', () => {
-  it('inserts a tab_adjustments row and updates member balance', async () => {
-    supabase.__configure({
-      tab_adjustments: { error: null },
-      // first call: select tab_balance, second call: update
-      members: [{ data: { tab_balance: 20 } }, { error: null }],
+describe('applyTabDelta', () => {
+  it('calls the adjust_tab_balance RPC and returns the new balance as a number', async () => {
+    supabase.rpc.mockResolvedValue({ data: '12.50', error: null })
+    const result = await applyTabDelta('member-1', -5)
+    expect(supabase.rpc).toHaveBeenCalledWith('adjust_tab_balance', {
+      p_member_id: 'member-1',
+      p_delta: -5,
     })
+    expect(result).toBe(12.50)
+  })
+
+  it('throws when the RPC returns an error', async () => {
+    supabase.rpc.mockResolvedValue({ data: null, error: { message: 'member not found' } })
+    await expect(applyTabDelta('member-1', -5)).rejects.toThrow('member not found')
+  })
+})
+
+describe('adjustTabBalance', () => {
+  it('inserts a tab_adjustments audit row and applies the delta via the RPC', async () => {
+    supabase.__configure({ tab_adjustments: { error: null } })
+    supabase.rpc.mockResolvedValue({ data: 15, error: null })
 
     await adjustTabBalance('member-1', -5, 'wrote off error', 'staff-1')
 
@@ -112,19 +126,23 @@ describe('adjustTabBalance', () => {
       reason: 'wrote off error',
       staff_id: 'staff-1',
     })
-    expect(supabase.__chain('members', 1).update).toHaveBeenCalledWith({ tab_balance: 15 })
+    expect(supabase.rpc).toHaveBeenCalledWith('adjust_tab_balance', {
+      p_member_id: 'member-1',
+      p_delta: -5,
+    })
   })
 
-  it('throws if adjustment insert fails', async () => {
+  it('throws if adjustment insert fails (and does not touch the balance)', async () => {
     supabase.__configure({
       tab_adjustments: { error: { message: 'db error' } },
     })
     await expect(adjustTabBalance('m1', -5, 'reason', 's1')).rejects.toThrow('db error')
+    expect(supabase.rpc).not.toHaveBeenCalled()
   })
 })
 
 describe('removeOrderFromTab', () => {
-  it('voids the order, restocks line items, and deducts from tab balance', async () => {
+  it('voids the order, restocks line items, and deducts from tab balance atomically', async () => {
     supabase.__configure({
       order_items: {
         data: [
@@ -134,9 +152,8 @@ describe('removeOrderFromTab', () => {
       },
       stock_movements: { error: null },
       orders: { error: null },
-      // first call: select tab_balance, second call: update
-      members: [{ data: { tab_balance: 20 } }, { error: null }],
     })
+    supabase.rpc.mockResolvedValue({ data: 4.5, error: null })
 
     await removeOrderFromTab('order-1', 'member-1', 15.50)
 
@@ -147,7 +164,10 @@ describe('removeOrderFromTab', () => {
       expect.objectContaining({ product_id: 'prod-a', type: 'restock', quantity: 2 }),
       expect.objectContaining({ product_id: 'prod-b', type: 'restock', quantity: 1 }),
     ])
-    // Deducts the order total from member tab balance
-    expect(supabase.__chain('members', 1).update).toHaveBeenCalledWith({ tab_balance: 4.5 })
+    // Deducts the order total via the atomic RPC, not read-modify-write
+    expect(supabase.rpc).toHaveBeenCalledWith('adjust_tab_balance', {
+      p_member_id: 'member-1',
+      p_delta: -15.50,
+    })
   })
 })
