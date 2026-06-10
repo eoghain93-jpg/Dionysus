@@ -10,7 +10,10 @@ vi.mock('./db', () => ({
 
 import { supabase } from './supabase'
 import { db } from './db'
-import { newOrderId, createOrderWithItems, saveOrder } from './orders'
+import {
+  newOrderId, createOrderWithItems, saveOrder,
+  fetchTodaysOrders, correctOrderPaymentMethod,
+} from './orders'
 
 const ORDER = {
   id: 'order-uuid-1',
@@ -115,5 +118,59 @@ describe('saveOrder', () => {
     await saveOrder(ORDER, ITEMS, true)
     const queued = db.pendingOrders.add.mock.calls[0][0]
     expect(queued.order.id).toBe(ORDER.id)
+  })
+})
+
+describe('fetchTodaysOrders', () => {
+  it("fetches today's paid orders newest first, capped at 50", async () => {
+    const rows = [{ id: 'o1', total_amount: 5.5, payment_method: 'cash', status: 'paid' }]
+    supabase.__configure({ orders: { data: rows } })
+
+    const result = await fetchTodaysOrders()
+
+    const chain = supabase.__chain('orders')
+    const today = new Date().toISOString().split('T')[0]
+    expect(chain.eq).toHaveBeenCalledWith('status', 'paid')
+    expect(chain.gte).toHaveBeenCalledWith('created_at', `${today}T00:00:00`)
+    expect(chain.lte).toHaveBeenCalledWith('created_at', `${today}T23:59:59`)
+    expect(chain.order).toHaveBeenCalledWith('created_at', { ascending: false })
+    expect(chain.limit).toHaveBeenCalledWith(50)
+    expect(result).toEqual(rows)
+  })
+
+  it('throws on error', async () => {
+    supabase.__configure({ orders: { data: null, error: { message: 'DB error' } } })
+    await expect(fetchTodaysOrders()).rejects.toThrow('DB error')
+  })
+})
+
+describe('correctOrderPaymentMethod', () => {
+  it('calls the RPC with order id, new method and staff id', async () => {
+    supabase.rpc.mockResolvedValueOnce({ data: 'card', error: null })
+
+    const oldMethod = await correctOrderPaymentMethod('order-1', 'cash', 'staff-1')
+
+    expect(supabase.rpc).toHaveBeenCalledWith('correct_order_payment_method', {
+      p_order_id: 'order-1',
+      p_new_method: 'cash',
+      p_staff_id: 'staff-1',
+    })
+    expect(oldMethod).toBe('card')
+  })
+
+  it('passes null staff id when none provided', async () => {
+    supabase.rpc.mockResolvedValueOnce({ data: 'cash', error: null })
+    await correctOrderPaymentMethod('order-1', 'card', undefined)
+    expect(supabase.rpc).toHaveBeenCalledWith('correct_order_payment_method',
+      expect.objectContaining({ p_staff_id: null }))
+  })
+
+  it('throws the server guard message on error', async () => {
+    supabase.rpc.mockResolvedValueOnce({
+      data: null,
+      error: { message: 'today has already been closed — ask the manager' },
+    })
+    await expect(correctOrderPaymentMethod('order-1', 'cash', 'staff-1'))
+      .rejects.toThrow('already been closed')
   })
 })

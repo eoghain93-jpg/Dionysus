@@ -17,6 +17,7 @@ import MemberLookup from '../components/till/MemberLookup'
 import WastageModal from '../components/till/WastageModal'
 import StaffDrinkModal from '../components/till/StaffDrinkModal'
 import CashbackModal from '../components/till/CashbackModal'
+import RecentSalesModal from '../components/till/RecentSalesModal'
 import PrizeWinModal from '../components/till/PrizeWinModal'
 import MembersOnlyToggle from '../components/till/MembersOnlyToggle'
 import ShotBundleModal from '../components/till/ShotBundleModal'
@@ -30,6 +31,7 @@ export default function TillPage() {
   const [showCashback, setShowCashback] = useState(false)
   const [showPrizeWin, setShowPrizeWin] = useState(false)
   const [showShotBundle, setShowShotBundle] = useState(false)
+  const [showRecentSales, setShowRecentSales] = useState(false)
   const [showMobileOrder, setShowMobileOrder] = useState(false)
   const { orderItems, clearOrder, loadPromos, getTotal } = useTillStore()
   const setMembersOnlyMode = useTillStore(s => s.setMembersOnlyMode)
@@ -140,6 +142,12 @@ export default function TillPage() {
             >
               4 Shots £10
             </button>
+            <button
+              onClick={() => setShowRecentSales(true)}
+              className="px-3 min-h-[36px] rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-400 text-xs font-medium cursor-pointer transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617]"
+            >
+              Fix Payment
+            </button>
           </div>
           {loading ? (
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2">
@@ -221,6 +229,9 @@ export default function TillPage() {
           products={products}
           onClose={() => setShowShotBundle(false)}
         />
+      )}
+      {showRecentSales && (
+        <RecentSalesModal onClose={() => setShowRecentSales(false)} />
       )}
     </div>
   )

@@ -29,6 +29,36 @@ export async function createOrderWithItems(order, items) {
   return data
 }
 
+// Today's paid sales, newest first — the Fix Payment list. Capped at 50:
+// mistakes are caught within a few sales, nobody scrolls to this morning.
+export async function fetchTodaysOrders() {
+  const today = new Date().toISOString().split('T')[0]
+  const { data, error } = await supabase
+    .from('orders')
+    .select('id, created_at, total_amount, payment_method, status')
+    .eq('status', 'paid')
+    .gte('created_at', `${today}T00:00:00`)
+    .lte('created_at', `${today}T23:59:59`)
+    .order('created_at', { ascending: false })
+    .limit(50)
+  if (error) throw error
+  return data ?? []
+}
+
+// Switch a paid order between cash and card via the
+// correct_order_payment_method RPC: atomic update + audit row, guarded
+// server-side (same trading day, day not closed, cash<->card only).
+// Returns the old method. Throws on error.
+export async function correctOrderPaymentMethod(order_id, new_method, staff_id) {
+  const { data, error } = await supabase.rpc('correct_order_payment_method', {
+    p_order_id: order_id,
+    p_new_method: new_method,
+    p_staff_id: staff_id ?? null,
+  })
+  if (error) throw error
+  return data
+}
+
 // Save an order atomically online, falling back to the offline queue.
 // NEVER throws — the till must not get stuck because a save failed; the
 // caller proceeds to print and clear the cart regardless.
