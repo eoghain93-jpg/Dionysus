@@ -48,9 +48,16 @@ export default function TabsPage() {
     }
   }
 
-  function handleSettled(memberId) {
+  function handleSettled(memberId, amountPaid) {
     setSettlingMember(null)
-    setTabs(prev => prev.filter(m => m.id !== memberId))
+    // A settle can be partial, so decrement rather than assume the tab is
+    // cleared; only drop the row once the balance reaches zero (same
+    // pattern as handleAdjusted).
+    setTabs(prev => prev.map(m =>
+      m.id === memberId
+        ? { ...m, tab_balance: Math.max(0, Number(m.tab_balance) - amountPaid) }
+        : m
+    ).filter(m => Number(m.tab_balance) > 0))
   }
 
   function handleAdjusted(member, delta) {
@@ -217,7 +224,7 @@ export default function TabsPage() {
         <SettleTabModal
           member={settlingMember}
           onClose={() => setSettlingMember(null)}
-          onSettled={() => { const id = settlingMember.id; handleSettled(id) }}
+          onSettled={amountPaid => { const id = settlingMember.id; handleSettled(id, amountPaid) }}
         />
       )}
 

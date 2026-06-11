@@ -13,7 +13,8 @@ vi.mock('../components/members/SettleTabModal', () => ({
   default: ({ member, onClose, onSettled }) => (
     <div role="dialog">
       <span>Settle {member.name}</span>
-      <button onClick={onSettled}>Confirm Settle</button>
+      <button onClick={() => onSettled(Number(member.tab_balance))}>Confirm Settle Full</button>
+      <button onClick={() => onSettled(5)}>Confirm Settle Partial</button>
       <button onClick={onClose}>Cancel</button>
     </div>
   ),
@@ -126,14 +127,27 @@ describe('TabsPage', () => {
     expect(screen.getByText('Settle Alice')).toBeInTheDocument()
   })
 
-  it('removes member from list after tab is settled', async () => {
+  it('removes member from list after a FULL settle', async () => {
     render(<TabsPage />)
     await waitFor(() => screen.getAllByRole('button', { name: /settle/i }))
     fireEvent.click(screen.getAllByRole('button', { name: /settle/i })[0])
-    fireEvent.click(screen.getByText('Confirm Settle'))
+    fireEvent.click(screen.getByText('Confirm Settle Full'))
     await waitFor(() => {
       expect(screen.queryByText('Alice')).not.toBeInTheDocument()
       expect(screen.getByText('Bob')).toBeInTheDocument()
+    })
+  })
+
+  it('keeps member listed with reduced balance after a PARTIAL settle', async () => {
+    render(<TabsPage />)
+    await waitFor(() => screen.getAllByRole('button', { name: /settle/i }))
+    // Alice has 15.50; the stub's partial button settles 5.00
+    fireEvent.click(screen.getAllByRole('button', { name: /settle/i })[0])
+    fireEvent.click(screen.getByText('Confirm Settle Partial'))
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+      expect(screen.getByText('Alice')).toBeInTheDocument()
+      expect(screen.getByText(/10\.50/)).toBeInTheDocument()
     })
   })
 
