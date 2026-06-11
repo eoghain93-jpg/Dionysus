@@ -48,7 +48,7 @@ export async function fetchStocktakeData(startDate, endDate) {
     const batch = orderIds.slice(i, i + BATCH)
     const { data, error } = await supabase
       .from('order_items')
-      .select('product_id, quantity, unit_price')
+      .select('product_id, quantity, unit_price, staff_credit_for')
       .in('order_id', batch)
     if (error) throw error
     items.push(...(data ?? []))
@@ -57,6 +57,11 @@ export async function fetchStocktakeData(startDate, endDate) {
   const soldQty = new Map()
   const soldRev = new Map()
   for (const it of items) {
+    // "One for staff" lines moved no stock at sale time — the pint leaves
+    // the cellar at redemption, which lands in the movement buckets below
+    // as a staff_credit_redemption. Counting the line here too would
+    // double-count the unit in totalOut.
+    if (it.staff_credit_for) continue
     const q = Number(it.quantity) || 0
     const r = q * (Number(it.unit_price) || 0)
     soldQty.set(it.product_id, (soldQty.get(it.product_id) ?? 0) + q)

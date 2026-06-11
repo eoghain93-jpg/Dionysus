@@ -132,6 +132,98 @@ describe('tillStore', () => {
   })
 
   // ---------------------------------------------------------------------------
+  // Staff drink credits ("one in for yourself")
+  // ---------------------------------------------------------------------------
+  describe('addStaffCreditItem', () => {
+    const staff = { id: 'staff-1', name: 'Dave O Brien' }
+
+    it('adds a line flagged for the staff member at standard price', () => {
+      useTillStore.getState().addStaffCreditItem(mockProduct, staff)
+      const { orderItems } = useTillStore.getState()
+      expect(orderItems).toHaveLength(1)
+      expect(orderItems[0].staff_credit_for).toBe('staff-1')
+      expect(orderItems[0].staff_credit_name).toBe('Dave O Brien')
+      expect(orderItems[0].unit_price).toBe(5.50)
+    })
+
+    it('charges standard price even when a member is active (tips are full price)', () => {
+      useTillStore.setState({ activeMember: { id: 'mem-1', name: 'Test' } })
+      useTillStore.getState().addStaffCreditItem(mockProduct, staff)
+      const { orderItems } = useTillStore.getState()
+      expect(orderItems[0].unit_price).toBe(5.50)
+      expect(orderItems[0].member_price_applied).toBe(false)
+    })
+
+    it('never merges with a regular line for the same product', () => {
+      useTillStore.getState().addItem(mockProduct)
+      useTillStore.getState().addStaffCreditItem(mockProduct, staff)
+      const { orderItems } = useTillStore.getState()
+      expect(orderItems).toHaveLength(2)
+    })
+
+    it('a grid tap AFTER a staff credit creates a separate regular line (never corrupts the credit)', () => {
+      useTillStore.getState().addStaffCreditItem(mockProduct, staff)
+      useTillStore.getState().addItem(mockProduct)
+      const { orderItems } = useTillStore.getState()
+      expect(orderItems).toHaveLength(2)
+      const credit = orderItems.find(i => i.staff_credit_for)
+      const regular = orderItems.find(i => !i.staff_credit_for)
+      expect(credit.quantity).toBe(1)
+      expect(regular.quantity).toBe(1)
+    })
+
+    it('a grid tap increments ONLY the plain line when both kinds are in the basket', () => {
+      useTillStore.getState().addItem(mockProduct)
+      useTillStore.getState().addStaffCreditItem(mockProduct, staff)
+      useTillStore.getState().addItem(mockProduct)
+      const { orderItems } = useTillStore.getState()
+      const credit = orderItems.find(i => i.staff_credit_for)
+      const regular = orderItems.find(i => !i.staff_credit_for)
+      expect(regular.quantity).toBe(2)
+      expect(credit.quantity).toBe(1)
+      expect(credit.subtotal).toBe(5.50)
+    })
+
+    it('merges repeat credits for the same product AND same staff member', () => {
+      useTillStore.getState().addStaffCreditItem(mockProduct, staff)
+      useTillStore.getState().addStaffCreditItem(mockProduct, staff)
+      const { orderItems } = useTillStore.getState()
+      expect(orderItems).toHaveLength(1)
+      expect(orderItems[0].quantity).toBe(2)
+      expect(orderItems[0].subtotal).toBe(11.00)
+    })
+
+    it('keeps credits for different staff members as separate lines', () => {
+      useTillStore.getState().addStaffCreditItem(mockProduct, staff)
+      useTillStore.getState().addStaffCreditItem(mockProduct, { id: 'staff-2', name: 'Eve' })
+      expect(useTillStore.getState().orderItems).toHaveLength(2)
+    })
+
+    it('removing a credit line leaves the regular line for the same product intact', () => {
+      useTillStore.getState().addItem(mockProduct)
+      useTillStore.getState().addStaffCreditItem(mockProduct, staff)
+      const credit = useTillStore.getState().orderItems.find(i => i.staff_credit_for)
+      useTillStore.getState().removeItem(credit.line_id)
+      const { orderItems } = useTillStore.getState()
+      expect(orderItems).toHaveLength(1)
+      expect(orderItems[0].staff_credit_for).toBeUndefined()
+    })
+
+    it('updateQuantity on a credit line does not touch the regular line', () => {
+      useTillStore.getState().addItem(mockProduct)
+      useTillStore.getState().addStaffCreditItem(mockProduct, staff)
+      const credit = useTillStore.getState().orderItems.find(i => i.staff_credit_for)
+      useTillStore.getState().updateQuantity(credit.line_id, 3)
+      const { orderItems } = useTillStore.getState()
+      const regular = orderItems.find(i => !i.staff_credit_for)
+      const updated = orderItems.find(i => i.staff_credit_for)
+      expect(regular.quantity).toBe(1)
+      expect(updated.quantity).toBe(3)
+      expect(updated.subtotal).toBe(16.50)
+    })
+  })
+
+  // ---------------------------------------------------------------------------
   // Promo pricing in addItem
   // ---------------------------------------------------------------------------
 

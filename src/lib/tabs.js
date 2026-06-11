@@ -70,14 +70,17 @@ export async function removeOrderFromTab(order_id, member_id, order_total) {
   //    increment products.stock_quantity automatically.
   const { data: items, error: itemsError } = await supabase
     .from('order_items')
-    .select('product_id, quantity')
+    .select('product_id, quantity, staff_credit_for')
     .eq('order_id', order_id)
   if (itemsError) throw itemsError
 
   if (items?.length) {
     const now = new Date().toISOString()
+    // Staff-credit lines ("one for staff") never wrote a sale movement —
+    // the stock only leaves when the banked drink is poured — so restocking
+    // them here would inflate stock.
     const restocks = items
-      .filter(i => i.product_id)
+      .filter(i => i.product_id && !i.staff_credit_for)
       .map(i => ({
         product_id: i.product_id,
         type: 'restock',
@@ -96,6 +99,15 @@ export async function removeOrderFromTab(order_id, member_id, order_total) {
     .update({ status: 'voided' })
     .eq('id', order_id)
   if (orderError) throw orderError
+
+  // Withdraw any banked staff drinks this order paid for. Only 'banked'
+  // rows: an already-redeemed credit was poured and can't be un-drunk.
+  const { error: creditsError } = await supabase
+    .from('staff_drink_credits')
+    .update({ status: 'cancelled' })
+    .eq('order_id', order_id)
+    .eq('status', 'banked')
+  if (creditsError) throw creditsError
 
   await applyTabDelta(member_id, -order_total)
 }

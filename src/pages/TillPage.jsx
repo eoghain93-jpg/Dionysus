@@ -16,6 +16,7 @@ import OrderPanel from '../components/till/OrderPanel'
 import MemberLookup from '../components/till/MemberLookup'
 import WastageModal from '../components/till/WastageModal'
 import StaffDrinkModal from '../components/till/StaffDrinkModal'
+import OneForStaffModal from '../components/till/OneForStaffModal'
 import CashbackModal from '../components/till/CashbackModal'
 import RecentSalesModal from '../components/till/RecentSalesModal'
 import PrizeWinModal from '../components/till/PrizeWinModal'
@@ -28,6 +29,7 @@ export default function TillPage() {
   const [loading, setLoading] = useState(true)
   const [showWastage, setShowWastage] = useState(false)
   const [showStaffDrink, setShowStaffDrink] = useState(false)
+  const [showOneForStaff, setShowOneForStaff] = useState(false)
   const [showCashback, setShowCashback] = useState(false)
   const [showPrizeWin, setShowPrizeWin] = useState(false)
   const [showShotBundle, setShowShotBundle] = useState(false)
@@ -75,6 +77,9 @@ export default function TillPage() {
       quantity: i.quantity,
       unit_price: i.unit_price,
       member_price_applied: i.member_price_applied,
+      // "One for staff" lines: the RPC banks a staff_drink_credits row per
+      // unit and skips the sale stock movement for them.
+      staff_credit_for: i.staff_credit_for ?? null,
     }))
 
     // One atomic RPC writes the order, items, sale stock movements and any
@@ -123,6 +128,12 @@ export default function TillPage() {
               className="px-3 min-h-[36px] rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-400 text-xs font-medium cursor-pointer transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617]"
             >
               Staff Drink
+            </button>
+            <button
+              onClick={() => setShowOneForStaff(true)}
+              className="px-3 min-h-[36px] rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-400 text-xs font-medium cursor-pointer transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617]"
+            >
+              One for Staff
             </button>
             <button
               onClick={() => setShowCashback(true)}
@@ -210,6 +221,16 @@ export default function TillPage() {
           products={products}
           onClose={() => setShowStaffDrink(false)}
           onSaved={() => setShowStaffDrink(false)}
+        />
+      )}
+      {showOneForStaff && (
+        <OneForStaffModal
+          products={products}
+          onAdd={(product, staffMember) => {
+            useTillStore.getState().addStaffCreditItem(product, staffMember)
+            setShowOneForStaff(false)
+          }}
+          onClose={() => setShowOneForStaff(false)}
         />
       )}
       {showCashback && (

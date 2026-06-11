@@ -170,4 +170,32 @@ describe('removeOrderFromTab', () => {
       p_delta: -15.50,
     })
   })
+
+  it('does not restock staff-credit lines and cancels their banked credits', async () => {
+    supabase.__configure({
+      order_items: {
+        data: [
+          { product_id: 'prod-a', quantity: 1, staff_credit_for: null },
+          // "One for staff" line: no sale movement was ever written for it,
+          // so restocking it on void would inflate stock.
+          { product_id: 'prod-b', quantity: 1, staff_credit_for: 'staff-1' },
+        ],
+      },
+      stock_movements: { error: null },
+      orders: { error: null },
+      staff_drink_credits: { error: null },
+    })
+    supabase.rpc.mockResolvedValue({ data: 4.5, error: null })
+
+    await removeOrderFromTab('order-1', 'member-1', 15.50)
+
+    expect(supabase.__chain('stock_movements').insert).toHaveBeenCalledWith([
+      expect.objectContaining({ product_id: 'prod-a', type: 'restock', quantity: 1 }),
+    ])
+    // The banked (unredeemed) credits from this order are withdrawn
+    const creditsChain = supabase.__chain('staff_drink_credits')
+    expect(creditsChain.update).toHaveBeenCalledWith({ status: 'cancelled' })
+    expect(creditsChain.eq).toHaveBeenCalledWith('order_id', 'order-1')
+    expect(creditsChain.eq).toHaveBeenCalledWith('status', 'banked')
+  })
 })

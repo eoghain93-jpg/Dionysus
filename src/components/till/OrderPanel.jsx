@@ -61,15 +61,22 @@ export default function OrderPanel({ onCheckout, onClose }) {
         {orderItems.length === 0 ? (
           <p className="text-slate-500 text-sm text-center mt-8">No items yet</p>
         ) : (
-          orderItems.map(item => (
-            <div key={item.product_id} className="flex items-center gap-2 bg-slate-800 rounded-xl p-2">
+          orderItems.map(item => {
+            // Staff-credit lines carry their own line_id so they never
+            // collide with the buyer's own line for the same product.
+            const lineKey = item.line_id ?? item.product_id
+            return (
+            <div key={lineKey} className="flex items-center gap-2 bg-slate-800 rounded-xl p-2">
               <div className="flex-1 min-w-0">
                 <div className="text-white text-sm font-medium truncate">{item.name}</div>
                 <div className="text-slate-400 text-xs">£{item.unit_price.toFixed(2)} each</div>
+                {item.staff_credit_for && (
+                  <div className="text-amber-400 text-xs font-medium">for {item.staff_credit_name} (staff)</div>
+                )}
               </div>
               <div className="flex items-center gap-2">
                 <button
-                  onClick={() => updateQuantity(item.product_id, item.quantity - 1)}
+                  onClick={() => updateQuantity(lineKey, item.quantity - 1)}
                   aria-label="Decrease quantity"
                   className="w-11 h-11 rounded-lg bg-slate-700 hover:bg-slate-600 active:scale-95
                     text-white flex items-center justify-center transition-all duration-150 cursor-pointer"
@@ -78,7 +85,7 @@ export default function OrderPanel({ onCheckout, onClose }) {
                 </button>
                 <span className="w-6 text-center text-white text-sm font-medium">{item.quantity}</span>
                 <button
-                  onClick={() => updateQuantity(item.product_id, item.quantity + 1)}
+                  onClick={() => updateQuantity(lineKey, item.quantity + 1)}
                   aria-label="Increase quantity"
                   className="w-11 h-11 rounded-lg bg-slate-700 hover:bg-slate-600 active:scale-95
                     text-white flex items-center justify-center transition-all duration-150 cursor-pointer"
@@ -87,7 +94,7 @@ export default function OrderPanel({ onCheckout, onClose }) {
                 </button>
               </div>
               <button
-                onClick={() => removeItem(item.product_id)}
+                onClick={() => removeItem(lineKey)}
                 aria-label={`Remove ${item.name}`}
                 className="w-11 h-11 flex items-center justify-center text-slate-500
                   hover:text-red-400 transition-colors duration-200 cursor-pointer rounded-lg"
@@ -95,7 +102,8 @@ export default function OrderPanel({ onCheckout, onClose }) {
                 <X size={14} aria-hidden="true" />
               </button>
             </div>
-          ))
+            )
+          })
         )}
       </div>
 

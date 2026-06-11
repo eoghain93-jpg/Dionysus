@@ -43,11 +43,16 @@ export const useTillStore = create((set, get) => ({
     const promo_price_applied = promoPrice != null && price === promoPrice
     const member_price_applied = memberPrice != null && price === memberPrice && !promo_price_applied
 
-    const existing = orderItems.find(i => i.product_id === product.id)
+    // Merge ONLY with a plain line for this product. Staff-credit lines
+    // (line_id) and bundle lines (bundle_price_applied) share the same
+    // product_id but are different sales — merging into them would bank
+    // phantom staff credits / reprice bundle items.
+    const isPlain = i => i.product_id === product.id && !i.line_id && !i.bundle_price_applied
+    const existing = orderItems.find(isPlain)
     if (existing) {
       set({
         orderItems: orderItems.map(i =>
-          i.product_id === product.id
+          isPlain(i)
             ? { ...i, quantity: i.quantity + 1, subtotal: (i.quantity + 1) * price }
             : i
         )
@@ -96,16 +101,60 @@ export const useTillStore = create((set, get) => ({
     set(state => ({ orderItems: [...state.orderItems, ...newItems] }))
   },
 
-  removeItem: (product_id) =>
-    set(state => ({ orderItems: state.orderItems.filter(i => i.product_id !== product_id) })),
+  /**
+   * Add a drink bought FOR a staff member ("one in for yourself" tip).
+   * Always charged at standard price — member/promo discounts are for the
+   * buyer's own drinks, not gifts — and never merged with the buyer's own
+   * line for the same product, so the receipt and the order_items flag stay
+   * unambiguous. The line carries staff_credit_for; the
+   * create_order_with_items RPC banks one staff_drink_credits row per unit
+   * and skips the sale stock movement (stock leaves when the drink is
+   * poured at redemption, not when it's paid for).
+   */
+  addStaffCreditItem: (product, staffMember) => {
+    const line_id = `credit:${staffMember.id}:${product.id}`
+    const price = product.standard_price
+    set(state => {
+      const existing = state.orderItems.find(i => i.line_id === line_id)
+      if (existing) {
+        return {
+          orderItems: state.orderItems.map(i =>
+            i.line_id === line_id
+              ? { ...i, quantity: i.quantity + 1, subtotal: (i.quantity + 1) * price }
+              : i
+          )
+        }
+      }
+      return {
+        orderItems: [...state.orderItems, {
+          line_id,
+          product_id: product.id,
+          name: product.name,
+          quantity: 1,
+          unit_price: price,
+          member_price_applied: false,
+          promo_price_applied: false,
+          staff_credit_for: staffMember.id,
+          staff_credit_name: staffMember.name,
+          subtotal: price,
+        }]
+      }
+    })
+  },
 
-  updateQuantity: (product_id, quantity) => {
+  // Lines are keyed by line_id when present (staff credit lines), falling
+  // back to product_id for regular lines — a credit line and a normal line
+  // for the same product must be removable independently.
+  removeItem: (key) =>
+    set(state => ({ orderItems: state.orderItems.filter(i => (i.line_id ?? i.product_id) !== key) })),
+
+  updateQuantity: (key, quantity) => {
     if (quantity <= 0) {
-      set(state => ({ orderItems: state.orderItems.filter(i => i.product_id !== product_id) }))
+      set(state => ({ orderItems: state.orderItems.filter(i => (i.line_id ?? i.product_id) !== key) }))
     } else {
       set(state => ({
         orderItems: state.orderItems.map(i =>
-          i.product_id === product_id
+          (i.line_id ?? i.product_id) === key
             ? { ...i, quantity, subtotal: quantity * i.unit_price }
             : i
         )
