@@ -1,6 +1,12 @@
 -- supabase/migrations/20260330_promotions.sql
+--
+-- NOTE: on a fresh database these tables are already created by
+-- 20260330000000_promotion_categories.sql (which sorts first but depends on
+-- them — production applied the two out of order). The definitions there must
+-- stay in sync with these; "if not exists" makes this file a no-op in that
+-- case.
 
-create table promotions (
+create table if not exists promotions (
   id uuid primary key default gen_random_uuid(),
   name text not null,
   active boolean not null default true,
@@ -12,7 +18,7 @@ create table promotions (
   created_at timestamptz default now()
 );
 
-create table promotion_items (
+create table if not exists promotion_items (
   id uuid primary key default gen_random_uuid(),
   promotion_id uuid references promotions(id) on delete cascade,
   product_id uuid references products(id) on delete cascade,
