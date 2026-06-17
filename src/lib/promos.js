@@ -31,7 +31,7 @@ function toLocalDateStr(date) {
  *     - current date must fall within [start_date, end_date] (inclusive, string compare)
  * - If a promo has BOTH a time window and a date range, both conditions must hold.
  */
-function isPromoActive(promo, now) {
+export function isPromoActive(promo, now) {
   if (!promo.active) return false
 
   const hasTimeWindow = promo.start_time != null && promo.end_time != null
@@ -121,4 +121,22 @@ export function getPromoPrice(product, promos, now = new Date()) {
   }
 
   return lowestPrice
+}
+
+/**
+ * Is a code-based bundle (e.g. the bottle 5-for-4 button) currently enabled?
+ *
+ * The bundle is gated by a "marker" promotion — a normal promotions row with
+ * NO discount items, used purely as an on/off switch staff can toggle from the
+ * Promos page. The bundle button shows only while a promo named `markerName`
+ * is active for `now`. This reuses the existing promo scheduling/toggle UX and
+ * the date backstop (a single-day marker auto-hides the button after midnight).
+ *
+ * @param {Array}  promos      - active promotions (as loaded into the till)
+ * @param {string} markerName  - exact name of the marker promotion
+ * @param {Date}   [now]
+ * @returns {boolean}
+ */
+export function isBundleEnabled(promos, markerName, now = new Date()) {
+  return (promos ?? []).some(p => p.name === markerName && isPromoActive(p, now))
 }

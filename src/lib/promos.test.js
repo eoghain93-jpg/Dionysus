@@ -1,6 +1,6 @@
 // src/lib/promos.test.js
 import { describe, it, expect } from 'vitest'
-import { getPromoPrice } from './promos'
+import { getPromoPrice, isPromoActive, isBundleEnabled } from './promos'
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -549,5 +549,64 @@ describe('getPromoPrice — category discounts', () => {
     })
     const now = makeDate(1, '20:00') // outside window
     expect(getPromoPrice(PROD, [promo], now)).toBeNull()
+  })
+})
+
+// ---------------------------------------------------------------------------
+// isBundleEnabled — gate for code-based bundles (e.g. the bottle 5-for-4
+// button). A "marker" promo carries no discount rows; staff toggle it on to
+// reveal the bundle button at the till and off to hide it.
+// ---------------------------------------------------------------------------
+
+describe('isBundleEnabled', () => {
+  const MARKER = 'Bottle 5-for-4'
+
+  function makeMarker({ active = true, start_date = '2026-06-17', end_date = '2026-06-17' } = {}) {
+    return {
+      id: 'marker', name: MARKER, active,
+      start_time: null, end_time: null, days_of_week: null,
+      start_date, end_date, promotion_items: [], promotion_categories: [],
+    }
+  }
+
+  it('is true when a matching marker promo is active and within its date', () => {
+    const now = makeDateOnDate('2026-06-17', '21:30')
+    expect(isBundleEnabled([makeMarker()], MARKER, now)).toBe(true)
+  })
+
+  it('is false when no promo matches the marker name', () => {
+    const now = makeDateOnDate('2026-06-17', '21:30')
+    expect(isBundleEnabled([makeMarker({})], 'Some Other Name', now)).toBe(false)
+  })
+
+  it('is false when the marker promo is inactive', () => {
+    const now = makeDateOnDate('2026-06-17', '21:30')
+    expect(isBundleEnabled([makeMarker({ active: false })], MARKER, now)).toBe(false)
+  })
+
+  it('is false the day after (date backstop auto-hides the button)', () => {
+    const now = makeDateOnDate('2026-06-18', '00:30')
+    expect(isBundleEnabled([makeMarker()], MARKER, now)).toBe(false)
+  })
+
+  it('is false when there are no promos at all', () => {
+    expect(isBundleEnabled([], MARKER, makeDateOnDate('2026-06-17', '21:30'))).toBe(false)
+  })
+})
+
+describe('isPromoActive (exported)', () => {
+  it('returns false for an inactive promo', () => {
+    const promo = makeDatePromo({ active: false, start_date: '2026-06-17', end_date: '2026-06-17' })
+    expect(isPromoActive(promo, makeDateOnDate('2026-06-17', '21:30'))).toBe(false)
+  })
+
+  it('returns true for an active single-day promo on its date', () => {
+    const promo = makeDatePromo({ start_date: '2026-06-17', end_date: '2026-06-17' })
+    expect(isPromoActive(promo, makeDateOnDate('2026-06-17', '21:30'))).toBe(true)
+  })
+
+  it('returns false the day after a single-day promo', () => {
+    const promo = makeDatePromo({ start_date: '2026-06-17', end_date: '2026-06-17' })
+    expect(isPromoActive(promo, makeDateOnDate('2026-06-18', '00:30'))).toBe(false)
   })
 })

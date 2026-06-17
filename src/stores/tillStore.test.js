@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { vi } from 'vitest'
-import { useTillStore } from './tillStore'
+import { useTillStore, bottleBundlePricing } from './tillStore'
 
 const mockProduct = {
   id: 'prod-1',
@@ -117,6 +117,121 @@ describe('tillStore', () => {
     useTillStore.getState().addItem(mockProduct)
     useTillStore.getState().addItem(mockProduct)
     expect(useTillStore.getState().getTotal()).toBe(11.00)
+  })
+
+  // ---------------------------------------------------------------------------
+  // Bottle 5-for-4 bundle (buy 5 pay for 4: the cheapest of the 5 is free,
+  // spread evenly across the lines so there is no editable £0 freebie line)
+  // ---------------------------------------------------------------------------
+  describe('addBottleBundle', () => {
+    const sanMiguel = { id: 'btl-sm',  name: 'San Miguel',       category: 'bottle', standard_price: 5.25, member_price: 4.75 }
+    const carlsberg = { id: 'btl-cb',  name: 'Carlsberg (Bottle)', category: 'bottle', standard_price: 5.25, member_price: 4.75 }
+    const budweiser = { id: 'btl-bw',  name: 'Budweiser',        category: 'bottle', standard_price: 5.25, member_price: 4.75 }
+
+    it('charges the price of 4 for 5 identical bottles (£21.00 for 5 × £5.25)', () => {
+      useTillStore.getState().addBottleBundle([sanMiguel, sanMiguel, sanMiguel, sanMiguel, sanMiguel])
+      expect(useTillStore.getState().getTotal()).toBeCloseTo(21.00, 2)
+    })
+
+    it('collapses identical bottles into one line with the spread unit price', () => {
+      useTillStore.getState().addBottleBundle([sanMiguel, sanMiguel, sanMiguel, sanMiguel, sanMiguel])
+      const { orderItems } = useTillStore.getState()
+      expect(orderItems).toHaveLength(1)
+      expect(orderItems[0].quantity).toBe(5)
+      expect(orderItems[0].unit_price).toBeCloseTo(4.20, 2) // £21 / 5
+      expect(orderItems[0].subtotal).toBeCloseTo(21.00, 2)
+    })
+
+    it('handles a mix across the three brands and still charges price of 4', () => {
+      useTillStore.getState().addBottleBundle([sanMiguel, sanMiguel, budweiser, budweiser, carlsberg])
+      const { orderItems } = useTillStore.getState()
+      expect(orderItems).toHaveLength(3)
+      expect(orderItems.reduce((s, i) => s + i.quantity, 0)).toBe(5)
+      expect(useTillStore.getState().getTotal()).toBeCloseTo(21.00, 2)
+    })
+
+    it('flags lines as bundle, never member/promo, and gives each a unique line_id', () => {
+      useTillStore.getState().addBottleBundle([sanMiguel, sanMiguel, budweiser, budweiser, carlsberg])
+      const { orderItems } = useTillStore.getState()
+      expect(orderItems.every(i => i.bundle_price_applied === true)).toBe(true)
+      expect(orderItems.every(i => i.member_price_applied === false)).toBe(true)
+      expect(orderItems.every(i => i.promo_price_applied === false)).toBe(true)
+      const ids = orderItems.map(i => i.line_id)
+      expect(ids.every(Boolean)).toBe(true)
+      expect(new Set(ids).size).toBe(ids.length) // all unique
+    })
+
+    it('running the deal twice for the same brand keeps two independently-keyed lines', () => {
+      useTillStore.getState().addBottleBundle([sanMiguel, sanMiguel, sanMiguel, sanMiguel, sanMiguel])
+      useTillStore.getState().addBottleBundle([sanMiguel, sanMiguel, sanMiguel, sanMiguel, sanMiguel])
+      const { orderItems } = useTillStore.getState()
+      expect(orderItems).toHaveLength(2)
+      const ids = orderItems.map(i => i.line_id)
+      expect(new Set(ids).size).toBe(2)
+      expect(useTillStore.getState().getTotal()).toBeCloseTo(42.00, 2)
+    })
+
+    it('removeItem on one bundle line leaves the other bundle line intact', () => {
+      useTillStore.getState().addBottleBundle([sanMiguel, sanMiguel, sanMiguel, sanMiguel, sanMiguel])
+      useTillStore.getState().addBottleBundle([sanMiguel, sanMiguel, sanMiguel, sanMiguel, sanMiguel])
+      const first = useTillStore.getState().orderItems[0]
+      useTillStore.getState().removeItem(first.line_id)
+      const { orderItems } = useTillStore.getState()
+      expect(orderItems).toHaveLength(1)
+      expect(useTillStore.getState().getTotal()).toBeCloseTo(21.00, 2)
+    })
+
+    it('does not merge with a plain line for the same product', () => {
+      useTillStore.getState().addItem(sanMiguel)
+      useTillStore.getState().addBottleBundle([sanMiguel, sanMiguel, sanMiguel, sanMiguel, sanMiguel])
+      const { orderItems } = useTillStore.getState()
+      expect(orderItems).toHaveLength(2)
+    })
+
+    it('is a no-op when the selection is empty', () => {
+      useTillStore.getState().addBottleBundle([])
+      expect(useTillStore.getState().orderItems).toHaveLength(0)
+    })
+
+    it('the cart total always equals the previewed deal total (preview == charge)', () => {
+      // Tonight's lineup: all £5.25 → exact £21.00
+      const five = [sanMiguel, sanMiguel, budweiser, budweiser, carlsberg]
+      useTillStore.getState().addBottleBundle(five)
+      expect(useTillStore.getState().getTotal()).toBeCloseTo(bottleBundlePricing(five).total, 2)
+
+      // And the invariant holds for a hypothetical mixed-price lineup too, so a
+      // future edit to the eligible list can't desync the label from the charge.
+      useTillStore.setState({ orderItems: [] })
+      const odd = [
+        { id: 'a', name: 'A', category: 'bottle', standard_price: 3.33, member_price: 3.0 },
+        { id: 'a', name: 'A', category: 'bottle', standard_price: 3.33, member_price: 3.0 },
+        { id: 'a', name: 'A', category: 'bottle', standard_price: 3.33, member_price: 3.0 },
+        { id: 'a', name: 'A', category: 'bottle', standard_price: 3.33, member_price: 3.0 },
+        { id: 'a', name: 'A', category: 'bottle', standard_price: 3.33, member_price: 3.0 },
+      ]
+      useTillStore.getState().addBottleBundle(odd)
+      expect(useTillStore.getState().getTotal()).toBeCloseTo(bottleBundlePricing(odd).total, 2)
+    })
+  })
+
+  describe('bottleBundlePricing (pure)', () => {
+    const b = (id, price) => ({ id, name: id, category: 'bottle', standard_price: price, member_price: price })
+
+    it('charges the price of 4 for 5 equal bottles', () => {
+      const r = bottleBundlePricing([b('x', 5.25), b('x', 5.25), b('x', 5.25), b('x', 5.25), b('x', 5.25)])
+      expect(r.unitPrice).toBeCloseTo(4.20, 2)
+      expect(r.total).toBeCloseTo(21.00, 2)
+    })
+
+    it('total is exactly unitPrice × count (no preview/charge drift)', () => {
+      const sel = [b('x', 4.99), b('x', 4.99), b('x', 4.99), b('y', 2.50), b('y', 2.50)]
+      const r = bottleBundlePricing(sel)
+      expect(r.total).toBeCloseTo(Number((r.unitPrice * sel.length).toFixed(2)), 2)
+    })
+
+    it('returns zero for an empty selection', () => {
+      expect(bottleBundlePricing([])).toEqual({ unitPrice: 0, total: 0 })
+    })
   })
 
   it('removes an item', () => {
