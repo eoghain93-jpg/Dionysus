@@ -137,7 +137,9 @@ export default function BottleBundleModal({ products, onClose }) {
                       </span>
                     )}
                     <span className="text-white font-medium text-sm leading-tight pr-7">{product.name}</span>
-                    <span className="text-slate-400 text-xs">£{product.standard_price.toFixed(2)} normally</span>
+                    <span className="text-slate-400 text-xs">
+                      £{(useMember && product.member_price != null ? product.member_price : product.standard_price).toFixed(2)} normally
+                    </span>
                   </button>
                 )
               })}

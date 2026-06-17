@@ -16,7 +16,7 @@ const products = [
 ]
 
 beforeEach(() => {
-  useTillStore.setState({ orderItems: [] })
+  useTillStore.setState({ orderItems: [], activeMember: null, membersOnlyMode: false })
 })
 
 describe('BottleBundleModal eligibility', () => {
@@ -51,5 +51,19 @@ describe('BottleBundleModal deal flow', () => {
     fireEvent.click(screen.getByRole('button', { name: /Add to Order — £21\.00/ }))
     expect(onClose).toHaveBeenCalled()
     expect(useTillStore.getState().getTotal()).toBeCloseTo(21.00, 2)
+  })
+
+  it('shows member prices on the tiles and charges price-of-4 off member price for a member', () => {
+    useTillStore.setState({ activeMember: { id: 'm', name: 'M' } })
+    render(<BottleBundleModal products={products} onClose={vi.fn()} />)
+
+    // Member bottle price is £4.75 → tiles reference the member price, not £5.25.
+    expect(screen.getAllByText(/£4\.75 normally/).length).toBeGreaterThanOrEqual(3)
+    expect(screen.queryByText(/£5\.25 normally/)).not.toBeInTheDocument()
+
+    const tile = screen.getByRole('button', { name: /San Miguel/ })
+    for (let i = 0; i < 5; i++) fireEvent.click(tile)
+    // price of 4 off member price: 4 × £4.75 = £19.00
+    expect(screen.getByRole('button', { name: /Add to Order — £19\.00/ })).toBeEnabled()
   })
 })
