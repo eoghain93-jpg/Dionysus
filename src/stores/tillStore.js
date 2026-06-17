@@ -25,6 +25,47 @@ export function bottleBundlePricing(selected, useMemberPrice = false) {
   return { unitPrice, total }
 }
 
+/**
+ * Resolve the price a single product sells at, plus which discount won, given
+ * the active member state and the winning promo discount. ONE source of truth
+ * shared by addItem (what the cart charges) and ProductGrid (what the tile
+ * shows + whether the PROMO tag appears), so the two can never drift apart.
+ *
+ * Stacking: when a member is on the sale AND a promo applies, the promo's
+ * discount also comes off the member price — the same % for a percentage promo,
+ * the same £ for a fixed-amount promo. The lowest resulting price wins.
+ *
+ * @param {object}      args.product   - needs standard_price
+ * @param {number|null} args.memberPrice - member price if a member is on the sale, else null
+ * @param {object|null} args.promo     - getPromoDiscount() result, or null
+ * @returns {{ price: number, promo_price_applied: boolean, member_price_applied: boolean }}
+ */
+export function resolveSalePrice({ product, memberPrice, promo }) {
+  const standardPrice = product.standard_price
+  const promoPrice = promo?.price ?? null
+
+  const candidates = [standardPrice]
+  if (memberPrice != null) candidates.push(memberPrice)
+  let memberPromoPrice = null
+  if (promoPrice != null) {
+    candidates.push(promoPrice)
+    if (memberPrice != null) {
+      const stacked = promo.discount_type === 'percentage'
+        ? memberPrice * (1 - promo.discount_value / 100)
+        : memberPrice - (standardPrice - promoPrice)
+      memberPromoPrice = Math.max(0, Number(stacked.toFixed(2)))
+      candidates.push(memberPromoPrice)
+    }
+  }
+  const price = Math.min(...candidates)
+
+  // A promo was applied if the winning price came from the promo — either the
+  // plain promo price (non-member) or the member-stacked promo price.
+  const promo_price_applied = promoPrice != null && (price === promoPrice || price === memberPromoPrice)
+  const member_price_applied = !promo_price_applied && memberPrice != null && price === memberPrice
+  return { price, promo_price_applied, member_price_applied }
+}
+
 export const useTillStore = create((set, get) => ({
   orderItems: [],
   activeMember: null,
@@ -51,41 +92,13 @@ export const useTillStore = create((set, get) => ({
   addItem: (product, now = new Date()) => {
     const { orderItems, activeMember, activePromos, membersOnlyMode } = get()
 
-    const standardPrice = product.standard_price
-    // Member pricing applies when EITHER an individual member is active
-    // OR the till is in event-wide members-only mode.
+    // Member pricing applies when EITHER an individual member is active OR the
+    // till is in event-wide members-only mode. resolveSalePrice is shared with
+    // ProductGrid so the cart charge always matches the tile.
     const memberPrice = (activeMember || membersOnlyMode) ? product.member_price : null
     const promo = getPromoDiscount(product, activePromos, now)
-    const promoPrice = promo?.price ?? null
-
-    // Choose the lowest applicable price. When a member is on the sale AND a
-    // promo applies, the promo's discount also comes off the member price, so
-    // members get the deal stacked on their member price (e.g. "50p off pints"
-    // is 50p off the MEMBER price for a member). discountAmount is the promo's
-    // reduction vs standard — for a fixed-amount promo that is exactly the
-    // amount off (50p); clamped so it can never go below zero.
-    const candidates = [standardPrice]
-    if (memberPrice != null) candidates.push(memberPrice)
-    let memberPromoPrice = null
-    if (promoPrice != null) {
-      candidates.push(promoPrice)
-      if (memberPrice != null) {
-        // Stack the SAME KIND of discount onto the member price: a percentage
-        // promo takes that % off the member price; a fixed-amount promo (e.g.
-        // "50p off pints") takes the same £ off the member price.
-        const stacked = promo.discount_type === 'percentage'
-          ? memberPrice * (1 - promo.discount_value / 100)
-          : memberPrice - (standardPrice - promoPrice)
-        memberPromoPrice = Math.max(0, Number(stacked.toFixed(2)))
-        candidates.push(memberPromoPrice)
-      }
-    }
-    const price = Math.min(...candidates)
-
-    // A promo was applied if the winning price came from the promo — either the
-    // plain promo price (non-member) or the member-stacked promo price.
-    const promo_price_applied = promoPrice != null && (price === promoPrice || price === memberPromoPrice)
-    const member_price_applied = !promo_price_applied && memberPrice != null && price === memberPrice
+    const { price, promo_price_applied, member_price_applied } =
+      resolveSalePrice({ product, memberPrice, promo })
 
     // Merge ONLY with a plain line for this product. Staff-credit lines
     // (line_id) and bundle lines (bundle_price_applied) share the same

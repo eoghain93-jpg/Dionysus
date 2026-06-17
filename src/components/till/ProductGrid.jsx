@@ -1,6 +1,6 @@
 // src/components/till/ProductGrid.jsx
-import { useTillStore } from '../../stores/tillStore'
-import { getPromoPrice } from '../../lib/promos'
+import { useTillStore, resolveSalePrice } from '../../stores/tillStore'
+import { getPromoDiscount } from '../../lib/promos'
 
 const CATEGORY_COLORS = {
   draught: 'border-l-amber-500',
@@ -21,17 +21,14 @@ export default function ProductGrid({ products, now = new Date() }) {
   return (
     <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2">
       {products.map(product => {
-        const promoPrice = getPromoPrice(product, activePromos, now)
-        // Mirror addItem's pricing rule: member price applies when an
-        // individual member is active OR the till is in event-wide mode.
+        // Same pricing as the cart (resolveSalePrice), so the tile price and the
+        // PROMO tag reflect exactly what addItem will charge — including a promo
+        // stacked on a member's price.
         const memberPrice = (activeMember || membersOnlyMode) ? product.member_price : null
+        const promo = getPromoDiscount(product, activePromos, now)
+        const { price: displayPrice, promo_price_applied: hasPromo } =
+          resolveSalePrice({ product, memberPrice, promo })
 
-        const candidates = [product.standard_price]
-        if (memberPrice != null) candidates.push(memberPrice)
-        if (promoPrice != null) candidates.push(promoPrice)
-        const displayPrice = Math.min(...candidates)
-
-        const hasPromo = promoPrice != null && promoPrice === displayPrice
         const isLowStock = product.stock_quantity <= product.par_level
         const accentClass = CATEGORY_COLORS[product.category] ?? 'border-l-slate-500'
 

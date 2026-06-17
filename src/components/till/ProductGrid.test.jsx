@@ -95,6 +95,15 @@ describe('ProductGrid', () => {
     expect(screen.getByText('£4.40')).toBeInTheDocument()
   })
 
+  it('shows the PROMO badge AND the stacked price for a member (promo stacks on member price)', () => {
+    useTillStore.setState({ activePromos: mockPromos, activeMember: { id: 'm1', name: 'Test' } })
+    const mondayEvening = new Date('2026-03-30T18:00:00')
+    render(<ProductGrid products={mockProducts} now={mondayEvening} />)
+    // Guinness: member 4.50, 20% promo → 20% off member price = £3.60, badge shown.
+    expect(screen.getByLabelText('Promotion active')).toBeInTheDocument()
+    expect(screen.getByText('£3.60')).toBeInTheDocument()
+  })
+
   it('does not show PROMO badge outside the promo time window', () => {
     useTillStore.setState({ activePromos: mockPromos })
     const mondayMorning = new Date('2026-03-30T10:00:00')
