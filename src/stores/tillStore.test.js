@@ -212,10 +212,31 @@ describe('tillStore', () => {
       useTillStore.getState().addBottleBundle(odd)
       expect(useTillStore.getState().getTotal()).toBeCloseTo(bottleBundlePricing(odd).total, 2)
     })
+
+    it('uses MEMBER prices for the deal when a member is on the sale', () => {
+      // member_price 4.75 each → price of 4 = 4 × 4.75 = £19.00 (vs £21.00 standard)
+      useTillStore.setState({ activeMember: { id: 'm', name: 'M' } })
+      useTillStore.getState().addBottleBundle([sanMiguel, sanMiguel, sanMiguel, sanMiguel, sanMiguel])
+      expect(useTillStore.getState().getTotal()).toBeCloseTo(19.00, 2)
+    })
+
+    it('uses member prices under members-only mode too', () => {
+      useTillStore.setState({ membersOnlyMode: true })
+      useTillStore.getState().addBottleBundle([sanMiguel, sanMiguel, sanMiguel, sanMiguel, sanMiguel])
+      expect(useTillStore.getState().getTotal()).toBeCloseTo(19.00, 2)
+    })
   })
 
   describe('bottleBundlePricing (pure)', () => {
     const b = (id, price) => ({ id, name: id, category: 'bottle', standard_price: price, member_price: price })
+
+    it('honours member prices when useMemberPrice is set', () => {
+      const sel = Array.from({ length: 5 }, () => ({
+        id: 'x', name: 'x', category: 'bottle', standard_price: 5.25, member_price: 4.75,
+      }))
+      expect(bottleBundlePricing(sel, true).total).toBeCloseTo(19.00, 2)
+      expect(bottleBundlePricing(sel, false).total).toBeCloseTo(21.00, 2)
+    })
 
     it('charges the price of 4 for 5 equal bottles', () => {
       const r = bottleBundlePricing([b('x', 5.25), b('x', 5.25), b('x', 5.25), b('x', 5.25), b('x', 5.25)])
@@ -395,27 +416,9 @@ describe('tillStore', () => {
       expect(useTillStore.getState().orderItems[0].unit_price).toBe(5.50)
     })
 
-    it('member price beats promo price when member price is lower', () => {
-      // member price £3.50 < promo 20% off 5.50 = £4.40 — member wins
-      const cheapMemberProduct = {
-        id: 'prod-1',
-        name: 'Guinness',
-        standard_price: 5.50,
-        member_price: 3.50,
-      }
-      useTillStore.setState({
-        activeMember: { id: 'mem-1', name: 'Test' },
-        activePromos: mockPromos,
-      })
-      const mondayEvening = new Date('2026-03-30T18:00:00')
-      useTillStore.getState().addItem(cheapMemberProduct, mondayEvening)
-      const { orderItems } = useTillStore.getState()
-      expect(orderItems[0].unit_price).toBe(3.50)
-      expect(orderItems[0].member_price_applied).toBe(true)
-    })
-
-    it('promo price beats member price when promo is lower', () => {
-      // standard_price 5.50, member_price 4.50, promo 20% = 4.40 — promo wins
+    it('stacks a percentage promo as the same % off the member price', () => {
+      // standard 5.50, member 4.50, promo 20% → member gets 20% off THEIR
+      // price: 4.50 × 0.80 = 3.60 (not a flat £-amount off).
       useTillStore.setState({
         activeMember: { id: 'mem-1', name: 'Test' },
         activePromos: mockPromos,
@@ -423,8 +426,43 @@ describe('tillStore', () => {
       const mondayEvening = new Date('2026-03-30T18:00:00')
       useTillStore.getState().addItem(mockProduct, mondayEvening)
       const { orderItems } = useTillStore.getState()
-      expect(orderItems[0].unit_price).toBe(4.40)
+      expect(orderItems[0].unit_price).toBeCloseTo(3.60, 2)
       expect(orderItems[0].promo_price_applied).toBe(true)
+    })
+
+    it('non-member gets the plain promo price off standard', () => {
+      useTillStore.setState({ activeMember: null, activePromos: mockPromos })
+      const mondayEvening = new Date('2026-03-30T18:00:00')
+      useTillStore.getState().addItem(mockProduct, mondayEvening)
+      const { orderItems } = useTillStore.getState()
+      expect(orderItems[0].unit_price).toBeCloseTo(4.40, 2) // 20% off 5.50
+      expect(orderItems[0].promo_price_applied).toBe(true)
+    })
+
+    it('"50p off" fixed_price promo: non-member −50p off standard, member −50p off member price', () => {
+      // Mirrors tonight: Guinness standard 7.40, member 6.80, promo fixed 6.90.
+      const guinness = { id: 'prod-1', name: 'Guinness', standard_price: 7.40, member_price: 6.80 }
+      const fiftyP = [{
+        id: 'promo-50p', name: '50p Off Pints', active: true,
+        start_time: null, end_time: null, days_of_week: null,
+        start_date: null, end_date: null,
+        promotion_items: [{
+          id: 'pi', promotion_id: 'promo-50p', product_id: 'prod-1',
+          discount_type: 'fixed_price', discount_value: 6.90,
+        }],
+        promotion_categories: [],
+      }]
+
+      // Non-member → standard − 50p = 6.90
+      useTillStore.setState({ activeMember: null, activePromos: fiftyP })
+      useTillStore.getState().addItem(guinness)
+      expect(useTillStore.getState().orderItems[0].unit_price).toBeCloseTo(6.90, 2)
+
+      // Member → member − 50p = 6.30
+      useTillStore.setState({ orderItems: [], activeMember: { id: 'm', name: 'M' }, activePromos: fiftyP })
+      useTillStore.getState().addItem(guinness)
+      expect(useTillStore.getState().orderItems[0].unit_price).toBeCloseTo(6.30, 2)
+      expect(useTillStore.getState().orderItems[0].promo_price_applied).toBe(true)
     })
 
     it('loadPromos stores fetched promos in activePromos state', async () => {

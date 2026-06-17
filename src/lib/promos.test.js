@@ -1,6 +1,6 @@
 // src/lib/promos.test.js
 import { describe, it, expect } from 'vitest'
-import { getPromoPrice, isPromoActive, isBundleEnabled } from './promos'
+import { getPromoPrice, getPromoDiscount, isPromoActive, isBundleEnabled } from './promos'
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -591,6 +591,27 @@ describe('isBundleEnabled', () => {
 
   it('is false when there are no promos at all', () => {
     expect(isBundleEnabled([], MARKER, makeDateOnDate('2026-06-17', '21:30'))).toBe(false)
+  })
+})
+
+describe('getPromoDiscount', () => {
+  it('reports the winning discount type and value, not just the price', () => {
+    const promo = makeTimePromo({ items: [makeItem('prod-1', 'fixed_price', 4.50)] })
+    const res = getPromoDiscount(PROD, [promo], makeDate(1, '18:00'))
+    expect(res).toEqual({ price: 4.50, discount_type: 'fixed_price', discount_value: 4.50 })
+  })
+
+  it('reports the percentage type and value', () => {
+    const promo = makeTimePromo({ items: [makeItem('prod-1', 'percentage', 20)] })
+    const res = getPromoDiscount(PROD, [promo], makeDate(1, '18:00'))
+    expect(res.discount_type).toBe('percentage')
+    expect(res.discount_value).toBe(20)
+    expect(res.price).toBeCloseTo(4.00, 2) // 20% off 5.00
+  })
+
+  it('returns null when no promo applies, and getPromoPrice agrees', () => {
+    expect(getPromoDiscount(PROD, [], makeDate(1, '18:00'))).toBeNull()
+    expect(getPromoPrice(PROD, [], makeDate(1, '18:00'))).toBeNull()
   })
 })
 

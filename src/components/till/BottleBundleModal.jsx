@@ -1,26 +1,9 @@
 import { useState } from 'react'
 import { X, RotateCcw } from 'lucide-react'
 import { useTillStore, bottleBundlePricing } from '../../stores/tillStore'
-
-// Marker promotion that gates this button. Staff toggle a promo with this
-// EXACT name on (at kickoff) to reveal the "5 for 4 Bottles" button, and off
-// after the match. See isBundleEnabled in lib/promos.js.
-export const BOTTLE_BUNDLE_PROMO_NAME = 'Bottle 5-for-4'
+import { isBottleBundleEligible } from '../../lib/bottleBundle'
 
 const BUNDLE_QTY = 5
-
-// EXACT product names eligible for the deal — matched case-insensitively
-// against the whole name (not substring), so "San Miguel 0%" and
-// "Carlsberg 0%" are deliberately excluded and the draught "Carlsberg" is
-// excluded by the category guard below. Edit this list to change the lineup.
-export const BOTTLE_BUNDLE_ELIGIBLE_NAMES = ['San Miguel', 'Carlsberg (Bottle)', 'Budweiser']
-
-const ELIGIBLE = new Set(BOTTLE_BUNDLE_ELIGIBLE_NAMES.map(n => n.toLowerCase()))
-
-function isBundleEligible(product) {
-  if (product.category !== 'bottle') return false
-  return ELIGIBLE.has(product.name.trim().toLowerCase())
-}
 
 /**
  * BottleBundleModal — pick any 5 across the eligible bottles, pay for 4.
@@ -33,15 +16,19 @@ function isBundleEligible(product) {
  */
 export default function BottleBundleModal({ products, onClose }) {
   const addBottleBundle = useTillStore(s => s.addBottleBundle)
+  const activeMember = useTillStore(s => s.activeMember)
+  const membersOnlyMode = useTillStore(s => s.membersOnlyMode)
   const [selected, setSelected] = useState([]) // array of product objects (duplicates allowed)
 
-  const bottles = products.filter(isBundleEligible)
+  const bottles = products.filter(isBottleBundleEligible)
   const remaining = BUNDLE_QTY - selected.length
   const isReady = selected.length === BUNDLE_QTY
 
   // Live preview of what the customer pays. Uses the SAME pricing function as
-  // the store so the label here can never disagree with the cart total.
-  const dealTotal = bottleBundlePricing(selected).total
+  // the store (and the same member base) so the label here can never disagree
+  // with the cart total.
+  const useMember = !!(activeMember || membersOnlyMode)
+  const dealTotal = bottleBundlePricing(selected, useMember).total
 
   function handlePick(product) {
     if (selected.length >= BUNDLE_QTY) return

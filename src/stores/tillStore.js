@@ -1,6 +1,6 @@
 // src/stores/tillStore.js
 import { create } from 'zustand'
-import { getPromoPrice } from '../lib/promos'
+import { getPromoDiscount } from '../lib/promos'
 
 /**
  * Pricing for the "N for the price of N-1" bottle deal: the single cheapest
@@ -10,10 +10,14 @@ import { getPromoPrice } from '../lib/promos'
  * disagree with what the cart actually charges. `total` is unitPrice × count
  * (what the order sums to), which for equal-priced bottles is exactly the
  * price of N-1 (5 × £5.25 → £4.20/unit → £21.00).
+ *
+ * When `useMemberPrice` is true (a member is on the sale), the deal is worked
+ * out from member prices so members get the deal off THEIR price, not standard.
  */
-export function bottleBundlePricing(selected) {
+export function bottleBundlePricing(selected, useMemberPrice = false) {
   if (!selected?.length) return { unitPrice: 0, total: 0 }
-  const prices = selected.map(p => p.standard_price)
+  const priceOf = p => (useMemberPrice && p.member_price != null ? p.member_price : p.standard_price)
+  const prices = selected.map(priceOf)
   const cheapest = Math.min(...prices)
   const bundleTotal = prices.reduce((sum, p) => sum + p, 0) - cheapest
   const unitPrice = Number((bundleTotal / selected.length).toFixed(2))
@@ -51,16 +55,37 @@ export const useTillStore = create((set, get) => ({
     // Member pricing applies when EITHER an individual member is active
     // OR the till is in event-wide members-only mode.
     const memberPrice = (activeMember || membersOnlyMode) ? product.member_price : null
-    const promoPrice = getPromoPrice(product, activePromos, now)
+    const promo = getPromoDiscount(product, activePromos, now)
+    const promoPrice = promo?.price ?? null
 
-    // Choose the lowest applicable price
+    // Choose the lowest applicable price. When a member is on the sale AND a
+    // promo applies, the promo's discount also comes off the member price, so
+    // members get the deal stacked on their member price (e.g. "50p off pints"
+    // is 50p off the MEMBER price for a member). discountAmount is the promo's
+    // reduction vs standard — for a fixed-amount promo that is exactly the
+    // amount off (50p); clamped so it can never go below zero.
     const candidates = [standardPrice]
     if (memberPrice != null) candidates.push(memberPrice)
-    if (promoPrice != null) candidates.push(promoPrice)
+    let memberPromoPrice = null
+    if (promoPrice != null) {
+      candidates.push(promoPrice)
+      if (memberPrice != null) {
+        // Stack the SAME KIND of discount onto the member price: a percentage
+        // promo takes that % off the member price; a fixed-amount promo (e.g.
+        // "50p off pints") takes the same £ off the member price.
+        const stacked = promo.discount_type === 'percentage'
+          ? memberPrice * (1 - promo.discount_value / 100)
+          : memberPrice - (standardPrice - promoPrice)
+        memberPromoPrice = Math.max(0, Number(stacked.toFixed(2)))
+        candidates.push(memberPromoPrice)
+      }
+    }
     const price = Math.min(...candidates)
 
-    const promo_price_applied = promoPrice != null && price === promoPrice
-    const member_price_applied = memberPrice != null && price === memberPrice && !promo_price_applied
+    // A promo was applied if the winning price came from the promo — either the
+    // plain promo price (non-member) or the member-stacked promo price.
+    const promo_price_applied = promoPrice != null && (price === promoPrice || price === memberPromoPrice)
+    const member_price_applied = !promo_price_applied && memberPrice != null && price === memberPrice
 
     // Merge ONLY with a plain line for this product. Staff-credit lines
     // (line_id) and bundle lines (bundle_price_applied) share the same
@@ -140,7 +165,11 @@ export const useTillStore = create((set, get) => ({
    */
   addBottleBundle: (selected) => {
     if (!selected?.length) return
-    const { unitPrice } = bottleBundlePricing(selected)
+    // A member on the sale (individually or via members-only mode) gets the
+    // deal worked out from member prices.
+    const { activeMember, membersOnlyMode } = get()
+    const useMember = !!(activeMember || membersOnlyMode)
+    const { unitPrice } = bottleBundlePricing(selected, useMember)
 
     const groups = selected.reduce((acc, product) => {
       const existing = acc.find(g => g.product.id === product.id)

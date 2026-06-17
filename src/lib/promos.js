@@ -95,32 +95,46 @@ function calcDiscountedPrice(product, item) {
  * @param {Date}   [now]    - Defaults to new Date()
  * @returns {number|null}
  */
-export function getPromoPrice(product, promos, now = new Date()) {
-  let lowestPrice = null
+/**
+ * Returns the winning (lowest) promo discount for `product` as
+ * { price, discount_type, discount_value }, or null if none applies. Same
+ * selection rules as getPromoPrice — this just also reports WHICH discount won,
+ * so callers can stack the same kind of discount onto a different base (e.g.
+ * the member price). Item discounts and category discounts are both considered;
+ * the lowest price wins, ties favouring the product-level item.
+ */
+export function getPromoDiscount(product, promos, now = new Date()) {
+  let best = null
 
   for (const promo of promos) {
     if (!isPromoActive(promo, now)) continue
 
-    // Check individual product discounts
-    const items = promo.promotion_items ?? []
-    for (const item of items) {
-      if (item.product_id !== product.id) continue
-      const price = calcDiscountedPrice(product, item)
-      if (price >= product.standard_price) continue
-      if (lowestPrice === null || price < lowestPrice) lowestPrice = price
+    const consider = (entry) => {
+      const price = calcDiscountedPrice(product, entry)
+      if (price >= product.standard_price) return
+      if (best === null || price < best.price) {
+        best = { price, discount_type: entry.discount_type, discount_value: entry.discount_value }
+      }
     }
 
-    // Check category discounts
-    const catItems = promo.promotion_categories ?? []
-    for (const catItem of catItems) {
-      if (catItem.category !== product.category) continue
-      const price = calcDiscountedPrice(product, catItem)
-      if (price >= product.standard_price) continue
-      if (lowestPrice === null || price < lowestPrice) lowestPrice = price
+    // Product-level discounts first (so they win ties over category discounts).
+    for (const item of promo.promotion_items ?? []) {
+      if (item.product_id === product.id) consider(item)
+    }
+    for (const catItem of promo.promotion_categories ?? []) {
+      if (catItem.category === product.category) consider(catItem)
     }
   }
 
-  return lowestPrice
+  return best
+}
+
+/**
+ * Lowest applicable promo price for `product`, or null. Thin wrapper over
+ * getPromoDiscount for callers that only need the price (e.g. the product grid).
+ */
+export function getPromoPrice(product, promos, now = new Date()) {
+  return getPromoDiscount(product, promos, now)?.price ?? null
 }
 
 /**

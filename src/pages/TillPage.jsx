@@ -23,7 +23,8 @@ import RecentSalesModal from '../components/till/RecentSalesModal'
 import PrizeWinModal from '../components/till/PrizeWinModal'
 import MembersOnlyToggle from '../components/till/MembersOnlyToggle'
 import ShotBundleModal from '../components/till/ShotBundleModal'
-import BottleBundleModal, { BOTTLE_BUNDLE_PROMO_NAME } from '../components/till/BottleBundleModal'
+import BottleBundleModal from '../components/till/BottleBundleModal'
+import { BOTTLE_BUNDLE_PROMO_NAME } from '../lib/bottleBundle'
 
 export default function TillPage() {
   const [products, setProducts] = useState([])
