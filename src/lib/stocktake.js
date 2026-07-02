@@ -8,10 +8,11 @@ import { fetchAllPages } from './fetchAllPages'
 // They compare those numbers against their own physical count to find
 // shrinkage.
 //
-// Note: stock_quantity on the products row is currently NOT decremented on
-// sale (see project roadmap). It only reflects wastage/staff-drink/spillage
-// adjustments. Activity columns are accurate; the "System stock now" column
-// should be treated as a starting reference, not gospel.
+// Note: since migration 20260527150000 the apply_stock_movement trigger
+// keeps stock_quantity live for ALL movement types, including sales (the
+// order RPC writes 'sale' movements). Sales made before that migration never
+// decremented stock, so "System stock now" is only trustworthy from the
+// first full stocktake re-baseline after that date.
 
 /**
  * @param {string} startDate  YYYY-MM-DD inclusive
