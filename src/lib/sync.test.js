@@ -25,7 +25,7 @@ vi.mock('../stores/syncStore', () => ({
 
 import { supabase } from './supabase'
 import { db } from './db'
-import { syncPendingOrders } from './sync'
+import { syncPendingOrders, syncPendingStockMovements } from './sync'
 
 function pendingOrder(localId, orderId) {
   return {
@@ -43,10 +43,25 @@ function pendingOrder(localId, orderId) {
   }
 }
 
+function pendingMovement(localId, movementId) {
+  return {
+    localId,
+    id: movementId,
+    product_id: 'p1',
+    type: 'wastage',
+    quantity: 2,
+    notes: 'dropped tray',
+    till_id: 'till-1',
+    created_at: '2026-06-10T20:00:00.000Z',
+  }
+}
+
 beforeEach(() => {
   supabase.__reset()
   db.pendingOrders.toArray.mockReset().mockResolvedValue([])
   db.pendingOrders.delete.mockReset().mockResolvedValue(undefined)
+  db.pendingStockMovements.toArray.mockReset().mockResolvedValue([])
+  db.pendingStockMovements.delete.mockReset().mockResolvedValue(undefined)
 })
 
 describe('syncPendingOrders', () => {
@@ -107,5 +122,64 @@ describe('syncPendingOrders', () => {
     db.pendingOrders.toArray.mockResolvedValue([])
     await syncPendingOrders()
     expect(supabase.rpc).not.toHaveBeenCalled()
+  })
+})
+
+describe('syncPendingStockMovements', () => {
+  it('upserts each movement idempotently (localId stripped) and clears the queue', async () => {
+    db.pendingStockMovements.toArray.mockResolvedValue([
+      pendingMovement(1, 'mv-a'),
+      pendingMovement(2, 'mv-b'),
+    ])
+
+    await syncPendingStockMovements()
+
+    const chainA = supabase.__chain('stock_movements', 0)
+    expect(chainA.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'mv-a', type: 'wastage', quantity: 2 }),
+      { onConflict: 'id', ignoreDuplicates: true }
+    )
+    // localId is queue bookkeeping, not a stock_movements column
+    expect(chainA.upsert.mock.calls[0][0]).not.toHaveProperty('localId')
+    expect(db.pendingStockMovements.delete).toHaveBeenCalledWith(1)
+    expect(db.pendingStockMovements.delete).toHaveBeenCalledWith(2)
+  })
+
+  it('keeps the movement queued and stops when the upsert returns an error', async () => {
+    // supabase-js RETURNS { error } rather than throwing — the regression
+    // this guards against deleted the queue entry even when the insert
+    // failed, silently losing offline wastage/restock movements.
+    db.pendingStockMovements.toArray.mockResolvedValue([
+      pendingMovement(1, 'mv-a'),
+      pendingMovement(2, 'mv-b'),
+    ])
+    supabase.__configure({ stock_movements: [{ data: null, error: { message: 'RLS says no' } }] })
+
+    await syncPendingStockMovements()
+
+    expect(db.pendingStockMovements.delete).not.toHaveBeenCalled()
+    // breaks before the second movement
+    expect(supabase.__chain('stock_movements', 1)).toBeUndefined()
+  })
+
+  it('replays with the SAME movement id after a crash between upsert and queue delete', async () => {
+    db.pendingStockMovements.toArray.mockResolvedValue([pendingMovement(1, 'mv-a')])
+    db.pendingStockMovements.delete.mockRejectedValueOnce(new Error('IndexedDB closed'))
+
+    await syncPendingStockMovements() // delete fails, entry stays queued, no throw
+    await syncPendingStockMovements()
+
+    const first = supabase.__chain('stock_movements', 0).upsert.mock.calls[0]
+    const second = supabase.__chain('stock_movements', 1).upsert.mock.calls[0]
+    expect(first[0].id).toBe('mv-a')
+    expect(second[0].id).toBe('mv-a')
+    // ignoreDuplicates makes the second attempt a server-side no-op
+    expect(second[1]).toEqual({ onConflict: 'id', ignoreDuplicates: true })
+    expect(db.pendingStockMovements.delete).toHaveBeenLastCalledWith(1)
+  })
+
+  it('does nothing when the queue is empty', async () => {
+    await syncPendingStockMovements()
+    expect(supabase.from).not.toHaveBeenCalled()
   })
 })

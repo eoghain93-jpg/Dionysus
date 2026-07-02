@@ -7,6 +7,9 @@ vi.mock('./supabase', async () => {
 vi.mock('./db', () => ({
   db: { pendingOrders: { add: vi.fn() } },
 }))
+vi.mock('./pendingCount', () => ({
+  refreshPendingCount: vi.fn().mockResolvedValue(undefined),
+}))
 
 import { supabase } from './supabase'
 import { db } from './db'
@@ -90,7 +93,9 @@ describe('saveOrder', () => {
     const result = await saveOrder(ORDER, ITEMS, true)
 
     expect(result).toBe('fallback')
-    expect(db.pendingOrders.add).toHaveBeenCalledWith({ order: ORDER, items: ITEMS })
+    expect(db.pendingOrders.add).toHaveBeenCalledWith(
+      expect.objectContaining({ order: ORDER, items: ITEMS, createdAt: expect.any(String) })
+    )
   })
 
   it('queues straight to offline storage when offline, without calling the RPC', async () => {
@@ -98,7 +103,15 @@ describe('saveOrder', () => {
 
     expect(result).toBe('offline')
     expect(supabase.rpc).not.toHaveBeenCalled()
-    expect(db.pendingOrders.add).toHaveBeenCalledWith({ order: ORDER, items: ITEMS })
+    expect(db.pendingOrders.add).toHaveBeenCalledWith(
+      expect.objectContaining({ order: ORDER, items: ITEMS, createdAt: expect.any(String) })
+    )
+  })
+
+  it('refreshes the pending badge after queueing', async () => {
+    const { refreshPendingCount } = await import('./pendingCount')
+    await saveOrder(ORDER, ITEMS, false)
+    expect(refreshPendingCount).toHaveBeenCalled()
   })
 
   it('returns failed (never throws) when both the RPC and the queue fail', async () => {

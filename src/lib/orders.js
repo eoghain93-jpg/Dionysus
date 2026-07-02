@@ -1,20 +1,14 @@
 import { supabase } from './supabase'
 import { db } from './db'
+import { newClientId } from './clientId'
+import { refreshPendingCount } from './pendingCount'
 
 // Generate a client-side order id at checkout time. The id travels with the
 // order whether it's saved online or queued offline, so the
 // create_order_with_items RPC can make replayed syncs a no-op
 // (ON CONFLICT (id) DO NOTHING).
 export function newOrderId() {
-  if (globalThis.crypto?.randomUUID) return crypto.randomUUID()
-  // crypto.randomUUID needs a secure context; the till is served over plain
-  // http on the pub LAN, so fall back to a v4 UUID built from
-  // getRandomValues (available in non-secure contexts).
-  const bytes = crypto.getRandomValues(new Uint8Array(16))
-  bytes[6] = (bytes[6] & 0x0f) | 0x40 // version 4
-  bytes[8] = (bytes[8] & 0x3f) | 0x80 // variant 10
-  const hex = Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('')
-  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`
+  return newClientId()
 }
 
 // Create the order, its items, the sale stock movements and any tab balance
@@ -76,7 +70,7 @@ export async function saveOrder(order, items, isOnline) {
     } catch (err) {
       console.error('Order save failed:', err)
       try {
-        await db.pendingOrders.add({ order, items })
+        await queueOrder(order, items)
         return 'fallback'
       } catch (queueErr) {
         console.error('Offline queue also failed:', queueErr)
@@ -85,10 +79,18 @@ export async function saveOrder(order, items, isOnline) {
     }
   }
   try {
-    await db.pendingOrders.add({ order, items })
+    await queueOrder(order, items)
     return 'offline'
   } catch (err) {
     console.error('Offline queue failed:', err)
     return 'failed'
   }
+}
+
+async function queueOrder(order, items) {
+  // createdAt matches the pendingOrders index in db.js (FIFO drain order).
+  await db.pendingOrders.add({ order, items, createdAt: new Date().toISOString() })
+  // Fire-and-forget: the badge refresh must never turn a queued sale into
+  // a 'failed' one.
+  refreshPendingCount().catch(() => {})
 }

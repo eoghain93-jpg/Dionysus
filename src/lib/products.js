@@ -2,6 +2,8 @@ import { supabase } from './supabase'
 import { db } from './db'
 import { useSyncStore } from '../stores/syncStore'
 import { getTillId } from './till'
+import { newClientId } from './clientId'
+import { refreshPendingCount } from './pendingCount'
 
 export async function fetchProducts() {
   const { isOnline } = useSyncStore.getState()
@@ -19,7 +21,10 @@ export async function fetchProducts() {
     await db.products.bulkPut(data)
     return data
   } else {
-    return db.products.where('active').equals(1).sortBy('name')
+    // .filter(), NOT .where('active') — `active` is a boolean and IndexedDB
+    // cannot index boolean keys, so an index lookup matches nothing and the
+    // offline till renders an empty product grid.
+    return db.products.filter(p => p.active).sortBy('name')
   }
 }
 
@@ -44,7 +49,10 @@ export async function logStockMovement({ product_id, type, quantity, notes, till
   // quantity, so we no longer call adjust_stock from the client. This makes
   // online + offline-synced movements use the same code path and removes
   // the risk of inserting a movement without a matching stock update.
-  const movement = { product_id, type, quantity, notes, till_id, created_at: new Date().toISOString() }
+  // Client-generated id = idempotency key: if a sync inserts the row but
+  // crashes before deleting the queue entry, the replay upserts with the
+  // same id and no-ops instead of double-applying the stock change.
+  const movement = { id: newClientId(), product_id, type, quantity, notes, till_id, created_at: new Date().toISOString() }
   const { isOnline } = useSyncStore.getState()
 
   if (isOnline) {
@@ -52,5 +60,7 @@ export async function logStockMovement({ product_id, type, quantity, notes, till
     if (error) throw error
   } else {
     await db.pendingStockMovements.add(movement)
+    // Fire-and-forget: the badge refresh must never block or fail the log.
+    refreshPendingCount().catch(() => {})
   }
 }

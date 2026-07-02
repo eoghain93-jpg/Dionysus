@@ -17,7 +17,10 @@ export async function fetchMembers() {
     await db.members.bulkPut(data)
     return data
   } else {
-    return db.members.where('active').equals(1).sortBy('name')
+    // .filter(), NOT .where('active') — booleans can't be IndexedDB index
+    // keys, so the index lookup matched nothing offline (same fix as
+    // fetchProducts; searchMembersByName below already used .filter()).
+    return db.members.filter(m => m.active).sortBy('name')
   }
 }
 
