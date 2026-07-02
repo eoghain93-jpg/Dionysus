@@ -39,4 +39,6 @@ export {
   Tag,             // Promos nav
   Image as ImageIcon, // Product image placeholder
   Upload,          // Image upload button
+  ClipboardCheck,  // Guided stocktake
+  ChevronLeft,     // Count flow back
 } from 'lucide-react'

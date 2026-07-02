@@ -1,6 +1,7 @@
 import { supabase } from './supabase'
 import { db } from './db'
 import { createOrderWithItems } from './orders'
+import { finalizeStocktake } from './stocktakes'
 import { refreshPendingCount } from './pendingCount'
 import { useSyncStore } from '../stores/syncStore'
 
@@ -57,6 +58,24 @@ export async function syncPendingStockMovements() {
   }
 }
 
+export async function syncPendingStocktakes() {
+  const pending = await db.pendingStocktakes.toArray()
+  for (const item of pending) {
+    const { localId, stocktake, lines } = item
+    try {
+      // Atomic RPC; the stocktake carries its client-generated id, so a
+      // replay after a crash between RPC and queue-delete is a server-side
+      // no-op (ON CONFLICT DO NOTHING on stocktakes.id) — stock is never
+      // re-baselined twice.
+      await finalizeStocktake(stocktake, lines)
+      await db.pendingStocktakes.delete(localId)
+    } catch (err) {
+      console.error('Failed to sync stocktake', err)
+      break
+    }
+  }
+}
+
 // Single-flight guard: the 'online' event, the startup drain and any manual
 // trigger can fire together (StrictMode remounts, connectivity flaps); two
 // concurrent drains would replay the same queue entries in parallel.
@@ -68,6 +87,7 @@ export function syncAll() {
       try {
         await syncPendingOrders()
         await syncPendingStockMovements()
+        await syncPendingStocktakes()
       } finally {
         syncInFlight = null
         await refreshPendingCount()

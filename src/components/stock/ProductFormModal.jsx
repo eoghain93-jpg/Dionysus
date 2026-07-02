@@ -29,6 +29,9 @@ export default function ProductFormModal({ product, onClose, onSaved }) {
     supplier_id: product?.supplier_id ?? '',
     cost_price: product?.cost_price ?? '',
     image_url: product?.image_url ?? '',
+    container_name: product?.container_name ?? '',
+    servings_per_container: product?.servings_per_container ?? '',
+    case_size: product?.case_size ?? '',
   })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState(null)
@@ -72,6 +75,12 @@ export default function ProductFormModal({ product, onClose, onSaved }) {
       if (form.supplier_id.trim()) payload.supplier_id = form.supplier_id.trim()
       if (form.cost_price !== '') payload.cost_price = Number(form.cost_price)
       if (form.image_url) payload.image_url = form.image_url
+      // Containers: both-or-neither. Explicit nulls so clearing the fields
+      // on edit removes the config rather than leaving it stale.
+      const hasContainerConfig = form.container_name.trim() !== '' && form.servings_per_container !== ''
+      payload.container_name = hasContainerConfig ? form.container_name.trim() : null
+      payload.servings_per_container = hasContainerConfig ? Number(form.servings_per_container) : null
+      payload.case_size = form.case_size !== '' ? Number(form.case_size) : null
 
       await upsertProduct(payload)
       onSaved()
@@ -246,6 +255,58 @@ export default function ProductFormModal({ product, onClose, onSaved }) {
               />
             </div>
           </div>
+
+          {/* Container config (optional) — how the manager counts this product */}
+          <fieldset className="flex flex-col gap-3 border border-slate-700 rounded-xl p-3">
+            <legend className="text-sm font-medium text-slate-300 px-1">
+              Container <span className="text-slate-500 font-normal">(optional — how you count it in the cellar)</span>
+            </legend>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="flex flex-col gap-1">
+                <label htmlFor="pf-container-name" className="text-sm font-medium text-slate-300">
+                  Container name
+                </label>
+                <input
+                  id="pf-container-name"
+                  type="text"
+                  value={form.container_name}
+                  onChange={handleChange('container_name')}
+                  placeholder="keg, case, box…"
+                  className="bg-[#1E293B] border border-slate-600 rounded-lg px-3 py-2 text-white placeholder-slate-500 min-h-[44px] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617]"
+                />
+              </div>
+              <div className="flex flex-col gap-1">
+                <label htmlFor="pf-servings" className="text-sm font-medium text-slate-300">
+                  {form.unit === 'each' ? 'Units' : `${form.unit.charAt(0).toUpperCase()}${form.unit.slice(1)}s`} per container
+                </label>
+                <input
+                  id="pf-servings"
+                  type="number"
+                  min="1"
+                  step="1"
+                  value={form.servings_per_container}
+                  onChange={handleChange('servings_per_container')}
+                  placeholder="e.g. 88 for a keg"
+                  className="bg-[#1E293B] border border-slate-600 rounded-lg px-3 py-2 text-white placeholder-slate-500 min-h-[44px] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617]"
+                />
+              </div>
+            </div>
+            <div className="flex flex-col gap-1">
+              <label htmlFor="pf-case-size" className="text-sm font-medium text-slate-300">
+                Case size <span className="text-slate-500 font-normal">(bottles/cans per case, for ordering)</span>
+              </label>
+              <input
+                id="pf-case-size"
+                type="number"
+                min="1"
+                step="1"
+                value={form.case_size}
+                onChange={handleChange('case_size')}
+                placeholder="e.g. 24"
+                className="bg-[#1E293B] border border-slate-600 rounded-lg px-3 py-2 text-white placeholder-slate-500 min-h-[44px] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617]"
+              />
+            </div>
+          </fieldset>
 
           {/* Cost price (optional) */}
           <div className="flex flex-col gap-1">

@@ -1,4 +1,5 @@
 import { AlertTriangle, AlertCircle, CheckCircle, Trash2, Plus, Edit2 } from '../../lib/icons'
+import { formatContainerStock, lastCountedLabel } from '../../lib/containers'
 
 /**
  * Computes the RAG (Red/Amber/Green) stock status for a product.
@@ -74,9 +75,24 @@ export default function StockList({ products, onWastage, onRestock, onEdit }) {
               key={product.id}
               className="border-b border-slate-800 hover:bg-slate-800/40 transition-colors"
             >
-              <td className="px-3 py-3 text-white font-medium">{product.name}</td>
+              <td className="px-3 py-3">
+                <p className="text-white font-medium">{product.name}</p>
+                <p className="text-xs text-slate-500">
+                  {lastCountedLabel(product) ?? 'Never counted'}
+                </p>
+              </td>
               <td className="px-3 py-3 text-slate-400 capitalize">{product.category}</td>
-              <td className="px-3 py-3 text-white text-right font-mono">{product.stock_quantity}</td>
+              <td className="px-3 py-3 text-right">
+                {/* Bilingual: manager's containers first, raw servings underneath */}
+                {formatContainerStock(product) ? (
+                  <>
+                    <p className="text-white font-medium whitespace-nowrap">{formatContainerStock(product)}</p>
+                    <p className="text-xs text-slate-500 font-mono">{product.stock_quantity}</p>
+                  </>
+                ) : (
+                  <p className="text-white font-mono">{product.stock_quantity}</p>
+                )}
+              </td>
               <td className="px-3 py-3 text-slate-400 text-right font-mono">{product.par_level}</td>
               <td className="px-3 py-3 text-center">
                 <StockBadge stock_quantity={product.stock_quantity} par_level={product.par_level} />

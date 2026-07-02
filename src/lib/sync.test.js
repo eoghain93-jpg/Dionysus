@@ -17,6 +17,11 @@ vi.mock('./db', () => ({
       delete: vi.fn(),
       count: vi.fn(),
     },
+    pendingStocktakes: {
+      toArray: vi.fn(),
+      delete: vi.fn(),
+      count: vi.fn(),
+    },
   },
 }))
 vi.mock('../stores/syncStore', () => ({
@@ -25,7 +30,7 @@ vi.mock('../stores/syncStore', () => ({
 
 import { supabase } from './supabase'
 import { db } from './db'
-import { syncPendingOrders, syncPendingStockMovements } from './sync'
+import { syncPendingOrders, syncPendingStockMovements, syncPendingStocktakes } from './sync'
 
 function pendingOrder(localId, orderId) {
   return {
@@ -62,6 +67,8 @@ beforeEach(() => {
   db.pendingOrders.delete.mockReset().mockResolvedValue(undefined)
   db.pendingStockMovements.toArray.mockReset().mockResolvedValue([])
   db.pendingStockMovements.delete.mockReset().mockResolvedValue(undefined)
+  db.pendingStocktakes.toArray.mockReset().mockResolvedValue([])
+  db.pendingStocktakes.delete.mockReset().mockResolvedValue(undefined)
 })
 
 describe('syncPendingOrders', () => {
@@ -181,5 +188,63 @@ describe('syncPendingStockMovements', () => {
   it('does nothing when the queue is empty', async () => {
     await syncPendingStockMovements()
     expect(supabase.from).not.toHaveBeenCalled()
+  })
+})
+
+describe('syncPendingStocktakes', () => {
+  function pendingStocktake(localId, stocktakeId) {
+    return {
+      localId,
+      stocktake: { id: stocktakeId, scope: 'all', till_id: 'till-1' },
+      lines: [{ product_id: 'p1', expected_qty: 100, counted_qty: 96 }],
+    }
+  }
+
+  it('replays each count through the atomic RPC and clears the queue', async () => {
+    db.pendingStocktakes.toArray.mockResolvedValue([
+      pendingStocktake(1, 'st-a'),
+      pendingStocktake(2, 'st-b'),
+    ])
+
+    await syncPendingStocktakes()
+
+    expect(supabase.rpc).toHaveBeenNthCalledWith(1, 'finalize_stocktake', {
+      p_stocktake: expect.objectContaining({ id: 'st-a' }),
+      p_lines: expect.any(Array),
+    })
+    expect(supabase.rpc).toHaveBeenNthCalledWith(2, 'finalize_stocktake', {
+      p_stocktake: expect.objectContaining({ id: 'st-b' }),
+      p_lines: expect.any(Array),
+    })
+    expect(db.pendingStocktakes.delete).toHaveBeenCalledWith(1)
+    expect(db.pendingStocktakes.delete).toHaveBeenCalledWith(2)
+  })
+
+  it('keeps the count queued and stops when the RPC returns an error', async () => {
+    db.pendingStocktakes.toArray.mockResolvedValue([
+      pendingStocktake(1, 'st-a'),
+      pendingStocktake(2, 'st-b'),
+    ])
+    supabase.rpc.mockResolvedValueOnce({ data: null, error: { message: 'still down' } })
+
+    await syncPendingStocktakes()
+
+    expect(supabase.rpc).toHaveBeenCalledTimes(1)
+    expect(db.pendingStocktakes.delete).not.toHaveBeenCalled()
+  })
+
+  it('replays with the SAME stocktake id after a crash between RPC and queue delete', async () => {
+    // Stock must never re-baseline twice: the server no-ops the replay via
+    // ON CONFLICT (id) DO NOTHING on the client-generated stocktake id.
+    db.pendingStocktakes.toArray.mockResolvedValue([pendingStocktake(1, 'st-a')])
+    db.pendingStocktakes.delete.mockRejectedValueOnce(new Error('IndexedDB closed'))
+
+    await syncPendingStocktakes()
+    await syncPendingStocktakes()
+
+    expect(supabase.rpc).toHaveBeenCalledTimes(2)
+    expect(supabase.rpc.mock.calls[0][1].p_stocktake.id).toBe('st-a')
+    expect(supabase.rpc.mock.calls[1][1].p_stocktake.id).toBe('st-a')
+    expect(db.pendingStocktakes.delete).toHaveBeenLastCalledWith(1)
   })
 })

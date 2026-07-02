@@ -9,6 +9,7 @@ import PromosPage from './pages/PromosPage'
 import TabsPage from './pages/TabsPage'
 import SettingsPage from './pages/SettingsPage'
 import StocktakePage from './pages/StocktakePage'
+import CountPage from './pages/CountPage'
 import MonthlyReportPage from './pages/MonthlyReportPage'
 
 export default function App() {
@@ -23,6 +24,7 @@ export default function App() {
           <Route path="/promos" element={<PromosPage />} />
           <Route path="/reports" element={<ReportsPage />} />
           <Route path="/stocktake" element={<StocktakePage />} />
+          <Route path="/count" element={<CountPage />} />
           <Route path="/monthly-report" element={<MonthlyReportPage />} />
           <Route path="/settings" element={<SettingsPage />} />
         </Routes>

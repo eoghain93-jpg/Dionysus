@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
+import { Link } from 'react-router-dom'
 import { fetchProducts } from '../lib/products'
-import { Plus, Search } from '../lib/icons'
+import { Plus, Search, ClipboardCheck } from '../lib/icons'
 import StockList from '../components/stock/StockList'
 import StockMovementModal from '../components/stock/StockMovementModal'
 import ProductFormModal from '../components/stock/ProductFormModal'
@@ -65,13 +66,22 @@ export default function StockPage() {
         >
           Stock
         </h1>
-        <button
-          onClick={() => setProductModal(null)}
-          className="flex items-center gap-2 px-4 min-h-[44px] rounded-xl bg-[#22C55E] hover:bg-green-400 text-slate-900 font-bold text-sm transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617]"
-        >
-          <Plus size={16} aria-hidden="true" />
-          Add Product
-        </button>
+        <div className="flex items-center gap-2">
+          <Link
+            to="/count"
+            className="flex items-center gap-2 px-4 min-h-[44px] rounded-xl border border-slate-600 text-slate-200 hover:bg-slate-700 hover:text-white font-bold text-sm transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617]"
+          >
+            <ClipboardCheck size={16} aria-hidden="true" />
+            Start a count
+          </Link>
+          <button
+            onClick={() => setProductModal(null)}
+            className="flex items-center gap-2 px-4 min-h-[44px] rounded-xl bg-[#22C55E] hover:bg-green-400 text-slate-900 font-bold text-sm transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617]"
+          >
+            <Plus size={16} aria-hidden="true" />
+            Add Product
+          </button>
+        </div>
       </div>
 
       {/* Search + category filter */}

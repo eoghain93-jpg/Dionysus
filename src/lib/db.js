@@ -17,3 +17,8 @@ db.version(2).stores({
   products: 'id, name, category',
   members: 'id, membership_number, name, membership_tier',
 })
+
+// v3: offline queue for guided stocktakes (Cellar Intelligence Phase 1).
+db.version(3).stores({
+  pendingStocktakes: '++localId, createdAt',
+})
