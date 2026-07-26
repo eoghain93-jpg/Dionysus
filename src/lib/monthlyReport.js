@@ -1,5 +1,6 @@
 import { supabase } from './supabase'
 import { fetchAllPages } from './fetchAllPages'
+import { tradingRange, tradingDayOf } from './tradingDay'
 
 // Monthly accountant report builder.
 //
@@ -8,14 +9,23 @@ import { fetchAllPages } from './fetchAllPages'
 // real money either way). Tab orders are IOUs, excluded from revenue;
 // what's owed surfaces as Outstanding Tabs. Wastage and staff drinks are
 // valued at standard_price, matching the Z report.
+//
+// Days are TRADING days (06:00–06:00, see tradingDay.js): a World Cup
+// session that runs to 2am counts toward the night it started, matching
+// how the Z report reconciles it.
 
-/** First/last day bounds for a YYYY-MM month string. */
+/**
+ * Bounds for a YYYY-MM month of trading days. `from`/`to` are created_at
+ * bounds with `to` EXCLUSIVE (pair .gte with .lt); `start`/`end` are the
+ * month's first/last calendar dates for report_date filters and labels.
+ */
 export function monthRange(monthISO) {
   const [year, month] = monthISO.split('-').map(Number)
   const lastDay = new Date(Date.UTC(year, month, 0)).getUTCDate()
   const start = `${monthISO}-01`
   const end = `${monthISO}-${String(lastDay).padStart(2, '0')}`
-  return { start, end, from: `${start}T00:00:00`, to: `${end}T23:59:59` }
+  const { from, to } = tradingRange(start, end)
+  return { start, end, from, to }
 }
 
 /** Human label, e.g. 'May 2026'. */
@@ -42,7 +52,7 @@ export async function fetchMonthlyReportData(monthISO) {
     .from('orders')
     .select('id, total_amount, payment_method, status, created_at')
     .gte('created_at', from)
-    .lte('created_at', to))
+    .lt('created_at', to))
 
   const { data: zReports, error: zErr } = await supabase
     .from('z_reports')
@@ -56,20 +66,20 @@ export async function fetchMonthlyReportData(monthISO) {
     .select('type, quantity, products(standard_price)')
     .in('type', ['wastage', 'staff_drink'])
     .gte('created_at', from)
-    .lte('created_at', to))
+    .lt('created_at', to))
 
   const { data: cashbackRows, error: cbErr } = await supabase
     .from('cashback_transactions')
     .select('amount, created_at')
     .gte('created_at', from)
-    .lte('created_at', to)
+    .lt('created_at', to)
   if (cbErr) throw cbErr
 
   const { data: prizeRows, error: pwErr } = await supabase
     .from('prize_wins')
     .select('amount, created_at')
     .gte('created_at', from)
-    .lte('created_at', to)
+    .lt('created_at', to)
   if (pwErr) throw pwErr
 
   // Outstanding tabs are a CURRENT snapshot — balance history isn't kept,
@@ -95,7 +105,7 @@ export async function fetchMonthlyReportData(monthISO) {
       openingFloat: null, actualCash: null, expectedCash: null, variance: null,
     }
   }
-  const dayOf = (ts) => byDay[String(ts).slice(0, 10)]
+  const dayOf = (ts) => byDay[tradingDayOf(ts)]
 
   for (const o of paid) {
     const day = dayOf(o.created_at)
@@ -166,7 +176,7 @@ export async function fetchMonthlyReportData(monthISO) {
     .from('order_items')
     .select('product_id, quantity, unit_price, products(name), orders!inner(created_at)')
     .gte('orders.created_at', from)
-    .lte('orders.created_at', to))
+    .lt('orders.created_at', to))
   const map = {}
   for (const it of items) {
     const key = it.product_id
@@ -186,7 +196,7 @@ export function toCsv(data) {
   lines.push(`Fairmile Club — Monthly Report,${monthLabel(data.month)}`)
   lines.push('')
 
-  lines.push('Daily takings (cash basis — tab orders excluded; settlements included)')
+  lines.push('Daily takings (cash basis — tab orders excluded; settlements included; a day runs to 6am so late sessions count toward the night they started)')
   lines.push('Date,Cash,Card,Total,Refunds,Cashback,Prize wins,Opening float,Actual cash,Expected cash,Variance')
   for (const d of data.daily) {
     lines.push([

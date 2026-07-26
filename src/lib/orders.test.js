@@ -14,6 +14,7 @@ import {
   newOrderId, createOrderWithItems, saveOrder,
   fetchTodaysOrders, correctOrderPaymentMethod,
 } from './orders'
+import { tradingDayRange, tradingTodayISO } from './tradingDay'
 
 const ORDER = {
   id: 'order-uuid-1',
@@ -129,10 +130,10 @@ describe('fetchTodaysOrders', () => {
     const result = await fetchTodaysOrders()
 
     const chain = supabase.__chain('orders')
-    const today = new Date().toISOString().split('T')[0]
+    const { from, to } = tradingDayRange(tradingTodayISO())
     expect(chain.eq).toHaveBeenCalledWith('status', 'paid')
-    expect(chain.gte).toHaveBeenCalledWith('created_at', `${today}T00:00:00`)
-    expect(chain.lte).toHaveBeenCalledWith('created_at', `${today}T23:59:59`)
+    expect(chain.gte).toHaveBeenCalledWith('created_at', from)
+    expect(chain.lt).toHaveBeenCalledWith('created_at', to)
     expect(chain.order).toHaveBeenCalledWith('created_at', { ascending: false })
     expect(chain.limit).toHaveBeenCalledWith(50)
     expect(result).toEqual(rows)

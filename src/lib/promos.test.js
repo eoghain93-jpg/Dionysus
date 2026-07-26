@@ -255,8 +255,13 @@ describe('getPromoPrice', () => {
       expect(getPromoPrice(PROD, [promo], now)).toBeNull()
     })
 
-    it('does not apply after the end date', () => {
+    it('still applies just after midnight on the end date (same trading day)', () => {
       const now = makeDateOnDate('2026-04-13', '00:01')
+      expect(getPromoPrice(PROD, [promo], now)).toBeCloseTo(4.25, 2)
+    })
+
+    it('does not apply after the end date (trading day ends at 6am)', () => {
+      const now = makeDateOnDate('2026-04-13', '06:01')
       expect(getPromoPrice(PROD, [promo], now)).toBeNull()
     })
 
@@ -268,7 +273,9 @@ describe('getPromoPrice', () => {
       })
       expect(getPromoPrice(PROD, [singleDay], makeDateOnDate('2026-05-01', '12:00'))).toBe(3.00)
       expect(getPromoPrice(PROD, [singleDay], makeDateOnDate('2026-04-30', '23:59'))).toBeNull()
-      expect(getPromoPrice(PROD, [singleDay], makeDateOnDate('2026-05-02', '00:01'))).toBeNull()
+      // 00:01 the next morning is still May 1's trading day; 6am ends it
+      expect(getPromoPrice(PROD, [singleDay], makeDateOnDate('2026-05-02', '00:01'))).toBe(3.00)
+      expect(getPromoPrice(PROD, [singleDay], makeDateOnDate('2026-05-02', '06:01'))).toBeNull()
     })
 
     it('date range with no end_date (open-ended) applies on any future date', () => {
@@ -584,8 +591,13 @@ describe('isBundleEnabled', () => {
     expect(isBundleEnabled([makeMarker({ active: false })], MARKER, now)).toBe(false)
   })
 
-  it('is false the day after (date backstop auto-hides the button)', () => {
+  it('stays on at 00:30 — extra time past midnight is still the match night', () => {
     const now = makeDateOnDate('2026-06-18', '00:30')
+    expect(isBundleEnabled([makeMarker()], MARKER, now)).toBe(true)
+  })
+
+  it('is false after 6am the next morning (trading-day backstop auto-hides the button)', () => {
+    const now = makeDateOnDate('2026-06-18', '06:30')
     expect(isBundleEnabled([makeMarker()], MARKER, now)).toBe(false)
   })
 
@@ -626,8 +638,13 @@ describe('isPromoActive (exported)', () => {
     expect(isPromoActive(promo, makeDateOnDate('2026-06-17', '21:30'))).toBe(true)
   })
 
-  it('returns false the day after a single-day promo', () => {
+  it('stays active at 00:30 the same trading day (match ran past midnight)', () => {
     const promo = makeDatePromo({ start_date: '2026-06-17', end_date: '2026-06-17' })
-    expect(isPromoActive(promo, makeDateOnDate('2026-06-18', '00:30'))).toBe(false)
+    expect(isPromoActive(promo, makeDateOnDate('2026-06-18', '00:30'))).toBe(true)
+  })
+
+  it('returns false after 6am the morning after a single-day promo', () => {
+    const promo = makeDatePromo({ start_date: '2026-06-17', end_date: '2026-06-17' })
+    expect(isPromoActive(promo, makeDateOnDate('2026-06-18', '06:30'))).toBe(false)
   })
 })

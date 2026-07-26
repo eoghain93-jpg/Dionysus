@@ -59,7 +59,7 @@ describe('fetchWastageForDate', () => {
       select: vi.fn().mockReturnThis(),
       eq: vi.fn().mockReturnThis(),
       gte: vi.fn().mockReturnThis(),
-      lte: vi.fn().mockResolvedValue({
+      lt: vi.fn().mockResolvedValue({
         data: [{ quantity: 4, products: { name: 'Guinness', standard_price: 7.40 } }],
         error: null,
       }),
@@ -73,7 +73,7 @@ describe('fetchWastageForDate', () => {
       select: vi.fn().mockReturnThis(),
       eq: vi.fn().mockReturnThis(),
       gte: vi.fn().mockReturnThis(),
-      lte: vi.fn().mockResolvedValue({ data: [], error: null }),
+      lt: vi.fn().mockResolvedValue({ data: [], error: null }),
     })
     const result = await fetchWastageForDate('2026-03-30')
     expect(result).toEqual([])
@@ -86,7 +86,7 @@ describe('fetchStaffDrinksForDate', () => {
       select: vi.fn().mockReturnThis(),
       eq: vi.fn().mockReturnThis(),
       gte: vi.fn().mockReturnThis(),
-      lte: vi.fn().mockResolvedValue({
+      lt: vi.fn().mockResolvedValue({
         data: [
           { quantity: 1, member_id: 'mem-1', products: { name: 'Guinness', standard_price: 7.40 }, members: { name: 'Dave' } },
           { quantity: 1, member_id: 'mem-1', products: { name: 'Carlsberg', standard_price: 6.00 }, members: { name: 'Dave' } },
@@ -104,7 +104,7 @@ describe('fetchStaffDrinksForDate', () => {
       select: vi.fn().mockReturnThis(),
       eq: vi.fn().mockReturnThis(),
       gte: vi.fn().mockReturnThis(),
-      lte: vi.fn().mockResolvedValue({ data: [], error: null }),
+      lt: vi.fn().mockResolvedValue({ data: [], error: null }),
     })
     const result = await fetchStaffDrinksForDate('2026-03-30')
     expect(result).toEqual([])

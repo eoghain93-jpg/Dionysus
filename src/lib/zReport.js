@@ -3,6 +3,7 @@ import { fetchAllPages } from './fetchAllPages'
 import { fetchWastageForDate, fetchStaffDrinksForDate } from './stockMovements'
 import { fetchCashbackForDate, fetchCashbackByTillForDate } from './cashback'
 import { fetchPrizeWinsForDate } from './prizeWins'
+import { tradingDayRange, tradingRange, tradingDayOf, addDaysISO } from './tradingDay'
 
 function getWeekStartISO(dateStr) {
   // Pub week runs Saturday–Friday
@@ -18,16 +19,9 @@ function isWeekEnd(dateStr) {
   return new Date(`${dateStr}T12:00:00Z`).getUTCDay() === 5
 }
 
-function addDaysISO(dateStr, n) {
-  const d = new Date(`${dateStr}T12:00:00Z`)
-  d.setUTCDate(d.getUTCDate() + n)
-  return d.toISOString().split('T')[0]
-}
-
 async function buildWeekSummary(date) {
   const weekStart = getWeekStartISO(date)
-  const weekFrom  = `${weekStart}T00:00:00`
-  const weekTo    = `${date}T23:59:59`
+  const { from: weekFrom, to: weekTo } = tradingRange(weekStart, date)
   const prevWeekEnd   = addDaysISO(weekStart, -1)        // previous Friday
   const prevWeekStart = addDaysISO(prevWeekEnd, -6)      // previous Saturday
 
@@ -37,7 +31,7 @@ async function buildWeekSummary(date) {
     .from('orders')
     .select('id, total_amount, payment_method, created_at, status')
     .gte('created_at', weekFrom)
-    .lte('created_at', weekTo)
+    .lt('created_at', weekTo)
     .eq('status', 'paid')
     .in('payment_method', ['cash', 'card']))
 
@@ -49,7 +43,7 @@ async function buildWeekSummary(date) {
     dailyMap[d] = { date: d, cash: 0, card: 0, total: 0 }
   }
   for (const o of weekOrders) {
-    const day = o.created_at.slice(0, 10)
+    const day = tradingDayOf(o.created_at)
     if (!dailyMap[day]) continue
     const amt = o.total_amount ?? 0
     if (o.payment_method === 'cash') dailyMap[day].cash += amt
@@ -65,7 +59,7 @@ async function buildWeekSummary(date) {
     .from('order_items')
     .select('product_id, quantity, unit_price, products(name), orders!inner(created_at, status, payment_method)')
     .gte('orders.created_at', weekFrom)
-    .lte('orders.created_at', weekTo)
+    .lt('orders.created_at', weekTo)
     .eq('orders.status', 'paid')
     .in('orders.payment_method', ['cash', 'card']))
   const map = {}
@@ -83,18 +77,19 @@ async function buildWeekSummary(date) {
     .select('quantity, type, products(standard_price)')
     .in('type', ['wastage', 'staff_drink'])
     .gte('created_at', weekFrom)
-    .lte('created_at', weekTo))
+    .lt('created_at', weekTo))
   const wastageTotal     = wasteRows.filter(r => r.type === 'wastage')
     .reduce((s, r) => s + r.quantity * (r.products?.standard_price ?? 0), 0)
   const staffDrinksTotal = wasteRows.filter(r => r.type === 'staff_drink')
     .reduce((s, r) => s + r.quantity * (r.products?.standard_price ?? 0), 0)
 
   // Previous full week revenue for w-o-w change
+  const prevWeek = tradingRange(prevWeekStart, prevWeekEnd)
   const prevOrders = await fetchAllPages(() => supabase
     .from('orders')
     .select('total_amount')
-    .gte('created_at', `${prevWeekStart}T00:00:00`)
-    .lte('created_at', `${prevWeekEnd}T23:59:59`)
+    .gte('created_at', prevWeek.from)
+    .lt('created_at', prevWeek.to)
     .eq('status', 'paid')
     .in('payment_method', ['cash', 'card']))
   const previousWeekRevenue = prevOrders.reduce((s, o) => s + (o.total_amount ?? 0), 0)
@@ -120,8 +115,9 @@ async function buildWeekSummary(date) {
  * Returns { salesSummary, topProducts, wastage, staffDrinks }.
  */
 export async function fetchZReportData(date) {
-  const from = `${date}T00:00:00`
-  const to   = `${date}T23:59:59`
+  // Trading-day window (06:00 to 06:00): a match night that runs past
+  // midnight still reconciles as one session on this Z report.
+  const { from, to } = tradingDayRange(date)
 
   // Fetch all orders for the date (paid + refunded). Cash-basis accounting:
   // revenue = cash + card actually received (whether on a sale or a tab
@@ -132,7 +128,7 @@ export async function fetchZReportData(date) {
     .from('orders')
     .select('id, total_amount, payment_method, status, till_id')
     .gte('created_at', from)
-    .lte('created_at', to))
+    .lt('created_at', to))
   const paid    = allOrders.filter(o => o.status === 'paid')
   const refunds = allOrders.filter(o => o.status === 'refunded')
 
@@ -177,7 +173,7 @@ export async function fetchZReportData(date) {
     .from('order_items')
     .select('product_id, quantity, unit_price, products(name), orders!inner(created_at)')
     .gte('orders.created_at', from)
-    .lte('orders.created_at', to))
+    .lt('orders.created_at', to))
 
   const map = {}
   items.forEach(item => {
@@ -196,15 +192,14 @@ export async function fetchZReportData(date) {
     .sort((a, b) => b.revenue - a.revenue)
     .slice(0, 10)
 
-  const monday = getWeekStartISO(date)
-  const weekFrom = `${monday}T00:00:00`
-  const weekTo   = `${date}T23:59:59`
+  const weekStart = getWeekStartISO(date)
+  const { from: weekFrom, to: weekTo } = tradingRange(weekStart, date)
 
   const weekOrders = await fetchAllPages(() => supabase
     .from('orders')
     .select('total_amount, payment_method, status')
     .gte('created_at', weekFrom)
-    .lte('created_at', weekTo)
+    .lt('created_at', weekTo)
     .eq('status', 'paid')
     .in('payment_method', ['cash', 'card']))
 

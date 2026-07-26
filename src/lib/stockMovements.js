@@ -1,5 +1,6 @@
 import { supabase } from './supabase'
 import { getTillId } from './till'
+import { tradingDayRange } from './tradingDay'
 
 export async function logWastage(product_id, quantity, till_id = getTillId()) {
   const { error } = await supabase
@@ -16,14 +17,13 @@ export async function logStaffDrink(product_id, quantity, member_id, till_id = g
 }
 
 export async function fetchWastageForDate(date) {
-  const from = `${date}T00:00:00`
-  const to = `${date}T23:59:59`
+  const { from, to } = tradingDayRange(date)
   const { data, error } = await supabase
     .from('stock_movements')
     .select('product_id, quantity, products(name, standard_price)')
     .eq('type', 'wastage')
     .gte('created_at', from)
-    .lte('created_at', to)
+    .lt('created_at', to)
   if (error) throw error
   // Consolidate multiple wastage rows for the same product into one line
   const byProduct = {}
@@ -39,14 +39,13 @@ export async function fetchWastageForDate(date) {
 }
 
 export async function fetchStaffDrinksForDate(date) {
-  const from = `${date}T00:00:00`
-  const to = `${date}T23:59:59`
+  const { from, to } = tradingDayRange(date)
   const { data, error } = await supabase
     .from('stock_movements')
     .select('quantity, member_id, products(name, standard_price), members(name)')
     .eq('type', 'staff_drink')
     .gte('created_at', from)
-    .lte('created_at', to)
+    .lt('created_at', to)
   if (error) throw error
   const byMember = {}
   ;(data ?? []).forEach(r => {

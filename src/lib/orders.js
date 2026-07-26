@@ -1,5 +1,6 @@
 import { supabase } from './supabase'
 import { db } from './db'
+import { tradingDayRange, tradingTodayISO } from './tradingDay'
 
 // Generate a client-side order id at checkout time. The id travels with the
 // order whether it's saved online or queued offline, so the
@@ -31,14 +32,15 @@ export async function createOrderWithItems(order, items) {
 
 // Today's paid sales, newest first — the Fix Payment list. Capped at 50:
 // mistakes are caught within a few sales, nobody scrolls to this morning.
+// Trading-day window, so a sale rung at 1am is still fixable at 1:05am.
 export async function fetchTodaysOrders() {
-  const today = new Date().toISOString().split('T')[0]
+  const { from, to } = tradingDayRange(tradingTodayISO())
   const { data, error } = await supabase
     .from('orders')
     .select('id, created_at, total_amount, payment_method, status')
     .eq('status', 'paid')
-    .gte('created_at', `${today}T00:00:00`)
-    .lte('created_at', `${today}T23:59:59`)
+    .gte('created_at', from)
+    .lt('created_at', to)
     .order('created_at', { ascending: false })
     .limit(50)
   if (error) throw error

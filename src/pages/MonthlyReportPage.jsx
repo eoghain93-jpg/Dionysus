@@ -213,8 +213,9 @@ export default function MonthlyReportPage() {
       {data && (
         <p className="text-slate-500 text-xs">
           Cash-basis figures, consistent with the daily Z reports: tab orders are excluded from revenue;
-          tab settlements count as cash/card on the day they're paid. Outstanding tabs is a snapshot as of
-          report generation — balance history isn't tracked per-day.
+          tab settlements count as cash/card on the day they're paid. A day runs to 6am, so late sessions
+          count toward the night they started. Outstanding tabs is a snapshot as of report generation —
+          balance history isn't tracked per-day.
         </p>
       )}
     </div>

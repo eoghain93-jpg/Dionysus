@@ -49,13 +49,44 @@ export interface MonthlyReportData {
   outstandingTabs: number
 }
 
-/** First/last day bounds for a YYYY-MM month string. */
+// Trading day (mirrors src/lib/tradingDay.js): the reporting day runs
+// 06:00 UTC to 06:00 UTC, so a match night that trades past midnight
+// counts toward the night it started. The club never trades 6–11am, so
+// the cutoff splits sessions cleanly year-round.
+export const TRADING_DAY_CUTOFF_HOURS = 6
+
+const CUTOFF = `T${String(TRADING_DAY_CUTOFF_HOURS).padStart(2, '0')}:00:00`
+
+function addDaysISO(dateISO: string, n: number): string {
+  const d = new Date(`${dateISO}T12:00:00Z`)
+  d.setUTCDate(d.getUTCDate() + n)
+  return d.toISOString().slice(0, 10)
+}
+
+// Offset-less date-time strings parse as LOCAL time in JS but mean UTC
+// coming from PostgREST — normalise so any host timezone agrees.
+const NAIVE_DATETIME = /^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}(:\d{2}(\.\d+)?)?$/
+
+/** The trading day (YYYY-MM-DD) a timestamp belongs to. */
+export function tradingDayOf(timestamp: unknown): string {
+  const s = String(timestamp)
+  const d = new Date(NAIVE_DATETIME.test(s) ? `${s}Z` : s)
+  if (Number.isNaN(d.getTime())) return s.slice(0, 10)
+  d.setUTCHours(d.getUTCHours() - TRADING_DAY_CUTOFF_HOURS)
+  return d.toISOString().slice(0, 10)
+}
+
+/**
+ * Bounds for a YYYY-MM month of trading days. `from`/`to` are created_at
+ * bounds with `to` EXCLUSIVE (pair .gte with .lt); `start`/`end` are the
+ * month's first/last calendar dates for report_date filters and labels.
+ */
 export function monthRange(monthISO: string) {
   const [year, month] = monthISO.split('-').map(Number)
   const lastDay = new Date(Date.UTC(year, month, 0)).getUTCDate()
   const start = `${monthISO}-01`
   const end = `${monthISO}-${String(lastDay).padStart(2, '0')}`
-  return { start, end, from: `${start}T00:00:00`, to: `${end}T23:59:59` }
+  return { start, end, from: `${start}${CUTOFF}`, to: `${addDaysISO(end, 1)}${CUTOFF}` }
 }
 
 /** Human label, e.g. 'May 2026'. */
@@ -83,11 +114,16 @@ const sum = (arr: Row[], pick: (r: Row) => unknown) =>
 // 3,000+ orders — every month-wide query must page (see src/lib/fetchAllPages).
 const PAGE_SIZE = 1000
 
+// .order('id') gives pagination a deterministic ordering — LIMIT/OFFSET
+// without ORDER BY is an unpredictable subset, so concurrent inserts
+// mid-pagination could double-count or drop rows across page boundaries.
 // deno-lint-ignore no-explicit-any
 async function fetchAll(buildQuery: () => any): Promise<Row[]> {
   const rows: Row[] = []
   for (let offset = 0; ; offset += PAGE_SIZE) {
-    const { data, error } = await buildQuery().range(offset, offset + PAGE_SIZE - 1)
+    const { data, error } = await buildQuery()
+      .order('id', { ascending: true })
+      .range(offset, offset + PAGE_SIZE - 1)
     if (error) throw error
     rows.push(...(data ?? []))
     if (!data || data.length < PAGE_SIZE) break
@@ -105,7 +141,7 @@ export async function fetchMonthlyReportData(
     .from('orders')
     .select('id, total_amount, payment_method, status, created_at')
     .gte('created_at', from)
-    .lte('created_at', to))
+    .lt('created_at', to))
 
   const { data: zReports, error: zErr } = await supabase
     .from('z_reports')
@@ -119,20 +155,20 @@ export async function fetchMonthlyReportData(
     .select('type, quantity, products(standard_price)')
     .in('type', ['wastage', 'staff_drink'])
     .gte('created_at', from)
-    .lte('created_at', to))
+    .lt('created_at', to))
 
   const { data: cashbackRows, error: cbErr } = await supabase
     .from('cashback_transactions')
     .select('amount, created_at')
     .gte('created_at', from)
-    .lte('created_at', to)
+    .lt('created_at', to)
   if (cbErr) throw cbErr
 
   const { data: prizeRows, error: pwErr } = await supabase
     .from('prize_wins')
     .select('amount, created_at')
     .gte('created_at', from)
-    .lte('created_at', to)
+    .lt('created_at', to)
   if (pwErr) throw pwErr
 
   // Outstanding tabs are a CURRENT snapshot — balance history isn't kept,
@@ -158,7 +194,7 @@ export async function fetchMonthlyReportData(
       openingFloat: null, actualCash: null, expectedCash: null, variance: null,
     }
   }
-  const dayOf = (ts: unknown) => byDay[String(ts).slice(0, 10)]
+  const dayOf = (ts: unknown) => byDay[tradingDayOf(ts)]
 
   for (const o of paid) {
     const day = dayOf(o.created_at)
@@ -230,7 +266,7 @@ export async function fetchMonthlyReportData(
     .from('order_items')
     .select('product_id, quantity, unit_price, products(name), orders!inner(created_at)')
     .gte('orders.created_at', from)
-    .lte('orders.created_at', to))
+    .lt('orders.created_at', to))
   const map: Record<string, { name: string; qty: number; revenue: number }> = {}
   for (const it of items) {
     const key = it.product_id
@@ -250,7 +286,7 @@ export function toCsv(data: MonthlyReportData): string {
   lines.push(`Fairmile Club — Monthly Report,${monthLabel(data.month)}`)
   lines.push('')
 
-  lines.push('Daily takings (cash basis — tab orders excluded; settlements included)')
+  lines.push('Daily takings (cash basis — tab orders excluded; settlements included; a day runs to 6am so late sessions count toward the night they started)')
   lines.push('Date,Cash,Card,Total,Refunds,Cashback,Prize wins,Opening float,Actual cash,Expected cash,Variance')
   for (const d of data.daily) {
     lines.push([

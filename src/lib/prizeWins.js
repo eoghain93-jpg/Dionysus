@@ -1,5 +1,6 @@
 import { supabase } from './supabase'
 import { getTillId } from './till'
+import { tradingDayRange } from './tradingDay'
 
 export async function recordPrizeWin(amount, machine, staff_id, till_id = getTillId()) {
   const { error } = await supabase
@@ -14,13 +15,12 @@ export async function recordPrizeWin(amount, machine, staff_id, till_id = getTil
  * for each machine individually.
  */
 export async function fetchPrizeWinsForDate(date) {
-  const from = `${date}T00:00:00`
-  const to   = `${date}T23:59:59`
+  const { from, to } = tradingDayRange(date)
   const { data, error } = await supabase
     .from('prize_wins')
     .select('amount, machine, till_id')
     .gte('created_at', from)
-    .lte('created_at', to)
+    .lt('created_at', to)
   if (error) throw error
   const rows = data ?? []
   const sumOf = (m) => rows

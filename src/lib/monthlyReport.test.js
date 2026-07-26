@@ -9,24 +9,27 @@ import { fetchMonthlyReportData, monthRange, monthLabel, toCsv } from './monthly
 
 const MONTH = '2026-05'
 
+// Fixtures carry the explicit +00:00 offset PostgREST emits for
+// timestamptz — offset-less strings would parse as host-local time and
+// make the suite timezone-dependent.
 const paidCash = (day, amount, id = `${day}-c`) =>
-  ({ id, total_amount: amount, payment_method: 'cash', status: 'paid', created_at: `2026-05-${day}T20:00:00` })
+  ({ id, total_amount: amount, payment_method: 'cash', status: 'paid', created_at: `2026-05-${day}T20:00:00+00:00` })
 const paidCard = (day, amount, id = `${day}-k`) =>
-  ({ id, total_amount: amount, payment_method: 'card', status: 'paid', created_at: `2026-05-${day}T20:30:00` })
+  ({ id, total_amount: amount, payment_method: 'card', status: 'paid', created_at: `2026-05-${day}T20:30:00+00:00` })
 const paidTab = (day, amount, id = `${day}-t`) =>
-  ({ id, total_amount: amount, payment_method: 'tab', status: 'paid', created_at: `2026-05-${day}T21:00:00` })
+  ({ id, total_amount: amount, payment_method: 'tab', status: 'paid', created_at: `2026-05-${day}T21:00:00+00:00` })
 const refundedCash = (day, amount, id = `${day}-r`) =>
-  ({ id, total_amount: amount, payment_method: 'cash', status: 'refunded', created_at: `2026-05-${day}T22:00:00` })
+  ({ id, total_amount: amount, payment_method: 'cash', status: 'refunded', created_at: `2026-05-${day}T22:00:00+00:00` })
 
 beforeEach(() => supabase.__reset())
 
 describe('monthRange / monthLabel', () => {
-  it('computes correct bounds for May 2026', () => {
+  it('computes trading-day bounds for May 2026 (06:00 to 06:00 exclusive)', () => {
     expect(monthRange('2026-05')).toEqual({
       start: '2026-05-01',
       end: '2026-05-31',
-      from: '2026-05-01T00:00:00',
-      to: '2026-05-31T23:59:59',
+      from: '2026-05-01T06:00:00',
+      to: '2026-06-01T06:00:00',
     })
   })
 
@@ -49,6 +52,21 @@ describe('fetchMonthlyReportData — daily breakdown', () => {
     const may5 = daily.find(d => d.date === '2026-05-05')
     expect(may4).toMatchObject({ cash: 10, card: 20, total: 30 })
     expect(may5).toMatchObject({ cash: 5, card: 0, total: 5 })
+  })
+
+  it('buckets after-midnight orders onto the trading day that started the session', async () => {
+    // World Cup pattern: last orders at 2am belong to the night before
+    supabase.__configure({
+      orders: { data: [
+        paidCash('09', 100),
+        { id: 'late-1', total_amount: 40, payment_method: 'cash', status: 'paid', created_at: '2026-05-10T02:15:00+00:00' },
+        { id: 'late-2', total_amount: 25, payment_method: 'card', status: 'paid', created_at: '2026-05-10T05:59:59+00:00' },
+        { id: 'next-day', total_amount: 10, payment_method: 'cash', status: 'paid', created_at: '2026-05-10T12:00:00+00:00' },
+      ] },
+    })
+    const { daily } = await fetchMonthlyReportData(MONTH)
+    expect(daily.find(d => d.date === '2026-05-09')).toMatchObject({ cash: 140, card: 25, total: 165 })
+    expect(daily.find(d => d.date === '2026-05-10')).toMatchObject({ cash: 10, card: 0, total: 10 })
   })
 
   it('produces a row for every day of the month', async () => {

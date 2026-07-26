@@ -36,13 +36,16 @@ describe('fetchCashbackForDate', () => {
   it('returns total cashback amount for a date', async () => {
     const select = vi.fn().mockReturnThis()
     const gte = vi.fn().mockReturnThis()
-    const lte = vi.fn().mockResolvedValue({
+    const lt = vi.fn().mockResolvedValue({
       data: [{ amount: 10 }, { amount: 5 }],
       error: null,
     })
-    supabase.from.mockReturnValue({ select, gte, lte })
+    supabase.from.mockReturnValue({ select, gte, lt })
 
     const result = await fetchCashbackForDate('2026-04-02')
+    // Trading-day window: 06:00 on the date to 06:00 the next morning
+    expect(gte).toHaveBeenCalledWith('created_at', '2026-04-02T06:00:00')
+    expect(lt).toHaveBeenCalledWith('created_at', '2026-04-03T06:00:00')
     expect(result).toBe(15)
   })
 })

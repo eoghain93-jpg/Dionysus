@@ -2,16 +2,17 @@ import { useState } from 'react'
 import { Download, Mail, RefreshCw, Package } from '../lib/icons'
 import { fetchStocktakeData, toCsv } from '../lib/stocktake'
 import { supabase } from '../lib/supabase'
+import { tradingTodayISO, addDaysISO } from '../lib/tradingDay'
 import { useToastStore } from '../hooks/useToast'
 
+// Trading day, matching the Reports page: before 6am "today" is still
+// last night's session.
 function todayISO() {
-  return new Date().toISOString().split('T')[0]
+  return tradingTodayISO()
 }
 
 function daysAgoISO(n) {
-  const d = new Date()
-  d.setDate(d.getDate() - n)
-  return d.toISOString().split('T')[0]
+  return addDaysISO(todayISO(), -n)
 }
 
 function fmt(n) {

@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { supabase } from '../lib/supabase'
+import { tradingDayRange, tradingTodayISO } from '../lib/tradingDay'
 import { useToastStore } from '../hooks/useToast'
 import { Download, BarChart2, TrendingUp, Clock, FileText, Package, Calendar } from '../lib/icons'
 import { Link } from 'react-router-dom'
@@ -9,8 +10,10 @@ import TopProducts from '../components/reports/TopProducts'
 import ZReportModal from '../components/reports/ZReportModal'
 import PinGate from '../components/till/PinGate'
 
+// Trading day, not calendar day: at 1am on a match night this is still
+// "yesterday", so the Z report defaults to the session being closed.
 function todayISO() {
-  return new Date().toISOString().split('T')[0]
+  return tradingTodayISO()
 }
 
 export default function ReportsPage() {
@@ -22,11 +25,12 @@ export default function ReportsPage() {
   async function handleExportCSV() {
     setExporting(true)
     try {
+      const range = tradingDayRange(date)
       const { data: orders } = await supabase
         .from('orders')
         .select('id, created_at, total_amount, payment_method, status, members(name, membership_number)')
-        .gte('created_at', `${date}T00:00:00`)
-        .lte('created_at', `${date}T23:59:59`)
+        .gte('created_at', range.from)
+        .lt('created_at', range.to)
         .order('created_at')
 
       if (!orders || orders.length === 0) {

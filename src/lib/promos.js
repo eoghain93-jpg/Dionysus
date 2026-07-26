@@ -1,11 +1,23 @@
 // src/lib/promos.js
 
+import { TRADING_DAY_CUTOFF_HOURS } from './tradingDay'
+
 /**
  * Parse a 'HH:MM' time string into total minutes since midnight.
  */
 function timeToMinutes(timeStr) {
   const [h, m] = timeStr.split(':').map(Number)
   return h * 60 + m
+}
+
+/**
+ * Reference moment for CALENDAR checks (date range, day of week): before
+ * 6am the trading day is still yesterday, so a match-night promo dated
+ * for the match survives extra time past midnight. Time-of-day windows
+ * keep the real clock — they already span midnight explicitly.
+ */
+function tradingRef(now) {
+  return new Date(now.getTime() - TRADING_DAY_CUTOFF_HOURS * 60 * 60 * 1000)
 }
 
 /**
@@ -42,7 +54,7 @@ export function isPromoActive(promo, now) {
   if (hasTimeWindow) {
     const days = promo.days_of_week
     if (days != null && days.length > 0) {
-      if (!days.includes(now.getDay())) return false
+      if (!days.includes(tradingRef(now).getDay())) return false
     }
 
     const currentMinutes = now.getHours() * 60 + now.getMinutes()
@@ -62,7 +74,7 @@ export function isPromoActive(promo, now) {
   }
 
   if (hasDateRange) {
-    const nowDateStr = toLocalDateStr(now)
+    const nowDateStr = toLocalDateStr(tradingRef(now))
     if (promo.start_date != null && nowDateStr < promo.start_date) return false
     if (promo.end_date != null && nowDateStr > promo.end_date) return false
   }
@@ -144,7 +156,8 @@ export function getPromoPrice(product, promos, now = new Date()) {
  * NO discount items, used purely as an on/off switch staff can toggle from the
  * Promos page. The bundle button shows only while a promo named `markerName`
  * is active for `now`. This reuses the existing promo scheduling/toggle UX and
- * the date backstop (a single-day marker auto-hides the button after midnight).
+ * the date backstop (a single-day marker auto-hides the button when the
+ * trading day ends at 6am — surviving extra time past midnight).
  *
  * @param {Array}  promos      - active promotions (as loaded into the till)
  * @param {string} markerName  - exact name of the marker promotion

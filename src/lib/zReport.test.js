@@ -173,3 +173,60 @@ describe('fetchZReportData — wastage and staff drinks', () => {
     expect(result.staffDrinks).toEqual([])
   })
 })
+
+describe('fetchZReportData — trading-day window', () => {
+  // Hard-coded expected strings on purpose: deriving them from
+  // tradingDayRange would make the test tautological.
+  it('queries orders for 06:00 on the date to 06:00 the next morning, exclusive', async () => {
+    setOrders([])
+    await fetchZReportData(DATE)
+    const chain = supabase.__chain('orders')
+    expect(chain.gte).toHaveBeenCalledWith('created_at', '2026-03-30T06:00:00')
+    expect(chain.lt).toHaveBeenCalledWith('created_at', '2026-03-31T06:00:00')
+  })
+
+  it('queries order_items on the same trading-day window', async () => {
+    setOrders([])
+    await fetchZReportData(DATE)
+    const chain = supabase.__chain('order_items')
+    expect(chain.gte).toHaveBeenCalledWith('orders.created_at', '2026-03-30T06:00:00')
+    expect(chain.lt).toHaveBeenCalledWith('orders.created_at', '2026-03-31T06:00:00')
+  })
+})
+
+describe('fetchZReportData — Friday weekly summary', () => {
+  // 2026-04-03 is a Friday (week runs Saturday 2026-03-28 → Friday).
+  const FRIDAY = '2026-04-03'
+  const weekRows = [
+    { id: 'w1', total_amount: 30.00, payment_method: 'card', status: 'paid', created_at: '2026-04-01T19:00:00+00:00' },
+    { id: 'w2', total_amount: 20.00, payment_method: 'cash', status: 'paid', created_at: '2026-04-03T20:00:00+00:00' },
+    // 01:30 Saturday morning — Friday's session, must stay in Friday's
+    // bucket and the closing week (the old calendar slice dropped it)
+    { id: 'w3', total_amount: 15.00, payment_method: 'cash', status: 'paid', created_at: '2026-04-04T01:30:00+00:00' },
+  ]
+
+  it('buckets an after-midnight order onto the trading day that started it', async () => {
+    setOrders(weekRows)
+    const { weekSummary } = await fetchZReportData(FRIDAY)
+    expect(weekSummary).not.toBeNull()
+    expect(weekSummary.weekStart).toBe('2026-03-28')
+    expect(weekSummary.weekEnd).toBe(FRIDAY)
+    const friday = weekSummary.daily.find(d => d.date === FRIDAY)
+    expect(friday).toMatchObject({ cash: 35.00, card: 0, total: 35.00 })
+    const wednesday = weekSummary.daily.find(d => d.date === '2026-04-01')
+    expect(wednesday).toMatchObject({ cash: 0, card: 30.00, total: 30.00 })
+    expect(weekSummary.weekRevenue).toBe(65.00)
+  })
+
+  it('spans the week window from Saturday 06:00 to Saturday 06:00', async () => {
+    setOrders(weekRows)
+    await fetchZReportData(FRIDAY)
+    // orders chains in creation order: day, week-to-date, week summary, prev week
+    const weekChain = supabase.__chain('orders', 2)
+    expect(weekChain.gte).toHaveBeenCalledWith('created_at', '2026-03-28T06:00:00')
+    expect(weekChain.lt).toHaveBeenCalledWith('created_at', '2026-04-04T06:00:00')
+    const prevChain = supabase.__chain('orders', 3)
+    expect(prevChain.gte).toHaveBeenCalledWith('created_at', '2026-03-21T06:00:00')
+    expect(prevChain.lt).toHaveBeenCalledWith('created_at', '2026-03-28T06:00:00')
+  })
+})

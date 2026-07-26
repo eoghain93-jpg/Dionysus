@@ -1,5 +1,6 @@
 import { supabase } from './supabase'
 import { fetchAllPages } from './fetchAllPages'
+import { tradingRange } from './tradingDay'
 
 // Stocktake report builder.
 //
@@ -14,12 +15,14 @@ import { fetchAllPages } from './fetchAllPages'
 // should be treated as a starting reference, not gospel.
 
 /**
- * @param {string} startDate  YYYY-MM-DD inclusive
- * @param {string} endDate    YYYY-MM-DD inclusive
+ * @param {string} startDate  YYYY-MM-DD inclusive (trading days, 06:00–06:00)
+ * @param {string} endDate    YYYY-MM-DD inclusive (trading days, 06:00–06:00)
  */
 export async function fetchStocktakeData(startDate, endDate) {
-  const from = `${startDate}T00:00:00`
-  const to   = `${endDate}T23:59:59`
+  // Trading-day bounds so stocktake activity ties up with the Z and
+  // monthly reports — a late session's sales stay in the period that
+  // rang them up.
+  const { from, to } = tradingRange(startDate, endDate)
 
   const { data: products, error: pErr } = await supabase
     .from('products')
@@ -37,7 +40,7 @@ export async function fetchStocktakeData(startDate, endDate) {
     .select('id')
     .eq('status', 'paid')
     .gte('created_at', from)
-    .lte('created_at', to))
+    .lt('created_at', to))
 
   const orderIds = orders.map(o => o.id)
 
@@ -72,7 +75,7 @@ export async function fetchStocktakeData(startDate, endDate) {
     .from('stock_movements')
     .select('product_id, quantity, type')
     .gte('created_at', from)
-    .lte('created_at', to))
+    .lt('created_at', to))
 
   const wasteQty = new Map()
   const sdQty = new Map()

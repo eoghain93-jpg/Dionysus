@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
+import { tradingDayRange } from '../../lib/tradingDay'
 import { CreditCard, Banknote } from '../../lib/icons'
 
 export default function DailySummary({ date }) {
@@ -12,11 +13,12 @@ export default function DailySummary({ date }) {
     setLoading(true)
     setError(null)
 
+    const range = tradingDayRange(date)
     supabase
       .from('orders')
       .select('id, total_amount, payment_method, status')
-      .gte('created_at', `${date}T00:00:00`)
-      .lte('created_at', `${date}T23:59:59`)
+      .gte('created_at', range.from)
+      .lt('created_at', range.to)
       .then(({ data, error: err }) => {
         if (err) {
           setError(err.message)

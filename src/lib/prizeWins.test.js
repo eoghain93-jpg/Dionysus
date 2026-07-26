@@ -37,7 +37,7 @@ describe('fetchPrizeWinsForDate', () => {
   it('returns total plus per-machine breakdown', async () => {
     const select = vi.fn().mockReturnThis()
     const gte = vi.fn().mockReturnThis()
-    const lte = vi.fn().mockResolvedValue({
+    const lt = vi.fn().mockResolvedValue({
       data: [
         { amount: 10, machine: '1', till_id: 'till-1' },
         { amount: 5,  machine: '1', till_id: 'till-2' },
@@ -45,7 +45,7 @@ describe('fetchPrizeWinsForDate', () => {
       ],
       error: null,
     })
-    supabase.from.mockReturnValue({ select, gte, lte })
+    supabase.from.mockReturnValue({ select, gte, lt })
 
     const result = await fetchPrizeWinsForDate('2026-04-29')
     expect(result).toEqual({
@@ -59,8 +59,8 @@ describe('fetchPrizeWinsForDate', () => {
   it('returns zeroes when no rows for date', async () => {
     const select = vi.fn().mockReturnThis()
     const gte = vi.fn().mockReturnThis()
-    const lte = vi.fn().mockResolvedValue({ data: [], error: null })
-    supabase.from.mockReturnValue({ select, gte, lte })
+    const lt = vi.fn().mockResolvedValue({ data: [], error: null })
+    supabase.from.mockReturnValue({ select, gte, lt })
 
     const result = await fetchPrizeWinsForDate('2026-04-29')
     expect(result).toEqual({
