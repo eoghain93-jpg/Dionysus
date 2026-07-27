@@ -136,6 +136,8 @@ export default function ZReportModal({ date, onClose, onDayClose }) {
     setCloseError(null)
     try {
       const { salesSummary: s, topProducts } = data
+      // Capture the staff member now — clearSession() below wipes it
+      const activeStaff = useSessionStore.getState().activeStaff
       const reconciliation = {
         openingFloat: combinedFloat,
         till1OpeningFloat: openingFloat,
@@ -180,6 +182,7 @@ export default function ZReportModal({ date, onClose, onDayClose }) {
           opening_float: combinedFloat,
           actual_cash: actualCash,
           closed_at: new Date().toISOString(),
+          closed_by: activeStaff?.id ?? null,
         }, { onConflict: 'report_date' })
 
       if (dbErr) throw new Error(dbErr.message)
@@ -197,6 +200,7 @@ export default function ZReportModal({ date, onClose, onDayClose }) {
           weekToDateRevenue: data.weekToDateRevenue ?? 0,
           outstandingTabs: data.outstandingTabs ?? 0,
           weekSummary: data.weekSummary ?? null,
+          closedBy: activeStaff?.name ?? null,
         },
       })
 
