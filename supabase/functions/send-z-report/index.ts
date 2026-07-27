@@ -78,6 +78,7 @@ interface ZReportBody {
   weekToDateRevenue?: number
   outstandingTabs?: number
   weekSummary?: WeekSummary | null
+  closedBy?: string | null
   recipientOverride?: string  // optional comma-separated list to send only to these addresses (validation/resends)
 }
 
@@ -121,6 +122,7 @@ function buildEmailText(body: ZReportBody): string {
   const lines: string[] = [
     `Z Report — ${reportDate}`,
     '='.repeat(40),
+    ...(body.closedBy ? [`Closed by: ${body.closedBy}`] : []),
     '',
     'SALES SUMMARY',
     '-'.repeat(40),

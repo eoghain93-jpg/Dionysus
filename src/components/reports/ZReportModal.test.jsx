@@ -20,13 +20,15 @@ vi.mock('../../lib/supabase', () => ({
 }))
 
 // Mock sessionStore
+const ACTIVE_STAFF = { id: 'staff-uuid-1', name: 'Sinead' }
 vi.mock('../../stores/sessionStore', () => ({
   useSessionStore: {
-    getState: vi.fn(() => ({ clearSession: vi.fn() })),
+    getState: vi.fn(() => ({ activeStaff: { id: 'staff-uuid-1', name: 'Sinead' }, clearSession: vi.fn() })),
   },
 }))
 
 import { fetchZReportData } from '../../lib/zReport'
+import { useSessionStore } from '../../stores/sessionStore'
 
 const REPORT_DATA = {
   salesSummary: {
@@ -55,6 +57,7 @@ const DATE = '2026-03-30'
 beforeEach(() => {
   vi.clearAllMocks()
   fetchZReportData.mockResolvedValue(REPORT_DATA)
+  useSessionStore.getState.mockReturnValue({ activeStaff: ACTIVE_STAFF, clearSession: vi.fn() })
 })
 
 // ---- Loading state ----
@@ -288,6 +291,41 @@ describe('ZReportModal — Close Day', () => {
     })
   })
 
+  it('Close Day records the logged-in staff member as closed_by', async () => {
+    const { supabase } = await import('../../lib/supabase')
+    const upsertMock = vi.fn().mockResolvedValue({ error: null })
+    supabase.from.mockReturnValue({ upsert: upsertMock })
+
+    render(<ZReportModal date={DATE} onClose={vi.fn()} onDayClose={vi.fn()} />)
+    await waitFor(() => screen.getByRole('button', { name: /close day/i }))
+    fireEvent.click(screen.getByRole('button', { name: /close day/i }))
+
+    await waitFor(() => {
+      expect(upsertMock).toHaveBeenCalledWith(
+        expect.objectContaining({ closed_by: ACTIVE_STAFF.id }),
+        expect.objectContaining({ onConflict: 'report_date' })
+      )
+    })
+  })
+
+  it('Close Day upserts closed_by null when no staff member is logged in', async () => {
+    const { supabase } = await import('../../lib/supabase')
+    const upsertMock = vi.fn().mockResolvedValue({ error: null })
+    supabase.from.mockReturnValue({ upsert: upsertMock })
+    useSessionStore.getState.mockReturnValue({ activeStaff: null, clearSession: vi.fn() })
+
+    render(<ZReportModal date={DATE} onClose={vi.fn()} onDayClose={vi.fn()} />)
+    await waitFor(() => screen.getByRole('button', { name: /close day/i }))
+    fireEvent.click(screen.getByRole('button', { name: /close day/i }))
+
+    await waitFor(() => {
+      expect(upsertMock).toHaveBeenCalledWith(
+        expect.objectContaining({ closed_by: null }),
+        expect.objectContaining({ onConflict: 'report_date' })
+      )
+    })
+  })
+
   it('Close Day invokes send-z-report edge function', async () => {
     const { supabase } = await import('../../lib/supabase')
     render(<ZReportModal date={DATE} onClose={vi.fn()} onDayClose={vi.fn()} />)
@@ -298,6 +336,20 @@ describe('ZReportModal — Close Day', () => {
       expect(supabase.functions.invoke).toHaveBeenCalledWith(
         'send-z-report',
         expect.objectContaining({ body: expect.objectContaining({ reportDate: DATE }) })
+      )
+    })
+  })
+
+  it('Close Day sends the closing staff name to the edge function', async () => {
+    const { supabase } = await import('../../lib/supabase')
+    render(<ZReportModal date={DATE} onClose={vi.fn()} onDayClose={vi.fn()} />)
+    await waitFor(() => screen.getByRole('button', { name: /close day/i }))
+    fireEvent.click(screen.getByRole('button', { name: /close day/i }))
+
+    await waitFor(() => {
+      expect(supabase.functions.invoke).toHaveBeenCalledWith(
+        'send-z-report',
+        expect.objectContaining({ body: expect.objectContaining({ closedBy: ACTIVE_STAFF.name }) })
       )
     })
   })
