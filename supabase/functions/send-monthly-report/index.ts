@@ -39,6 +39,10 @@ interface MonthlyReportBody {
   month?: string
   recipientOverride?: string
   dryRun?: boolean
+  // Marks a re-send that replaces an earlier report for the same month:
+  // "(updated/corrected)" is appended to the subject and a note added
+  // to the body so the accountant knows which version to keep.
+  corrected?: boolean
 }
 
 async function resolveRecipients(supabaseUrl: string, serviceKey: string, table: string): Promise<string[]> {
@@ -118,11 +122,18 @@ serve(async (req) => {
 
   const text = [
     `Monthly report for ${label} attached.`,
+    ...(body.corrected ? [
+      ``,
+      `This updated report replaces the ${label} version sent previously —`,
+      `please use this one.`,
+    ] : []),
     ``,
     `Figures are cash-basis, consistent with the daily Z reports:`,
     `revenue is cash + card actually received (tab settlements included);`,
     `tab orders themselves are excluded, with what's owed shown as`,
     `Outstanding Tabs. Wastage and staff drinks are valued at retail.`,
+    `Each day runs to 6am, so late sessions count toward the night`,
+    `they started.`,
     ``,
     `— Fairmile Sports & Social Club`,
   ].join('\n')
@@ -136,7 +147,7 @@ serve(async (req) => {
     body: JSON.stringify({
       from: 'epos@fairmile.club',
       to: recipients,
-      subject: `Monthly report — ${label}`,
+      subject: `Monthly report — ${label}${body.corrected ? ' (updated/corrected)' : ''}`,
       text,
       attachments: [{
         filename,
