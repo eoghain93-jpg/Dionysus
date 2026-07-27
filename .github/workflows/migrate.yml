@@ -17,6 +17,13 @@ jobs:
         with:
           version: latest
 
+      # The CLI's PostHog telemetry flush can hang on CI runners and fail
+      # the job with exit 1 even after the real command succeeded (seen
+      # 2026-07-27: "Timeout while shutting down PostHog" killed the run
+      # after "Finished supabase link.").
+      - name: Disable CLI telemetry
+        run: supabase telemetry disable
+
       - name: Link project
         run: supabase link --project-ref sqpokcnoefhfmcvdttqu
         env:
