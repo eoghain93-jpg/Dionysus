@@ -108,6 +108,60 @@ function tabsLine(label, amountStr) {
   return trimmed + ' '.repeat(RECEIPT_WIDTH - trimmed.length - amountStr.length) + amountStr + '\n'
 }
 
+function money(n) {
+  return n < 0 ? `-£${Math.abs(n).toFixed(2)}` : `£${Number(n).toFixed(2)}`
+}
+
+// Itemised statement of one member's open tab, for the customer to check:
+// every un-settled order with its line items, then the balance due. The
+// balance lives on members.tab_balance and can differ from the sum of the
+// order lines (manual adjustments), so any difference is shown explicitly
+// rather than letting the printout look like it doesn't add up.
+function buildTabStatementBytes({ member, orders, printedAt }) {
+  const balance = Number(member.tab_balance)
+  const ordersTotal = orders.reduce((sum, o) => sum + Number(o.total_amount), 0)
+  const adjustment = balance - ordersTotal
+
+  const label = member.membership_number
+    ? `${member.name} (${member.membership_number})`
+    : member.name
+
+  const parts = [
+    INIT,
+    SET_UK_CHARSET,
+    ALIGN_CENTER,
+    BOLD_ON,
+    encodePrinterText('THE FAIRMILE SPORTS & SOCIAL CLUB\n'),
+    encodePrinterText('TAB STATEMENT\n'),
+    BOLD_OFF,
+    ALIGN_LEFT,
+    encodePrinterText(`\n${label}\n`),
+    encodePrinterText(`Printed ${formatDate(printedAt)}\n`),
+  ]
+  for (const order of orders) {
+    parts.push(encodePrinterText(`\n${formatDate(order.created_at)}\n`))
+    for (const item of order.order_items ?? []) {
+      const name = item.products?.name ?? 'Unknown'
+      parts.push(encodePrinterText(
+        tabsLine(`  ${name} x ${item.quantity}`, money(item.unit_price * item.quantity))
+      ))
+    }
+  }
+  parts.push(encodePrinterText('\n' + '-'.repeat(RECEIPT_WIDTH) + '\n'))
+  // Compare in pennies so float noise can't fabricate an adjustment line.
+  if (Math.round(adjustment * 100) !== 0) {
+    parts.push(encodePrinterText(tabsLine('Items total', money(ordersTotal))))
+    parts.push(encodePrinterText(tabsLine('Adjustments', money(adjustment))))
+  }
+  parts.push(
+    BOLD_ON,
+    encodePrinterText(tabsLine('TOTAL DUE', money(balance))),
+    BOLD_OFF,
+    FEED_AND_CUT,
+  )
+  return concat(...parts)
+}
+
 function buildTabsListBytes({ tabs, printedAt }) {
   const dateTime = formatDate(printedAt)
   const total = tabs.reduce((sum, t) => sum + Number(t.tab_balance), 0)
@@ -180,6 +234,18 @@ export async function printReceipt({ orderId, total, paymentMethod, createdAt })
     // don't need it since no money is changing hands at this point.
     includeDrawer: paymentMethod === 'cash' || paymentMethod === 'card',
   })
+  if (!ip) {
+    console.info('[starPrinter] Simulation mode — no IP set:', bytes.length, 'bytes')
+    return
+  }
+  await sendBytes(ip, bytes)
+}
+
+// Print one member's itemised tab statement (see buildTabStatementBytes).
+// No drawer kick — nothing is being paid.
+export async function printTabStatement({ member, orders }) {
+  const ip = getPrinterIp()
+  const bytes = buildTabStatementBytes({ member, orders, printedAt: new Date().toISOString() })
   if (!ip) {
     console.info('[starPrinter] Simulation mode — no IP set:', bytes.length, 'bytes')
     return

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { getPrinterIp, printReceipt, printTabsList, openDrawer } from './starPrinter'
+import { getPrinterIp, printReceipt, printTabsList, printTabStatement, openDrawer } from './starPrinter'
 
 const RECEIPT = {
   orderId: 'some-uuid-ABCD1234',
@@ -159,6 +159,132 @@ describe('printReceipt — with IP set', () => {
   it('throws when bridge returns non-2xx status', async () => {
     fetch.mockResolvedValue({ ok: false, status: 502, text: () => Promise.resolve('') })
     await expect(printReceipt(RECEIPT)).rejects.toThrow('Bridge returned 502')
+  })
+})
+
+// ─── printTabStatement ──────────────────────────────────────────────────────
+
+const MEMBER = { id: 'm1', name: 'Alice', tab_balance: 15.50, membership_number: 'M0001' }
+
+const ORDERS = [
+  {
+    id: 'o1',
+    created_at: '2026-03-30T20:00:00Z',
+    total_amount: 15.50,
+    order_items: [
+      { id: 'oi1', quantity: 2, unit_price: 5.50, products: { name: 'Guinness' } },
+      { id: 'oi2', quantity: 1, unit_price: 4.50, products: { name: 'Coke' } },
+    ],
+  },
+]
+
+describe('printTabStatement — simulation mode (no IP)', () => {
+  it('resolves without throwing', async () => {
+    await expect(printTabStatement({ member: MEMBER, orders: ORDERS })).resolves.toBeUndefined()
+  })
+
+  it('logs to console.info', async () => {
+    await printTabStatement({ member: MEMBER, orders: ORDERS })
+    expect(console.info).toHaveBeenCalledWith(
+      expect.stringContaining('[starPrinter]'),
+      expect.any(Number),
+      expect.any(String)
+    )
+  })
+})
+
+describe('printTabStatement — with IP set', () => {
+  beforeEach(() => {
+    localStorage.setItem('printer_ip', '192.168.1.100')
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true }))
+  })
+
+  it('POSTs to the local bridge URL', async () => {
+    await printTabStatement({ member: MEMBER, orders: ORDERS })
+    expect(fetch).toHaveBeenCalledWith(
+      BRIDGE_URL,
+      expect.objectContaining({ method: 'POST' })
+    )
+  })
+
+  it('body contains club name and TAB STATEMENT heading', async () => {
+    await printTabStatement({ member: MEMBER, orders: ORDERS })
+    const body = bodyAsString(fetch.mock.calls[0])
+    expect(body).toContain('THE FAIRMILE SPORTS')
+    expect(body).toContain('TAB STATEMENT')
+  })
+
+  it('body contains the member name and membership number', async () => {
+    await printTabStatement({ member: MEMBER, orders: ORDERS })
+    expect(bodyAsString(fetch.mock.calls[0])).toContain('Alice (M0001)')
+  })
+
+  it('body contains each item with quantity and line total', async () => {
+    await printTabStatement({ member: MEMBER, orders: ORDERS })
+    const body = bodyAsString(fetch.mock.calls[0])
+    expect(body).toContain('Guinness x 2')
+    expect(body).toContain('11.00')
+    expect(body).toContain('Coke x 1')
+    expect(body).toContain('4.50')
+  })
+
+  it('body contains the order date', async () => {
+    await printTabStatement({ member: MEMBER, orders: ORDERS })
+    expect(bodyAsString(fetch.mock.calls[0])).toContain('/03/2026')
+  })
+
+  it('body contains TOTAL DUE with the tab balance', async () => {
+    await printTabStatement({ member: MEMBER, orders: ORDERS })
+    const body = bodyAsString(fetch.mock.calls[0])
+    expect(body).toContain('TOTAL DUE')
+    expect(body).toContain('15.50')
+  })
+
+  it('omits the adjustments breakdown when items add up to the balance', async () => {
+    await printTabStatement({ member: MEMBER, orders: ORDERS })
+    expect(bodyAsString(fetch.mock.calls[0])).not.toContain('Adjustments')
+  })
+
+  it('shows items total and adjustments when the balance differs from the item sum', async () => {
+    await printTabStatement({ member: { ...MEMBER, tab_balance: 12.50 }, orders: ORDERS })
+    const body = bodyAsString(fetch.mock.calls[0])
+    expect(body).toContain('Items total')
+    expect(body).toContain('Adjustments')
+    expect(body).toContain('3.00')
+    expect(body).toContain('12.50')
+  })
+
+  it('falls back to Unknown for items whose product is missing', async () => {
+    const orders = [{
+      id: 'o1', created_at: '2026-03-30T20:00:00Z', total_amount: 5,
+      order_items: [{ id: 'oi1', quantity: 1, unit_price: 5, products: null }],
+    }]
+    await printTabStatement({ member: MEMBER, orders })
+    expect(bodyAsString(fetch.mock.calls[0])).toContain('Unknown x 1')
+  })
+
+  it('body does NOT contain drawer pulse (nothing is being paid)', async () => {
+    await printTabStatement({ member: MEMBER, orders: ORDERS })
+    const arr = Array.from(fetch.mock.calls[0][1].body)
+    expect(arr).not.toContain(0x07)
+  })
+
+  it('body contains feed-and-partial-cut command (ESC d 3)', async () => {
+    await printTabStatement({ member: MEMBER, orders: ORDERS })
+    const arr = Array.from(fetch.mock.calls[0][1].body)
+    let found = false
+    for (let i = 0; i < arr.length - 2; i++) {
+      if (arr[i] === 0x1B && arr[i + 1] === 0x64 && arr[i + 2] === 0x03) {
+        found = true
+        break
+      }
+    }
+    expect(found).toBe(true)
+  })
+
+  it('throws when bridge returns non-2xx status', async () => {
+    fetch.mockResolvedValue({ ok: false, status: 502, text: () => Promise.resolve('') })
+    await expect(printTabStatement({ member: MEMBER, orders: ORDERS })).rejects.toThrow('Bridge returned 502')
   })
 })
 
