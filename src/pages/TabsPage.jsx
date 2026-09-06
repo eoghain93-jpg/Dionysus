@@ -5,6 +5,8 @@ import { fetchOpenTabs, fetchTabOrders } from '../lib/tabs'
 import SettleTabModal from '../components/members/SettleTabModal'
 import AdjustTabModal from '../components/members/AdjustTabModal'
 import { removeOrderFromTab } from '../lib/tabs'
+import { printTabsList, printTabStatement } from '../lib/starPrinter'
+import { useToastStore } from '../hooks/useToast'
 import BlurredAmount from '../components/ui/BlurredAmount'
 
 export default function TabsPage() {
@@ -17,6 +19,8 @@ export default function TabsPage() {
   const [settlingMember, setSettlingMember] = useState(null)
   const [adjustingMember, setAdjustingMember] = useState(null)
   const [removingOrderId, setRemovingOrderId] = useState(null)
+  const [printing, setPrinting] = useState(false)
+  const [printingStatementId, setPrintingStatementId] = useState(null)
 
   const loadTabs = useCallback(() => {
     setLoading(true)
@@ -89,6 +93,33 @@ export default function TabsPage() {
     }
   }
 
+  async function handlePrint() {
+    setPrinting(true)
+    try {
+      await printTabsList(tabs)
+    } catch (err) {
+      console.error('Print failed:', err)
+      useToastStore.getState().addToast('Print failed — check printer connection', 'error')
+    } finally {
+      setPrinting(false)
+    }
+  }
+
+  async function handlePrintStatement(member) {
+    setPrintingStatementId(member.id)
+    try {
+      // Re-fetch rather than reuse the expanded rows so the statement always
+      // reflects the live tab, even if an order was removed on another till.
+      const orders = await fetchTabOrders(member.id)
+      await printTabStatement({ member, orders })
+    } catch (err) {
+      console.error('Print failed:', err)
+      useToastStore.getState().addToast('Print failed — check printer connection', 'error')
+    } finally {
+      setPrintingStatementId(null)
+    }
+  }
+
   const total = tabs.reduce((sum, m) => sum + Number(m.tab_balance), 0)
 
   return (
@@ -101,11 +132,21 @@ export default function TabsPage() {
           Tabs
         </h1>
         {tabs.length > 0 && (
-          <div className="text-right">
-            <p className="text-slate-400 text-xs">Total outstanding</p>
-            <BlurredAmount className="text-white font-bold text-lg">
-              £{total.toFixed(2)}
-            </BlurredAmount>
+          <div className="flex items-center gap-4">
+            <button
+              onClick={handlePrint}
+              disabled={printing}
+              aria-label="Print tabs"
+              className="shrink-0 px-3 min-h-[36px] rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-300 font-bold text-xs transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-default focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617]"
+            >
+              {printing ? 'Printing…' : 'Print'}
+            </button>
+            <div className="text-right">
+              <p className="text-slate-400 text-xs">Total outstanding</p>
+              <BlurredAmount className="text-white font-bold text-lg">
+                £{total.toFixed(2)}
+              </BlurredAmount>
+            </div>
           </div>
         )}
       </div>
@@ -158,7 +199,15 @@ export default function TabsPage() {
                   {/* Expanded order breakdown */}
                   {isExpanded && (
                     <div className="px-4 pb-3 flex flex-col gap-2">
-                      <div className="flex justify-end">
+                      <div className="flex justify-end gap-2">
+                        <button
+                          onClick={() => handlePrintStatement(member)}
+                          disabled={printingStatementId === member.id}
+                          aria-label={`Print tab statement for ${member.name}`}
+                          className="shrink-0 px-3 min-h-[36px] rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-300 font-bold text-xs transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-default focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617]"
+                        >
+                          {printingStatementId === member.id ? 'Printing…' : 'Print'}
+                        </button>
                         <button
                           onClick={() => setAdjustingMember(member)}
                           aria-label={`Adjust tab for ${member.name}`}
