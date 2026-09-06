@@ -1,4 +1,5 @@
 // src/pages/TabsPage.test.jsx
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor, fireEvent } from '@testing-library/react'
 import TabsPage from './TabsPage'
 
@@ -7,6 +8,10 @@ vi.mock('../lib/tabs', () => ({
   fetchTabOrders: vi.fn(),
   adjustTabBalance: vi.fn(),
   removeOrderFromTab: vi.fn(),
+}))
+
+vi.mock('../lib/starPrinter', () => ({
+  printTabsList: vi.fn(),
 }))
 
 vi.mock('../components/members/SettleTabModal', () => ({
@@ -31,6 +36,7 @@ vi.mock('../components/members/AdjustTabModal', () => ({
 }))
 
 import { fetchOpenTabs, fetchTabOrders } from '../lib/tabs'
+import { printTabsList } from '../lib/starPrinter'
 
 const mockTabs = [
   { id: 'm1', name: 'Alice', tab_balance: 15.50, membership_number: 'M0001' },
@@ -53,6 +59,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   fetchOpenTabs.mockResolvedValue(mockTabs)
   fetchTabOrders.mockResolvedValue(mockOrders)
+  printTabsList.mockResolvedValue(undefined)
 })
 
 describe('TabsPage', () => {
@@ -196,6 +203,41 @@ describe('TabsPage', () => {
     await waitFor(() => screen.getByRole('button', { name: /adjust/i }))
     fireEvent.click(screen.getByRole('button', { name: /adjust/i }))
     expect(screen.getByLabelText('adjust-tab')).toBeInTheDocument()
+  })
+
+  it('shows a Print button when there are open tabs', async () => {
+    render(<TabsPage />)
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /print tabs/i })).toBeInTheDocument()
+    })
+  })
+
+  it('does NOT show a Print button when there are no open tabs', async () => {
+    fetchOpenTabs.mockResolvedValue([])
+    render(<TabsPage />)
+    await waitFor(() => screen.getByText(/no open tabs/i))
+    expect(screen.queryByRole('button', { name: /print tabs/i })).not.toBeInTheDocument()
+  })
+
+  it('prints the current tabs when Print is clicked', async () => {
+    render(<TabsPage />)
+    await waitFor(() => screen.getByRole('button', { name: /print tabs/i }))
+    fireEvent.click(screen.getByRole('button', { name: /print tabs/i }))
+    await waitFor(() => {
+      expect(printTabsList).toHaveBeenCalledWith(mockTabs)
+    })
+  })
+
+  it('re-enables the Print button after a failed print', async () => {
+    printTabsList.mockRejectedValue(new Error('Bridge returned 502'))
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    render(<TabsPage />)
+    await waitFor(() => screen.getByRole('button', { name: /print tabs/i }))
+    fireEvent.click(screen.getByRole('button', { name: /print tabs/i }))
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /print tabs/i })).not.toBeDisabled()
+    })
+    vi.restoreAllMocks()
   })
 
   it('shows a Remove button for each order in expanded row', async () => {

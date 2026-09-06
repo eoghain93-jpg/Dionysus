@@ -97,6 +97,46 @@ function buildReceiptBytes({ orderId, total, paymentMethod, createdAt, includeDr
   return concat(...parts)
 }
 
+// 80mm paper, Font A — 48 columns on this mC-Print3.
+const RECEIPT_WIDTH = 48
+
+// One tab per line: name (and membership number) left, balance right.
+// Truncates the name rather than wrapping so amounts stay column-aligned.
+function tabsLine(label, amountStr) {
+  const maxLabel = RECEIPT_WIDTH - amountStr.length - 1
+  const trimmed = label.length > maxLabel ? label.slice(0, maxLabel) : label
+  return trimmed + ' '.repeat(RECEIPT_WIDTH - trimmed.length - amountStr.length) + amountStr + '\n'
+}
+
+function buildTabsListBytes({ tabs, printedAt }) {
+  const dateTime = formatDate(printedAt)
+  const total = tabs.reduce((sum, t) => sum + Number(t.tab_balance), 0)
+
+  const parts = [
+    INIT,
+    SET_UK_CHARSET,
+    ALIGN_CENTER,
+    BOLD_ON,
+    encodePrinterText('THE FAIRMILE SPORTS & SOCIAL CLUB\n'),
+    encodePrinterText('OPEN TABS\n'),
+    BOLD_OFF,
+    ALIGN_LEFT,
+    encodePrinterText(`\n${dateTime}\n\n`),
+  ]
+  for (const t of tabs) {
+    const label = t.membership_number ? `${t.name} (${t.membership_number})` : t.name
+    parts.push(encodePrinterText(tabsLine(label, `£${Number(t.tab_balance).toFixed(2)}`)))
+  }
+  parts.push(
+    encodePrinterText('-'.repeat(RECEIPT_WIDTH) + '\n'),
+    BOLD_ON,
+    encodePrinterText(tabsLine(`TOTAL (${tabs.length})`, `£${total.toFixed(2)}`)),
+    BOLD_OFF,
+    FEED_AND_CUT,
+  )
+  return concat(...parts)
+}
+
 function buildDrawerBytes() {
   // Real-time drawer kick bypasses the print buffer, so no form feed needed
   // (and no form feed = no paper movement / cut).
@@ -140,6 +180,18 @@ export async function printReceipt({ orderId, total, paymentMethod, createdAt })
     // don't need it since no money is changing hands at this point.
     includeDrawer: paymentMethod === 'cash' || paymentMethod === 'card',
   })
+  if (!ip) {
+    console.info('[starPrinter] Simulation mode — no IP set:', bytes.length, 'bytes')
+    return
+  }
+  await sendBytes(ip, bytes)
+}
+
+// Print the list of open tabs (name, membership number, balance) with a
+// grand total. No drawer kick — nothing is being paid.
+export async function printTabsList(tabs) {
+  const ip = getPrinterIp()
+  const bytes = buildTabsListBytes({ tabs, printedAt: new Date().toISOString() })
   if (!ip) {
     console.info('[starPrinter] Simulation mode — no IP set:', bytes.length, 'bytes')
     return

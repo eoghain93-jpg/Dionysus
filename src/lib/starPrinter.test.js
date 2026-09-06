@@ -1,4 +1,5 @@
-import { getPrinterIp, printReceipt, openDrawer } from './starPrinter'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { getPrinterIp, printReceipt, printTabsList, openDrawer } from './starPrinter'
 
 const RECEIPT = {
   orderId: 'some-uuid-ABCD1234',
@@ -158,6 +159,99 @@ describe('printReceipt — with IP set', () => {
   it('throws when bridge returns non-2xx status', async () => {
     fetch.mockResolvedValue({ ok: false, status: 502, text: () => Promise.resolve('') })
     await expect(printReceipt(RECEIPT)).rejects.toThrow('Bridge returned 502')
+  })
+})
+
+// ─── printTabsList ───────────────────────────────────────────────────────────
+
+const TABS = [
+  { id: 'm1', name: 'Alice', tab_balance: 15.50, membership_number: 'M0001' },
+  { id: 'm2', name: 'Bob', tab_balance: 8.00, membership_number: 'M0002' },
+]
+
+describe('printTabsList — simulation mode (no IP)', () => {
+  it('resolves without throwing', async () => {
+    await expect(printTabsList(TABS)).resolves.toBeUndefined()
+  })
+
+  it('logs to console.info', async () => {
+    await printTabsList(TABS)
+    expect(console.info).toHaveBeenCalledWith(
+      expect.stringContaining('[starPrinter]'),
+      expect.any(Number),
+      expect.any(String)
+    )
+  })
+})
+
+describe('printTabsList — with IP set', () => {
+  beforeEach(() => {
+    localStorage.setItem('printer_ip', '192.168.1.100')
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true }))
+  })
+
+  it('POSTs to the local bridge URL', async () => {
+    await printTabsList(TABS)
+    expect(fetch).toHaveBeenCalledWith(
+      BRIDGE_URL,
+      expect.objectContaining({ method: 'POST' })
+    )
+  })
+
+  it('body contains club name and OPEN TABS heading', async () => {
+    await printTabsList(TABS)
+    const body = bodyAsString(fetch.mock.calls[0])
+    expect(body).toContain('THE FAIRMILE SPORTS')
+    expect(body).toContain('OPEN TABS')
+  })
+
+  it('body contains each member name, membership number and balance', async () => {
+    await printTabsList(TABS)
+    const body = bodyAsString(fetch.mock.calls[0])
+    expect(body).toContain('Alice (M0001)')
+    expect(body).toContain('15.50')
+    expect(body).toContain('Bob (M0002)')
+    expect(body).toContain('8.00')
+  })
+
+  it('body contains grand total with tab count', async () => {
+    await printTabsList(TABS)
+    const body = bodyAsString(fetch.mock.calls[0])
+    expect(body).toContain('TOTAL (2)')
+    expect(body).toContain('23.50')
+  })
+
+  it('truncates long names so the balance stays on the same line', async () => {
+    const longName = 'X'.repeat(80)
+    await printTabsList([{ id: 'm1', name: longName, tab_balance: 5, membership_number: 'M0001' }])
+    const body = bodyAsString(fetch.mock.calls[0])
+    const line = body.split('\n').find(l => l.includes('XXX'))
+    expect(line.length).toBeLessThanOrEqual(48)
+    expect(line.endsWith('#5.00')).toBe(true) // £ is encoded as byte 0x23 (UK charset)
+  })
+
+  it('body contains feed-and-partial-cut command (ESC d 3)', async () => {
+    await printTabsList(TABS)
+    const arr = Array.from(fetch.mock.calls[0][1].body)
+    let found = false
+    for (let i = 0; i < arr.length - 2; i++) {
+      if (arr[i] === 0x1B && arr[i + 1] === 0x64 && arr[i + 2] === 0x03) {
+        found = true
+        break
+      }
+    }
+    expect(found).toBe(true)
+  })
+
+  it('body does NOT contain drawer pulse (no money changes hands)', async () => {
+    await printTabsList(TABS)
+    const arr = Array.from(fetch.mock.calls[0][1].body)
+    expect(arr).not.toContain(0x07)
+  })
+
+  it('throws when bridge returns non-2xx status', async () => {
+    fetch.mockResolvedValue({ ok: false, status: 502, text: () => Promise.resolve('') })
+    await expect(printTabsList(TABS)).rejects.toThrow('Bridge returned 502')
   })
 })
 
