@@ -3,15 +3,17 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import RecentSalesModal from './RecentSalesModal'
 import { useSessionStore } from '../../stores/sessionStore'
 
-const { mockFetchTodaysOrders, mockCorrect, mockAddToast } = vi.hoisted(() => ({
+const { mockFetchTodaysOrders, mockCorrect, mockUndo, mockAddToast } = vi.hoisted(() => ({
   mockFetchTodaysOrders: vi.fn(),
   mockCorrect: vi.fn(),
+  mockUndo: vi.fn(),
   mockAddToast: vi.fn(),
 }))
 
 vi.mock('../../lib/orders', () => ({
   fetchTodaysOrders: mockFetchTodaysOrders,
   correctOrderPaymentMethod: mockCorrect,
+  undoTabSettlement: mockUndo,
 }))
 
 vi.mock('../../hooks/useToast', () => ({
@@ -41,6 +43,7 @@ beforeEach(() => {
   useSessionStore.setState({ activeStaff: { id: 'staff-1', name: 'Dave' } })
   mockFetchTodaysOrders.mockResolvedValue(ORDERS)
   mockCorrect.mockResolvedValue('card')
+  mockUndo.mockResolvedValue(260.10)
 })
 
 describe('RecentSalesModal', () => {
@@ -108,5 +111,55 @@ describe('RecentSalesModal', () => {
     mockFetchTodaysOrders.mockResolvedValue([])
     render(<RecentSalesModal onClose={vi.fn()} />)
     expect(await screen.findByText(/no sales yet today/i)).toBeInTheDocument()
+  })
+
+  describe('undo tab payment', () => {
+    const SETTLEMENT = {
+      id: 'o-settle', created_at: `${TODAY}T18:56:00`, total_amount: 260.10,
+      payment_method: 'card', status: 'paid', member_id: 'm-dan',
+      is_tab_settlement: true, members: { name: 'Dan Blyth' },
+    }
+
+    beforeEach(() => mockFetchTodaysOrders.mockResolvedValue([SETTLEMENT, ...ORDERS]))
+
+    it('labels tab payments with the member and offers Undo only on them', async () => {
+      render(<RecentSalesModal onClose={vi.fn()} />)
+      expect(await screen.findByText(/tab payment · dan blyth/i)).toBeInTheDocument()
+      expect(screen.getAllByRole('button', { name: /^undo/i })).toHaveLength(1)
+      // A settlement is still a cash/card sale: the method switch stays
+      expect(screen.getByRole('button', { name: /switch 18:56 sale to cash/i })).toBeInTheDocument()
+    })
+
+    it('requires a PIN before undoing', async () => {
+      render(<RecentSalesModal onClose={vi.fn()} />)
+      fireEvent.click(await screen.findByRole('button', { name: /undo 18:56 tab payment/i }))
+      expect(screen.getByTestId('pin-gate')).toHaveTextContent('Undo Tab Payment')
+      expect(mockUndo).not.toHaveBeenCalled()
+    })
+
+    it('undoes after PIN confirm, tells staff to re-settle, and reloads', async () => {
+      render(<RecentSalesModal onClose={vi.fn()} />)
+      fireEvent.click(await screen.findByRole('button', { name: /undo 18:56 tab payment/i }))
+      fireEvent.click(screen.getByRole('button', { name: /enter pin/i }))
+
+      await waitFor(() => {
+        expect(mockUndo).toHaveBeenCalledWith('o-settle', 'staff-1')
+        expect(mockAddToast).toHaveBeenCalledWith(
+          expect.stringMatching(/£260\.10 put back on Dan Blyth’s tab.*settle what was actually paid/i), 'success')
+      })
+      expect(mockCorrect).not.toHaveBeenCalled()
+      expect(mockFetchTodaysOrders).toHaveBeenCalledTimes(2)
+    })
+
+    it('surfaces the server guard message when the undo is refused', async () => {
+      mockUndo.mockRejectedValue(new Error('there is a later payment on this tab — undo that one first'))
+      render(<RecentSalesModal onClose={vi.fn()} />)
+      fireEvent.click(await screen.findByRole('button', { name: /undo 18:56 tab payment/i }))
+      fireEvent.click(screen.getByRole('button', { name: /enter pin/i }))
+
+      await waitFor(() => {
+        expect(mockAddToast).toHaveBeenCalledWith(expect.stringMatching(/later payment/i), 'error')
+      })
+    })
   })
 })

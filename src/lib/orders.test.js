@@ -12,7 +12,7 @@ import { supabase } from './supabase'
 import { db } from './db'
 import {
   newOrderId, createOrderWithItems, saveOrder,
-  fetchTodaysOrders, correctOrderPaymentMethod,
+  fetchTodaysOrders, correctOrderPaymentMethod, undoTabSettlement,
 } from './orders'
 import { tradingDayRange, tradingTodayISO } from './tradingDay'
 
@@ -173,5 +173,35 @@ describe('correctOrderPaymentMethod', () => {
     })
     await expect(correctOrderPaymentMethod('order-1', 'cash', 'staff-1'))
       .rejects.toThrow('already been closed')
+  })
+})
+
+describe('undoTabSettlement', () => {
+  it('calls the RPC with order id and staff id, returning the new balance', async () => {
+    supabase.rpc.mockResolvedValueOnce({ data: '260.10', error: null })
+
+    const balance = await undoTabSettlement('order-1', 'staff-1')
+
+    expect(supabase.rpc).toHaveBeenCalledWith('undo_tab_settlement', {
+      p_order_id: 'order-1',
+      p_staff_id: 'staff-1',
+    })
+    expect(balance).toBe(260.1)
+  })
+
+  it('passes null staff id when none provided', async () => {
+    supabase.rpc.mockResolvedValueOnce({ data: 0, error: null })
+    await undoTabSettlement('order-1', undefined)
+    expect(supabase.rpc).toHaveBeenCalledWith('undo_tab_settlement',
+      expect.objectContaining({ p_staff_id: null }))
+  })
+
+  it('throws the server guard message on error', async () => {
+    supabase.rpc.mockResolvedValueOnce({
+      data: null,
+      error: { message: 'there is a later payment on this tab — undo that one first' },
+    })
+    await expect(undoTabSettlement('order-1', 'staff-1'))
+      .rejects.toThrow('later payment')
   })
 })
