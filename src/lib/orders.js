@@ -37,7 +37,7 @@ export async function fetchTodaysOrders() {
   const { from, to } = tradingDayRange(tradingTodayISO())
   const { data, error } = await supabase
     .from('orders')
-    .select('id, created_at, total_amount, payment_method, status')
+    .select('id, created_at, total_amount, payment_method, status, member_id, is_tab_settlement, members(name)')
     .eq('status', 'paid')
     .gte('created_at', from)
     .lt('created_at', to)
@@ -59,6 +59,20 @@ export async function correctOrderPaymentMethod(order_id, new_method, staff_id) 
   })
   if (error) throw error
   return data
+}
+
+// Undo a mistaken tab settlement via the undo_tab_settlement RPC: voids the
+// payment (drops out of takings), puts the amount back on the tab, restores
+// last_settled_at and writes a tab_adjustments audit row. Same guard rails
+// as payment correction (same trading day, day not closed), plus only the
+// member's latest settlement. Returns the new tab balance. Throws on error.
+export async function undoTabSettlement(order_id, staff_id) {
+  const { data, error } = await supabase.rpc('undo_tab_settlement', {
+    p_order_id: order_id,
+    p_staff_id: staff_id ?? null,
+  })
+  if (error) throw error
+  return Number(data)
 }
 
 // Save an order atomically online, falling back to the offline queue.

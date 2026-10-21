@@ -75,81 +75,33 @@ describe('upsertMember', () => {
 })
 
 describe('settleTab', () => {
-  // The balance maths happens server-side in the adjust_tab_balance RPC
-  // (atomic UPDATE, clamped at zero); the mock returns the post-update
-  // balance the server would compute.
-  function setupMocks(newBalanceFromRpc) {
-    supabase.rpc.mockResolvedValue({ data: newBalanceFromRpc, error: null })
-    supabase.__configure({
-      members: { error: null }, // last_settled_at stamp update
-      orders: { error: null },  // settlement order insert
-    })
-  }
-
-  const ordersInsert = () => supabase.__chain('orders').insert
-
-  it('settles via the atomic RPC and records a settlement order', async () => {
-    setupMocks(0)
+  // Balance maths, the last_settled_at stamp and the settlement order insert
+  // all happen server-side in the settle_tab RPC (one transaction).
+  it('settles via the atomic settle_tab RPC with the till id', async () => {
+    supabase.rpc.mockResolvedValue({ data: 0, error: null })
     await settleTab('member-1', 15.50, 'cash')
-    expect(supabase.rpc).toHaveBeenCalledWith('adjust_tab_balance', {
+    expect(supabase.rpc).toHaveBeenCalledWith('settle_tab', {
       p_member_id: 'member-1',
-      p_delta: -15.50,
+      p_amount: 15.50,
+      p_payment_method: 'cash',
+      p_till_id: expect.any(String),
     })
-    expect(ordersInsert()).toHaveBeenCalledWith(expect.objectContaining({
-      member_id: 'member-1',
-      payment_method: 'cash',
-      total_amount: 15.50,
-      status: 'paid',
-    }))
   })
 
-  it('deducts a partial amount leaving remainder on tab', async () => {
-    setupMocks(5.50)
+  it('makes no client-side table writes (no split-brain settle)', async () => {
+    supabase.rpc.mockResolvedValue({ data: 5.50, error: null })
     await settleTab('member-1', 10.00, 'card')
-    expect(supabase.rpc).toHaveBeenCalledWith('adjust_tab_balance', {
-      p_member_id: 'member-1',
-      p_delta: -10.00,
-    })
-    expect(ordersInsert()).toHaveBeenCalledWith(expect.objectContaining({
-      total_amount: 10.00,
-      payment_method: 'card',
-    }))
+    expect(supabase.__chain('members')).toBeUndefined()
+    expect(supabase.__chain('orders')).toBeUndefined()
   })
 
-  it('stamps last_settled_at when the balance hits zero (full settlement)', async () => {
-    setupMocks(0)
-    await settleTab('member-1', 15.50, 'cash')
-    const updatePayload = supabase.__chain('members').update.mock.calls[0][0]
-    expect(updatePayload.last_settled_at).toEqual(expect.any(String))
-    // ISO 8601 timestamp shape
-    expect(updatePayload.last_settled_at).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/)
-  })
-
-  it('does NOT stamp last_settled_at on a partial settlement', async () => {
-    setupMocks(5.50)
-    await settleTab('member-1', 10.00, 'card')
-    expect(supabase.__chain('members')).toBeUndefined() // no members update at all
-  })
-
-  it('stamps last_settled_at on overpayment (server clamps the balance to zero)', async () => {
-    setupMocks(0) // RPC returns 0 even though delta exceeded the balance
-    await settleTab('member-1', 100.00, 'cash')
-    expect(supabase.rpc).toHaveBeenCalledWith('adjust_tab_balance', {
-      p_member_id: 'member-1',
-      p_delta: -100.00,
-    })
-    const updatePayload = supabase.__chain('members').update.mock.calls[0][0]
-    expect(updatePayload.last_settled_at).toEqual(expect.any(String))
+  it('returns the new balance from the server', async () => {
+    supabase.rpc.mockResolvedValue({ data: '5.50', error: null })
+    await expect(settleTab('member-1', 10.00, 'card')).resolves.toBe(5.5)
   })
 
   it('throws when the RPC fails (Supabase returns errors, not throws)', async () => {
     supabase.rpc.mockResolvedValue({ data: null, error: { message: 'member not found' } })
     await expect(settleTab('member-1', 10.00, 'cash')).rejects.toThrow('member not found')
-  })
-
-  it('throws when the settlement order insert fails', async () => {
-    supabase.rpc.mockResolvedValue({ data: 5.50, error: null })
-    supabase.__configure({ orders: { error: { message: 'insert failed' } } })
-    await expect(settleTab('member-1', 10.00, 'cash')).rejects.toThrow('insert failed')
   })
 })

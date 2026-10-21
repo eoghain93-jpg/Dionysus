@@ -2,7 +2,6 @@ import { supabase } from './supabase'
 import { db } from './db'
 import { useSyncStore } from '../stores/syncStore'
 import { getTillId } from './till'
-import { applyTabDelta } from './tabs'
 
 export async function fetchMembers() {
   const { isOnline } = useSyncStore.getState()
@@ -108,28 +107,16 @@ export async function upsertMember(member) {
 }
 
 export async function settleTab(member_id, amount, payment_method) {
-  // Atomic decrement via the adjust_tab_balance RPC (clamped at zero
-  // server-side) — no read-modify-write, so a concurrent tab order on the
-  // other till can't be lost.
-  const newBalance = await applyTabDelta(member_id, -amount)
-
-  // Only stamp last_settled_at on a FULL settlement (balance hits zero).
-  // Partial settlements leave the tab open with previous orders still on
-  // it, so we must keep the line items visible in the Tabs view.
-  if (newBalance === 0) {
-    const { error } = await supabase
-      .from('members')
-      .update({ last_settled_at: new Date().toISOString() })
-      .eq('id', member_id)
-    if (error) throw error
-  }
-
-  const { error: orderError } = await supabase.from('orders').insert({
-    member_id,
-    payment_method,
-    total_amount: amount,
-    status: 'paid',
-    till_id: getTillId(),
+  // One atomic RPC: balance decrement (clamped at zero), last_settled_at
+  // stamp on a FULL settlement only, and the settlement order insert. The
+  // order is flagged as a tab settlement and remembers the previous
+  // last_settled_at, so a mistaken settle can be undone from Recent Sales.
+  const { data, error } = await supabase.rpc('settle_tab', {
+    p_member_id: member_id,
+    p_amount: amount,
+    p_payment_method: payment_method,
+    p_till_id: getTillId(),
   })
-  if (orderError) throw orderError
+  if (error) throw error
+  return Number(data)
 }
