@@ -70,3 +70,51 @@ h1, h2, h3 {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* Davey mode — staff Easter egg (see components/ui/DaveyMode.jsx) */
+.davey-overlay { animation: davey-fade 5.5s ease-in-out both; }
+.davey-stripe { animation: davey-drop 0.5s cubic-bezier(.2,.9,.3,1.3) both; }
+.davey-magpie { animation: davey-fly 3s linear both; }
+.davey-wing { transform-origin: 62px 30px; animation: davey-flap 0.25s ease-in-out infinite alternate; }
+.davey-confetti { animation-name: davey-fall; animation-timing-function: linear; animation-fill-mode: both; }
+.davey-card { animation: davey-pop 0.6s 0.7s cubic-bezier(.2,.9,.3,1.4) both; }
+.davey-shout { animation: davey-wobble 0.8s 1.3s ease-in-out 3; }
+
+@keyframes davey-fade {
+  0% { opacity: 0; }
+  5%, 90% { opacity: 1; }
+  100% { opacity: 0; }
+}
+@keyframes davey-drop {
+  from { transform: translateY(-100%); }
+  to { transform: translateY(0); }
+}
+@keyframes davey-fly {
+  0% { transform: translateX(-260px) translateY(0); }
+  25% { transform: translateX(25vw) translateY(-18px); }
+  50% { transform: translateX(50vw) translateY(10px); }
+  75% { transform: translateX(75vw) translateY(-14px); }
+  100% { transform: translateX(calc(100vw + 40px)) translateY(0); }
+}
+@keyframes davey-flap {
+  from { transform: scaleY(1); }
+  to { transform: scaleY(-0.6); }
+}
+@keyframes davey-fall {
+  from { transform: translateY(-20px) rotate(0deg); }
+  to { transform: translateY(105vh) rotate(720deg); }
+}
+@keyframes davey-pop {
+  from { transform: scale(0) rotate(-12deg); }
+  to { transform: scale(1) rotate(0deg); }
+}
+@keyframes davey-wobble {
+  0%, 100% { transform: rotate(0deg) scale(1); }
+  25% { transform: rotate(-4deg) scale(1.06); }
+  75% { transform: rotate(4deg) scale(1.06); }
+}
+
+/* Reduced motion: skip the fade so Davey mode still shows as a still card */
+@media (prefers-reduced-motion: reduce) {
+  .davey-overlay { animation-name: none !important; }
+}

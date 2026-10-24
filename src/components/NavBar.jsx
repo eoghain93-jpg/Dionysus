@@ -3,6 +3,7 @@ import { NavLink, useLocation } from 'react-router-dom'
 import { ShoppingCart, Package, Users, BarChart2, Tag, Receipt, ArrowLeftRight, Settings, MoreHorizontal, X } from 'lucide-react'
 import { useSessionStore } from '../stores/sessionStore'
 import SwitchUserModal from './till/SwitchUserModal'
+import DaveyMode from './ui/DaveyMode'
 
 const allLinks = [
   { to: '/', label: 'Till', Icon: ShoppingCart },
@@ -18,10 +19,26 @@ const allLinks = [
 const primaryLinks = allLinks.slice(0, 5)
 const moreLinks = allLinks.slice(5)
 
+// Black-and-white stripes swatch for the Davey mode button
+function StripesIcon({ size }) {
+  return (
+    <span
+      aria-hidden="true"
+      className="rounded-full border border-slate-500 shrink-0"
+      style={{
+        width: size,
+        height: size,
+        background: 'repeating-linear-gradient(90deg, #000 0 4px, #fff 4px 8px)',
+      }}
+    />
+  )
+}
+
 export default function NavBar() {
   const { activeStaff } = useSessionStore()
   const [showSwitch, setShowSwitch] = useState(false)
   const [showMore, setShowMore] = useState(false)
+  const [showDavey, setShowDavey] = useState(false)
   const location = useLocation()
 
   const moreIsActive = moreLinks.some(l => location.pathname === l.to)
@@ -56,7 +73,17 @@ export default function NavBar() {
           </NavLink>
         ))}
         {activeStaff && (
-          <div className="mt-auto pt-3 border-t border-slate-800">
+          <div className="mt-auto pt-3 border-t border-slate-800 flex flex-col gap-1">
+            <button
+              onClick={() => setShowDavey(true)}
+              className="w-full flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium
+                text-slate-400 hover:bg-slate-800 hover:text-white transition-colors duration-200 cursor-pointer
+                focus:outline-none focus:ring-2 focus:ring-blue-500"
+              aria-label="Davey mode"
+            >
+              <StripesIcon size={20} />
+              <span className="hidden lg:block">Davey</span>
+            </button>
             <button
               onClick={() => setShowSwitch(true)}
               className="w-full flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium
@@ -128,6 +155,16 @@ export default function NavBar() {
                 {label}
               </NavLink>
             ))}
+            {activeStaff && (
+              <button
+                onClick={() => { setShowMore(false); setShowDavey(true) }}
+                className="w-full flex items-center gap-3 px-4 py-4 text-sm font-medium transition-colors duration-150
+                  text-slate-300 hover:bg-slate-700 hover:text-white cursor-pointer"
+              >
+                <StripesIcon size={18} />
+                Davey
+              </button>
+            )}
           </div>
         </>
       )}
@@ -145,6 +182,7 @@ export default function NavBar() {
       )}
 
       {showSwitch && <SwitchUserModal onClose={() => setShowSwitch(false)} />}
+      {showDavey && <DaveyMode onClose={() => setShowDavey(false)} />}
     </>
   )
 }
