@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef, useId } from 'react'
-import { X, Clock, Phone, Mail, Calendar, Star, CreditCard, KeyRound } from '../../lib/icons'
+import { X, Clock, Phone, Mail, Calendar, Star, CreditCard, KeyRound, Edit2 } from '../../lib/icons'
 import { supabase } from '../../lib/supabase'
 import SettleTabModal from './SettleTabModal'
+import AdjustTabModal from './AdjustTabModal'
 import SetPinModal from './SetPinModal'
 import { isRenewalDueSoon } from './MemberList'
 import BlurredAmount from '../ui/BlurredAmount'
@@ -12,7 +13,7 @@ import BlurredAmount from '../ui/BlurredAmount'
  *   member       — member object
  *   onClose      — called to close this panel
  *   onEdit       — called with member to open edit form
- *   onSettleTab  — called after tab settled (to refresh parent)
+ *   onSettleTab  — called after tab settled or adjusted (to refresh parent)
  */
 export default function MemberProfile({ member, onClose, onEdit, onSettleTab }) {
   const titleId = useId()
@@ -23,6 +24,7 @@ export default function MemberProfile({ member, onClose, onEdit, onSettleTab }) 
   const [loadingOrders, setLoadingOrders] = useState(true)
   const [settleModalOpen, setSettleModalOpen] = useState(false)
   const [setPinOpen, setSetPinOpen] = useState(false)
+  const [adjustModalOpen, setAdjustModalOpen] = useState(false)
 
   // Focus close button on mount
   useEffect(() => {
@@ -226,6 +228,15 @@ export default function MemberProfile({ member, onClose, onEdit, onSettleTab }) 
               Settle Tab
             </button>
           )}
+          {/* Always available — the Tabs page only lists members who already
+              owe something, so this is the only way to open a tab from £0. */}
+          <button
+            onClick={() => setAdjustModalOpen(true)}
+            className="flex items-center gap-2 px-4 min-h-[44px] rounded-xl bg-slate-700 hover:bg-slate-600 text-white font-semibold text-sm transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617]"
+          >
+            <Edit2 size={16} aria-hidden="true" />
+            Adjust Tab
+          </button>
           {member.membership_tier === 'staff' && (
             <button
               onClick={() => setSetPinOpen(true)}
@@ -252,6 +263,18 @@ export default function MemberProfile({ member, onClose, onEdit, onSettleTab }) 
           onClose={() => setSettleModalOpen(false)}
           onSettled={() => {
             setSettleModalOpen(false)
+            onSettleTab()
+          }}
+        />
+      )}
+
+      {/* Adjust tab modal */}
+      {adjustModalOpen && (
+        <AdjustTabModal
+          member={member}
+          onClose={() => setAdjustModalOpen(false)}
+          onAdjusted={() => {
+            setAdjustModalOpen(false)
             onSettleTab()
           }}
         />
