@@ -9,7 +9,10 @@ export default function AdjustTabModal({ member, onClose, onAdjusted }) {
   const { activeStaff } = useSessionStore()
 
   const [amount, setAmount] = useState('')
-  const [direction, setDirection] = useState('subtract') // 'add' | 'subtract'
+  // Nothing to reduce on an empty tab, so default to adding.
+  const [direction, setDirection] = useState(
+    Number(member.tab_balance) > 0 ? 'subtract' : 'add'
+  ) // 'add' | 'subtract'
   const [reason, setReason] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState(null)
