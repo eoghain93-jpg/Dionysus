@@ -143,6 +143,11 @@ export default function RecentSalesModal({ onClose }) {
                     <span className="text-slate-500 text-xs px-2">Ask manager</span>
                   )}
                 </div>
+                {o.is_guest_fee && (
+                  <span className="text-slate-400 text-xs truncate">
+                    Guest fee · {o.members?.name ?? 'member'}
+                  </span>
+                )}
                 {o.is_tab_settlement && (
                   <div className="flex items-center gap-3">
                     <span className="text-slate-400 text-xs flex-1 truncate">

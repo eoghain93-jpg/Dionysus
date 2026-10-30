@@ -37,7 +37,7 @@ export async function fetchTodaysOrders() {
   const { from, to } = tradingDayRange(tradingTodayISO())
   const { data, error } = await supabase
     .from('orders')
-    .select('id, created_at, total_amount, payment_method, status, member_id, is_tab_settlement, members(name)')
+    .select('id, created_at, total_amount, payment_method, status, member_id, is_tab_settlement, is_guest_fee, members(name)')
     .eq('status', 'paid')
     .gte('created_at', from)
     .lt('created_at', to)
