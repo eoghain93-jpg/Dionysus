@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { NavLink, useLocation } from 'react-router-dom'
-import { ShoppingCart, Package, Users, BarChart2, Tag, Receipt, ArrowLeftRight, Settings, MoreHorizontal, X } from 'lucide-react'
+import { ShoppingCart, Package, Users, BarChart2, Tag, Receipt, ArrowLeftRight, Settings, MoreHorizontal, X, UserPlus } from 'lucide-react'
 import { useSessionStore } from '../stores/sessionStore'
 import SwitchUserModal from './till/SwitchUserModal'
 import DaveyMode from './ui/DaveyMode'
@@ -12,6 +12,7 @@ const allLinks = [
   { to: '/tabs', label: 'Tabs', Icon: Receipt },
   { to: '/reports', label: 'Reports', Icon: BarChart2 },
   { to: '/promos', label: 'Promos', Icon: Tag },
+  { to: '/guests', label: 'Guests', Icon: UserPlus },
   { to: '/settings', label: 'Settings', Icon: Settings },
 ]
 
