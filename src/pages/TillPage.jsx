@@ -24,6 +24,7 @@ import PrizeWinModal from '../components/till/PrizeWinModal'
 import MembersOnlyToggle from '../components/till/MembersOnlyToggle'
 import ShotBundleModal from '../components/till/ShotBundleModal'
 import BottleBundleModal from '../components/till/BottleBundleModal'
+import GuestSignInModal from '../components/guests/GuestSignInModal'
 import { BOTTLE_BUNDLE_PROMO_NAME } from '../lib/bottleBundle'
 
 export default function TillPage() {
@@ -38,6 +39,7 @@ export default function TillPage() {
   const [showShotBundle, setShowShotBundle] = useState(false)
   const [showBottleBundle, setShowBottleBundle] = useState(false)
   const [showRecentSales, setShowRecentSales] = useState(false)
+  const [showGuestSignIn, setShowGuestSignIn] = useState(false)
   const [showMobileOrder, setShowMobileOrder] = useState(false)
   const { orderItems, clearOrder, loadPromos, getTotal } = useTillStore()
   const activePromos = useTillStore(s => s.activePromos)
@@ -171,6 +173,12 @@ export default function TillPage() {
               </button>
             )}
             <button
+              onClick={() => setShowGuestSignIn(true)}
+              className="px-3 min-h-[36px] rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-400 text-xs font-medium cursor-pointer transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617]"
+            >
+              Sign In Guest
+            </button>
+            <button
               onClick={() => setShowRecentSales(true)}
               className="px-3 min-h-[36px] rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-400 text-xs font-medium cursor-pointer transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617]"
             >
@@ -276,6 +284,13 @@ export default function TillPage() {
       )}
       {showRecentSales && (
         <RecentSalesModal onClose={() => setShowRecentSales(false)} />
+      )}
+      {showGuestSignIn && (
+        <GuestSignInModal
+          initialMember={useTillStore.getState().activeMember}
+          onClose={() => setShowGuestSignIn(false)}
+          onSaved={() => setShowGuestSignIn(false)}
+        />
       )}
     </div>
   )
