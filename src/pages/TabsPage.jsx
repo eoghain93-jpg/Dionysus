@@ -40,7 +40,9 @@ export default function TabsPage() {
     const isCurrentlyExpanded = expandedId === id
     const next = isCurrentlyExpanded ? null : id
     setExpandedId(next)
-    if (next && !expandedOrders[id]) {
+    // Always refetch on expand: a cached list goes stale when the tab is
+    // settled or changed on the other till.
+    if (next) {
       setExpandedLoading(l => ({ ...l, [id]: true }))
       fetchTabOrders(id)
         .then(orders => setExpandedOrders(o => ({ ...o, [id]: orders })))
@@ -88,6 +90,12 @@ export default function TabsPage() {
       ).filter(m => Number(m.tab_balance) > 0))
     } catch (err) {
       console.error('Failed to remove order:', err)
+      // Previously silent — staff had no idea a removal failed. Most likely
+      // cause is a stale view (tab settled on another till), so reload.
+      useToastStore.getState().addToast(err?.message ?? 'Could not remove that drink', 'error')
+      setExpandedOrders({})
+      setExpandedId(null)
+      loadTabs()
     } finally {
       setRemovingOrderId(null)
     }
