@@ -6,6 +6,9 @@ on:
       - master
     paths:
       - 'supabase/migrations/**'
+      # Re-run when the deploy itself changes, so a fix to a failed deploy
+      # applies the migrations that failed with it.
+      - '.github/workflows/migrate.yml'
 
 jobs:
   migrate:
