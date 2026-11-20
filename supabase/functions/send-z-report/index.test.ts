@@ -36,7 +36,8 @@ function makeRequest(body: unknown, method = 'POST') {
   return new Request('http://localhost/send-z-report', {
     method,
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
+    // GET/HEAD requests must not carry a body (fetch spec)
+    body: method === 'POST' ? JSON.stringify(body) : undefined,
   })
 }
 
@@ -59,12 +60,12 @@ Deno.test('returns 400 when salesSummary missing', async () => {
   assertEquals(res.status, 400)
 })
 
-Deno.test('returns 500 when MANAGER_EMAIL not configured', async () => {
+Deno.test('returns 500 when no recipients configured', async () => {
   const noEmail = (key: string) => key === 'MANAGER_EMAIL' ? undefined : stubEnv(key)
   const res = await handler(makeRequest(VALID_BODY), noEmail)
   assertEquals(res.status, 500)
   const json = await res.json()
-  assertEquals(json.error, 'MANAGER_EMAIL not configured')
+  assertEquals(json.error, 'no recipients configured')
 })
 
 Deno.test('returns 500 when RESEND_API_KEY not configured', async () => {
@@ -134,6 +135,27 @@ Deno.test('returns 500 if Resend API call fails', async () => {
     Promise.resolve(new Response(JSON.stringify({ message: 'bad key' }), { status: 422 }))
   const res = await handler(makeRequest(VALID_BODY), stubEnv, mockFetch as typeof fetch)
   assertEquals(res.status, 500)
+})
+
+Deno.test('email includes Closed by line when closedBy present', async () => {
+  let capturedText = ''
+  const mockFetch = (_url: string, init: RequestInit) => {
+    capturedText = JSON.parse(init.body as string).text
+    return Promise.resolve(new Response(JSON.stringify({ id: 'x' }), { status: 200 }))
+  }
+  const body = { ...VALID_BODY, closedBy: 'Sinead' }
+  await handler(makeRequest(body), stubEnv, mockFetch as typeof fetch)
+  assertEquals(capturedText.includes('Closed by: Sinead'), true)
+})
+
+Deno.test('email omits Closed by line when closedBy absent', async () => {
+  let capturedText = ''
+  const mockFetch = (_url: string, init: RequestInit) => {
+    capturedText = JSON.parse(init.body as string).text
+    return Promise.resolve(new Response(JSON.stringify({ id: 'x' }), { status: 200 }))
+  }
+  await handler(makeRequest(VALID_BODY), stubEnv, mockFetch as typeof fetch)
+  assertEquals(capturedText.includes('Closed by:'), false)
 })
 
 Deno.test('email includes WASTAGE section when wastage data present', async () => {
