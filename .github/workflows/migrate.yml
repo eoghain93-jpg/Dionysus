@@ -6,6 +6,9 @@ on:
       - master
     paths:
       - 'supabase/migrations/**'
+      # Re-run when the deploy itself changes, so a fix to a failed deploy
+      # applies the migrations that failed with it.
+      - '.github/workflows/migrate.yml'
 
 jobs:
   migrate:
@@ -29,8 +32,11 @@ jobs:
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
 
+      # Newer CLI releases default `db push` to the local Docker stack
+      # (seen 2026-11-20: "Target: local stack ... pass --remote") — target
+      # the linked project explicitly.
       - name: Run migrations
-        run: supabase db push
+        run: supabase db push --remote
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
