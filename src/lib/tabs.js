@@ -63,6 +63,28 @@ export async function adjustTabBalance(member_id, amount, reason, staff_id) {
 }
 
 export async function removeOrderFromTab(order_id, member_id, order_total) {
+  // 0. Refuse to remove a drink the member has already paid for. The Tabs
+  //    page can be left open on a till showing a stale tab; removing a line
+  //    from it after the tab was settled used to "succeed" — the balance
+  //    delta was swallowed by the zero clamp, the drink was restocked, and
+  //    the member's cash payment was left covering drinks the system now
+  //    says were never served (16 Nov 2026: £20, four Fosters). A paid-for
+  //    drink needs a refund, not a tab removal. The DB trigger
+  //    orders_refuse_void_settled_tab_order enforces the same rule; this
+  //    check runs first so we fail before any restock is written.
+  const [{ data: order, error: ordErr }, { data: member, error: memErr }] = await Promise.all([
+    supabase.from('orders').select('status, payment_method, created_at').eq('id', order_id).single(),
+    supabase.from('members').select('last_settled_at').eq('id', member_id).single(),
+  ])
+  if (ordErr) throw ordErr
+  if (memErr) throw memErr
+  if (!order || order.status !== 'paid' || order.payment_method !== 'tab') {
+    throw new Error('This drink is no longer on the tab — refresh the Tabs page.')
+  }
+  if (member?.last_settled_at && new Date(order.created_at) <= new Date(member.last_settled_at)) {
+    throw new Error('This tab has already been paid off — that drink can\'t be removed. Refresh the Tabs page; if the customer was overcharged, refund them instead.')
+  }
+
   // 1. Restore stock for each item on the voided order. We do this BEFORE
   //    marking the order voided so that a failure leaves the data in a
   //    safe intermediate state (tab balance still right, stock unchanged)

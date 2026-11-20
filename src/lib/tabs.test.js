@@ -142,6 +142,30 @@ describe('adjustTabBalance', () => {
 })
 
 describe('removeOrderFromTab', () => {
+  const OPEN_TAB_ORDER = { data: { status: 'paid', payment_method: 'tab', created_at: '2026-11-16T13:48:58Z' } }
+
+  it('refuses to remove a drink from a tab that has since been paid off, writing nothing', async () => {
+    // 16 Nov: tab settled at 14:48, a stale Tabs page then removed a 13:48 drink
+    supabase.__configure({
+      orders: [OPEN_TAB_ORDER],
+      members: { data: { last_settled_at: '2026-11-16T14:48:35Z' } },
+    })
+
+    await expect(removeOrderFromTab('order-1', 'member-1', 5)).rejects.toThrow(/already been paid off/)
+    expect(supabase.from).not.toHaveBeenCalledWith('stock_movements')
+    expect(supabase.rpc).not.toHaveBeenCalled()
+  })
+
+  it('refuses when the order is already voided (removed on the other till)', async () => {
+    supabase.__configure({
+      orders: [{ data: { status: 'voided', payment_method: 'tab', created_at: '2026-11-16T13:48:58Z' } }],
+      members: { data: { last_settled_at: null } },
+    })
+
+    await expect(removeOrderFromTab('order-1', 'member-1', 5)).rejects.toThrow(/no longer on the tab/)
+    expect(supabase.rpc).not.toHaveBeenCalled()
+  })
+
   it('voids the order, restocks line items, and deducts from tab balance atomically', async () => {
     supabase.__configure({
       order_items: {
@@ -151,14 +175,15 @@ describe('removeOrderFromTab', () => {
         ],
       },
       stock_movements: { error: null },
-      orders: { error: null },
+      orders: [OPEN_TAB_ORDER, { error: null }],
+      members: { data: { last_settled_at: '2026-11-16T12:00:00Z' } },
     })
     supabase.rpc.mockResolvedValue({ data: 4.5, error: null })
 
     await removeOrderFromTab('order-1', 'member-1', 15.50)
 
     // Voids the order
-    expect(supabase.__chain('orders').update).toHaveBeenCalledWith({ status: 'voided' })
+    expect(supabase.__chain('orders', 1).update).toHaveBeenCalledWith({ status: 'voided' })
     // Inserts restock movements (DB trigger handles stock_quantity update)
     expect(supabase.__chain('stock_movements').insert).toHaveBeenCalledWith([
       expect.objectContaining({ product_id: 'prod-a', type: 'restock', quantity: 2 }),
@@ -182,7 +207,8 @@ describe('removeOrderFromTab', () => {
         ],
       },
       stock_movements: { error: null },
-      orders: { error: null },
+      orders: [OPEN_TAB_ORDER, { error: null }],
+      members: { data: { last_settled_at: null } },
       staff_drink_credits: { error: null },
     })
     supabase.rpc.mockResolvedValue({ data: 4.5, error: null })
