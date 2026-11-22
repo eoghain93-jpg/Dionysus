@@ -79,13 +79,20 @@ describe('settleTab', () => {
   // all happen server-side in the settle_tab RPC (one transaction).
   it('settles via the atomic settle_tab RPC with the till id', async () => {
     supabase.rpc.mockResolvedValue({ data: 0, error: null })
-    await settleTab('member-1', 15.50, 'cash')
+    await settleTab('member-1', 15.50, 'cash', 'staff-1')
     expect(supabase.rpc).toHaveBeenCalledWith('settle_tab', {
       p_member_id: 'member-1',
       p_amount: 15.50,
       p_payment_method: 'cash',
       p_till_id: expect.any(String),
+      p_staff_id: 'staff-1',
     })
+  })
+
+  it('sends a null staff id when nobody is signed in', async () => {
+    supabase.rpc.mockResolvedValue({ data: 0, error: null })
+    await settleTab('member-1', 15.50, 'cash')
+    expect(supabase.rpc).toHaveBeenCalledWith('settle_tab', expect.objectContaining({ p_staff_id: null }))
   })
 
   it('makes no client-side table writes (no split-brain settle)', async () => {

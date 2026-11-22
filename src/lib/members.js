@@ -106,7 +106,7 @@ export async function upsertMember(member) {
   }
 }
 
-export async function settleTab(member_id, amount, payment_method) {
+export async function settleTab(member_id, amount, payment_method, staff_id) {
   // One atomic RPC: balance decrement (clamped at zero), last_settled_at
   // stamp on a FULL settlement only, and the settlement order insert. The
   // order is flagged as a tab settlement and remembers the previous
@@ -116,6 +116,8 @@ export async function settleTab(member_id, amount, payment_method) {
     p_amount: amount,
     p_payment_method: payment_method,
     p_till_id: getTillId(),
+    // Who took the payment — stamped on the settlement order.
+    p_staff_id: staff_id ?? null,
   })
   if (error) throw error
   return Number(data)

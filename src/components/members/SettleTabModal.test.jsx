@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { useSessionStore } from '../../stores/sessionStore'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import SettleTabModal from './SettleTabModal'
 
@@ -58,6 +59,8 @@ function choosePartial() {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  // Settlements are stamped with whoever is signed in at the till.
+  useSessionStore.setState({ activeStaff: { id: 'staff-1', name: 'Sam Staff' } })
   mockSettleTab.mockResolvedValue(undefined)
   mockPrintReceipt.mockResolvedValue(undefined)
 })
@@ -129,7 +132,7 @@ describe('SettleTabModal — full balance path', () => {
     renderModal({ onSettled })
     chooseFull()
     fireEvent.click(screen.getByRole('button', { name: /settle by card/i }))
-    await waitFor(() => expect(mockSettleTab).toHaveBeenCalledWith('mem-1', 70.7, 'card'))
+    await waitFor(() => expect(mockSettleTab).toHaveBeenCalledWith('mem-1', 70.7, 'card', 'staff-1'))
     await waitFor(() => expect(onSettled).toHaveBeenCalledWith(70.7))
   })
 
@@ -141,7 +144,7 @@ describe('SettleTabModal — full balance path', () => {
     expect(mockSettleTab).not.toHaveBeenCalled()
 
     fireEvent.click(screen.getByRole('button', { name: /mock confirm cash/i }))
-    await waitFor(() => expect(mockSettleTab).toHaveBeenCalledWith('mem-1', 70.7, 'cash'))
+    await waitFor(() => expect(mockSettleTab).toHaveBeenCalledWith('mem-1', 70.7, 'cash', 'staff-1'))
   })
 
   it('Back returns to the choice step', () => {
@@ -166,7 +169,7 @@ describe('SettleTabModal — part payment path', () => {
     choosePartial()
     fireEvent.change(screen.getByRole('spinbutton'), { target: { value: '40' } })
     fireEvent.click(screen.getByRole('button', { name: /settle by card/i }))
-    await waitFor(() => expect(mockSettleTab).toHaveBeenCalledWith('mem-1', 40, 'card'))
+    await waitFor(() => expect(mockSettleTab).toHaveBeenCalledWith('mem-1', 40, 'card', 'staff-1'))
     await waitFor(() => expect(onSettled).toHaveBeenCalledWith(40))
   })
 
@@ -178,7 +181,7 @@ describe('SettleTabModal — part payment path', () => {
     expect(screen.getByTestId('cash-modal-total')).toHaveTextContent('40.00')
 
     fireEvent.click(screen.getByRole('button', { name: /mock confirm cash/i }))
-    await waitFor(() => expect(mockSettleTab).toHaveBeenCalledWith('mem-1', 40, 'cash'))
+    await waitFor(() => expect(mockSettleTab).toHaveBeenCalledWith('mem-1', 40, 'cash', 'staff-1'))
   })
 
   it('rejects an empty amount', () => {
@@ -203,7 +206,7 @@ describe('SettleTabModal — part payment path', () => {
     choosePartial()
     fireEvent.change(screen.getByRole('spinbutton'), { target: { value: '70.70' } })
     fireEvent.click(screen.getByRole('button', { name: /settle by card/i }))
-    await waitFor(() => expect(mockSettleTab).toHaveBeenCalledWith('mem-1', 70.7, 'card'))
+    await waitFor(() => expect(mockSettleTab).toHaveBeenCalledWith('mem-1', 70.7, 'card', 'staff-1'))
   })
 
   it('clears the typed amount when going Back and re-entering', () => {
@@ -229,7 +232,7 @@ describe('SettleTabModal — part payment path', () => {
     choosePartial()
     fireEvent.change(screen.getByRole('spinbutton'), { target: { value: '40.999' } })
     fireEvent.click(screen.getByRole('button', { name: /settle by card/i }))
-    await waitFor(() => expect(mockSettleTab).toHaveBeenCalledWith('mem-1', 41, 'card'))
+    await waitFor(() => expect(mockSettleTab).toHaveBeenCalledWith('mem-1', 41, 'card', 'staff-1'))
   })
 
   it('links the amount input to its hint, and to the error when invalid', () => {
@@ -269,7 +272,7 @@ describe('SettleTabModal — cash modal integrity', () => {
     // keyboard could edit it. The settle must use the snapshot, not live state.
     fireEvent.change(screen.getByRole('spinbutton'), { target: { value: '9' } })
     fireEvent.click(screen.getByRole('button', { name: /mock confirm cash/i }))
-    await waitFor(() => expect(mockSettleTab).toHaveBeenCalledWith('mem-1', 40, 'cash'))
+    await waitFor(() => expect(mockSettleTab).toHaveBeenCalledWith('mem-1', 40, 'cash', 'staff-1'))
   })
 })
 

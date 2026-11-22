@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef, useId } from 'react'
 import { X, ImageIcon } from '../../lib/icons'
 import { upsertProduct } from '../../lib/products'
+import { useSessionStore } from '../../stores/sessionStore'
+import PinGate from '../till/PinGate'
 
 const CATEGORIES = ['draught', 'bottle', 'spirit', 'soft', 'food', 'other']
 const UNITS = ['pint', 'measure', 'bottle', 'each']
@@ -11,6 +13,11 @@ const UNITS = ['pint', 'measure', 'bottle', 'each']
  *   product  — null for new product, object for editing
  *   onClose  — called when the modal should close
  *   onSaved  — called after a successful save
+ *
+ * Setting or changing a price needs a signed-in staff member to confirm
+ * with their PIN; their id travels with the save so the price change log
+ * (product_price_changes, written by a database trigger) records who did it.
+ * Edits that leave both prices alone save without a PIN.
  */
 export default function ProductFormModal({ product, onClose, onSaved }) {
   const isEditing = product != null
@@ -32,6 +39,12 @@ export default function ProductFormModal({ product, onClose, onSaved }) {
   })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState(null)
+  const [showPinGate, setShowPinGate] = useState(false)
+  const activeStaff = useSessionStore(s => s.activeStaff)
+
+  const pricesChanged = !isEditing
+    || Number(form.standard_price) !== Number(product.standard_price)
+    || Number(form.member_price) !== Number(product.member_price)
 
   useEffect(() => {
     firstInputRef.current?.focus()
@@ -39,11 +52,11 @@ export default function ProductFormModal({ product, onClose, onSaved }) {
 
   useEffect(() => {
     function handleKey(e) {
-      if (e.key === 'Escape') onClose()
+      if (e.key === 'Escape' && !showPinGate) onClose()
     }
     document.addEventListener('keydown', handleKey)
     return () => document.removeEventListener('keydown', handleKey)
-  }, [onClose])
+  }, [onClose, showPinGate])
 
   function handleOverlayClick(e) {
     if (e.target === overlayRef.current) onClose()
@@ -53,8 +66,19 @@ export default function ProductFormModal({ product, onClose, onSaved }) {
     return e => setForm(prev => ({ ...prev, [field]: e.target.value }))
   }
 
-  async function handleSubmit(e) {
+  function handleSubmit(e) {
     e.preventDefault()
+    setError(null)
+    if (!pricesChanged) return save()
+    if (!activeStaff) {
+      setError('Sign in on the Till screen first — price changes are recorded against a staff member.')
+      return
+    }
+    setShowPinGate(true)
+  }
+
+  async function save(staffId) {
+    setShowPinGate(false)
     setSaving(true)
     setError(null)
     try {
@@ -72,6 +96,8 @@ export default function ProductFormModal({ product, onClose, onSaved }) {
       if (form.supplier_id.trim()) payload.supplier_id = form.supplier_id.trim()
       if (form.cost_price !== '') payload.cost_price = Number(form.cost_price)
       if (form.image_url) payload.image_url = form.image_url
+      // Pass-through for the price change log; the database blanks it again.
+      if (staffId) payload.changed_by = staffId
 
       await upsertProduct(payload)
       onSaved()
@@ -82,6 +108,7 @@ export default function ProductFormModal({ product, onClose, onSaved }) {
   }
 
   return (
+    <>
     <div
       ref={overlayRef}
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 overflow-y-auto"
@@ -335,5 +362,13 @@ export default function ProductFormModal({ product, onClose, onSaved }) {
         </form>
       </div>
     </div>
+    {showPinGate && (
+      <PinGate
+        label={isEditing ? `Change price — ${product.name}` : 'Set price'}
+        onConfirm={() => save(activeStaff.id)}
+        onCancel={() => setShowPinGate(false)}
+      />
+    )}
+    </>
   )
 }

@@ -3,6 +3,7 @@ import { X, CreditCard, Banknote, ChevronRight } from '../../lib/icons'
 import { settleTab } from '../../lib/members'
 import { printReceipt } from '../../lib/starPrinter'
 import { useToastStore } from '../../hooks/useToast'
+import { useSessionStore } from '../../stores/sessionStore'
 import CashPaymentModal from '../till/CashPaymentModal'
 
 /**
@@ -112,7 +113,7 @@ export default function SettleTabModal({ member, onClose, onSettled }) {
     setSettling(true)
     setError(null)
     try {
-      await settleTab(member.id, val, paymentMethod)
+      await settleTab(member.id, val, paymentMethod, useSessionStore.getState().activeStaff?.id)
     } catch (err) {
       setError(err.message ?? 'Failed to settle tab. Please try again.')
       setSettling(false)

@@ -37,14 +37,30 @@ export async function fetchTodaysOrders() {
   const { from, to } = tradingDayRange(tradingTodayISO())
   const { data, error } = await supabase
     .from('orders')
-    .select('id, created_at, total_amount, payment_method, status, member_id, is_tab_settlement, members(name)')
+    .select('id, created_at, total_amount, payment_method, status, member_id, staff_id, is_tab_settlement, members(name)')
     .eq('status', 'paid')
     .gte('created_at', from)
     .lt('created_at', to)
     .order('created_at', { ascending: false })
     .limit(50)
   if (error) throw error
-  return data ?? []
+  return attachStaffNames(data ?? [])
+}
+
+// orders.staff_id has no foreign key (a second orders->members FK would make
+// every members(...) embed on orders ambiguous), so staff names are looked
+// up by id here. Adds staff_name to each order; null when the order has no
+// staff_id (rung before staff were recorded) or the lookup fails — a
+// missing name must never stop the sales list or an export from loading.
+export async function attachStaffNames(orders) {
+  const ids = [...new Set(orders.map(o => o.staff_id).filter(Boolean))]
+  const names = {}
+  if (ids.length > 0) {
+    const { data, error } = await supabase.from('members').select('id, name').in('id', ids)
+    if (error) console.error('Staff name lookup failed:', error)
+    for (const m of data ?? []) names[m.id] = m.name
+  }
+  return orders.map(o => ({ ...o, staff_name: names[o.staff_id] ?? null }))
 }
 
 // Switch a paid order between cash and card via the

@@ -120,7 +120,14 @@ export default function RecentSalesModal({ onClose }) {
             return (
               <div key={o.id} className="flex flex-col gap-2 bg-slate-800 rounded-xl px-3 py-2">
                 <div className="flex items-center gap-3">
-                  <span className="text-slate-400 text-sm tabular-nums w-12">{timeOf(o.created_at)}</span>
+                  <span className="text-slate-400 text-sm tabular-nums w-12">
+                    {timeOf(o.created_at)}
+                    {o.staff_name && (
+                      <span className="block text-slate-500 text-[11px] leading-tight truncate" title={`Rung by ${o.staff_name}`}>
+                        {o.staff_name.split(' ')[0]}
+                      </span>
+                    )}
+                  </span>
                   <span className="text-white font-semibold tabular-nums flex-1">
                     £{Number(o.total_amount).toFixed(2)}
                   </span>

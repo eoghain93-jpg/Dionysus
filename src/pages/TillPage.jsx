@@ -77,6 +77,8 @@ export default function TillPage() {
       // so an offline order replayed by sync can never duplicate.
       id: newOrderId(),
       member_id: currentMember?.id ?? null,
+      // Who rang it: the staff member signed in at this till right now.
+      staff_id: useSessionStore.getState().activeStaff?.id ?? null,
       payment_method: paymentMethod,
       total_amount: total,
       status: 'paid',

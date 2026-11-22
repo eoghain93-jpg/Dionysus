@@ -9,6 +9,7 @@ import BusiestHours from '../components/reports/BusiestHours'
 import TopProducts from '../components/reports/TopProducts'
 import ZReportModal from '../components/reports/ZReportModal'
 import PinGate from '../components/till/PinGate'
+import { attachStaffNames } from '../lib/orders'
 
 // Trading day, not calendar day: at 1am on a match night this is still
 // "yesterday", so the Z report defaults to the session being closed.
@@ -26,19 +27,20 @@ export default function ReportsPage() {
     setExporting(true)
     try {
       const range = tradingDayRange(date)
-      const { data: orders } = await supabase
+      const { data: rawOrders } = await supabase
         .from('orders')
-        .select('id, created_at, total_amount, payment_method, status, members(name, membership_number)')
+        .select('id, created_at, total_amount, payment_method, status, till_id, staff_id, members(name, membership_number)')
         .gte('created_at', range.from)
         .lt('created_at', range.to)
         .order('created_at')
+      const orders = rawOrders ? await attachStaffNames(rawOrders) : rawOrders
 
       if (!orders || orders.length === 0) {
         useToastStore.getState().addToast('No orders found for the selected date.', 'info')
         return
       }
 
-      const headers = 'Order ID,Time,Member,Membership No,Payment Method,Total,Status'
+      const headers = 'Order ID,Time,Member,Membership No,Payment Method,Total,Status,Till,Staff'
       const rows = orders.map(o => [
         o.id,
         new Date(o.created_at).toLocaleTimeString(),
@@ -47,6 +49,8 @@ export default function ReportsPage() {
         o.payment_method,
         o.total_amount,
         o.status,
+        o.till_id ?? '',
+        o.staff_name ?? '',
       ].join(','))
       const csv = [headers, ...rows].join('\n')
 

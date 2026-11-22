@@ -136,7 +136,36 @@ describe('fetchTodaysOrders', () => {
     expect(chain.lt).toHaveBeenCalledWith('created_at', to)
     expect(chain.order).toHaveBeenCalledWith('created_at', { ascending: false })
     expect(chain.limit).toHaveBeenCalledWith(50)
-    expect(result).toEqual(rows)
+    expect(result).toEqual([{ ...rows[0], staff_name: null }])
+  })
+
+  it('adds the name of the staff member who rang each sale', async () => {
+    supabase.__configure({
+      orders: { data: [
+        { id: 'o1', staff_id: 'staff-1' },
+        { id: 'o2', staff_id: 'staff-1' },
+        { id: 'o3', staff_id: null },
+      ] },
+      members: { data: [{ id: 'staff-1', name: 'Sam Staff' }] },
+    })
+
+    const result = await fetchTodaysOrders()
+
+    // one lookup for the distinct staff ids, not one per order
+    expect(supabase.__chain('members').in).toHaveBeenCalledWith('id', ['staff-1'])
+    expect(result.map(o => o.staff_name)).toEqual(['Sam Staff', 'Sam Staff', null])
+  })
+
+  it('still returns the sales when the staff name lookup fails', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    supabase.__configure({
+      orders: { data: [{ id: 'o1', staff_id: 'staff-1' }] },
+      members: { data: null, error: { message: 'boom' } },
+    })
+
+    const result = await fetchTodaysOrders()
+
+    expect(result).toEqual([{ id: 'o1', staff_id: 'staff-1', staff_name: null }])
   })
 
   it('throws on error', async () => {
