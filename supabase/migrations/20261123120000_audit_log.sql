@@ -1105,10 +1105,38 @@ begin
 end;
 $$;
 
--- Fallback for when staff_sign_in cannot check a PIN (unrecognised hash):
--- the till verified the PIN with the legacy verify-pin function and now
--- registers who it says signed in. The session is marked 'claimed' and
--- every entry made under it says so.
+-- Can this database check this person's PIN itself? False only when the
+-- stored hash is in a form crypt() cannot read, or pgcrypto is not usable
+-- here — the two cases the legacy fallback exists for.
+create or replace function auditlog.can_check_pin(p_member_id uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = auditlog, public, extensions
+as $$
+declare
+  v_hash text;
+begin
+  select pin_hash into v_hash from public.members where id = p_member_id;
+  if v_hash is null or v_hash !~ '^\$2[abxy]\$\d\d\$' or length(v_hash) <> 60 then
+    return false;
+  end if;
+  -- Proves crypt() exists and accepts a bcrypt salt, at the cheapest cost.
+  perform crypt('0000', '$2a$04$abcdefghijklmnopqrstuu');
+  return true;
+exception when others then
+  return false;
+end;
+$$;
+
+-- Fallback for when staff_sign_in cannot check a PIN (unrecognised hash, or
+-- no pgcrypto): the till verified the PIN with the legacy verify-pin
+-- function and now registers who it says signed in. The session is marked
+-- 'claimed' and every entry made under it says so.
+--
+-- Refused whenever this database CAN check the PIN itself — otherwise it
+-- would be a way to sign in as a colleague without knowing their PIN. The
+-- refusal is recorded.
 create or replace function public.staff_session_claim(p_member_id uuid)
 returns jsonb
 language plpgsql
@@ -1125,6 +1153,11 @@ begin
   select name into v_name from public.members where id = p_member_id and membership_tier = 'staff';
   if not found then
     raise exception 'not a staff member';
+  end if;
+  if auditlog.can_check_pin(p_member_id) then
+    perform auditlog.try_write(c, 'auth', 'session.claim_refused', 2, 'members', p_member_id::text, null, null, null,
+      jsonb_build_object('note', 'A till tried to register a sign-in without the database checking the PIN.'));
+    return jsonb_build_object('valid', false, 'reason', 'use_staff_sign_in');
   end if;
   return jsonb_build_object('valid', true,
     'member', jsonb_build_object('id', p_member_id, 'name', v_name),

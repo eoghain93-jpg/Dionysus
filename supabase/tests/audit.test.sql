@@ -41,6 +41,14 @@ create function t.n(p_kind text default null, p_action text default null, p_tabl
      and (p_table is null or l.table_name = p_table)
 $$;
 
+create function t.refused(p_sql text) returns boolean language plpgsql as $$
+begin
+  execute p_sql;
+  return false;
+exception when others then
+  return true;
+end $$;
+
 -- Become a caller for the rest of this transaction, the way PostgREST does.
 create function t.req(p_who text, p_method text, p_path text, p_token text default null, p_headers jsonb default '{}')
 returns void language plpgsql as $$
@@ -432,6 +440,15 @@ select t.ok(jsonb_array_length(t.entry('row', 'insert', 'stock_movements') -> 'n
             and (t.entry('row', 'insert', 'stock_movements') -> 'detail' ->> 'rows')::int = 2
             and (t.entry('row', 'insert', 'stock_movements') ->> 'row_pk') is null, 'a multi-row movement insert is one entry with every row');
 
+-- An edge function that names itself is named in the log.
+begin;
+select t.req('service', 'POST', '/pin_attempts', null, '{"x-audit-actor": "verify-pin"}');
+insert into pin_attempts (member_id, failed_count) values (:'kim', 1);
+commit;
+select t.ok((t.entry('row', 'insert', 'pin_attempts') ->> 'via') = 'fn:verify-pin POST /pin_attempts'
+            and (t.entry('row', 'insert', 'pin_attempts') ->> 'actor') = 'service', 'edge functions are named by their x-audit-actor header');
+delete from pin_attempts;
+
 -- Guards switched to observe-only: the write goes through, still logged.
 update auditlog.settings set guards_enforced = false;
 select t.ok((t.entry('system', 'settings.changed') ->> 'severity')::int = 3, 'changing audit settings is itself a serious entry');
@@ -537,11 +554,29 @@ select t.ok((t.entry('auth', 'pin.locked_now') ->> 'severity')::int = 2 and (t.e
   'lockout and attempts while locked are alerts');
 delete from pin_attempts;
 
--- Legacy fallback session is labelled a claim.
+-- The legacy fallback cannot be used to sign in as someone whose PIN the
+-- database can check itself.
+begin;
+select t.req('till2', 'POST', '/rpc/staff_session_claim');
+select t.put('claim0', staff_session_claim(:'sam'));
+commit;
+select t.ok((t.get('claim0') ->> 'valid')::boolean = false and not (t.get('claim0') ? 'session')
+            and (t.entry('auth', 'session.claim_refused') ->> 'severity')::int = 2,
+  'claiming a session for a checkable PIN is refused and recorded');
+
+-- With a hash the database cannot read (some future format), the fallback
+-- session is allowed and labelled a claim.
+update members set pin_hash = '$argon2id$v=19$m=65536,t=3,p=4$c29tZXNhbHQ$RdescudvJCsgt3ub+b+dWRWJTmaaJObG' where id = :'sam';
+begin;
+select t.req('till2', 'POST', '/rpc/staff_sign_in');
+select t.put('unsupported', to_jsonb(t.refused($$select staff_sign_in('5a000000-0000-0000-0000-000000000001', '4821')$$)));
+commit;
+select t.ok((t.get('unsupported'))::boolean, 'an unreadable hash makes staff_sign_in raise, so the till falls back');
 begin;
 select t.req('till2', 'POST', '/rpc/staff_session_claim');
 select t.put('claim', staff_session_claim(:'sam'));
 commit;
+update members set pin_hash = :'sam_hash' where id = :'sam';
 select t.get('claim') -> 'session' ->> 'token' as claim_token \gset
 begin;
 select t.req('till2', 'POST', '/stock_movements', :'claim_token');
@@ -626,14 +661,6 @@ commit;
 select t.ok((t.get('ping') ->> 'staff_trust') = 'none' and not (t.get('ping') ->> 'saw_staff_header')::boolean, 'ping with no session');
 
 -- ── Who may do what ──────────────────────────────────────────────────────
-
-create function t.refused(p_sql text) returns boolean language plpgsql as $$
-begin
-  execute p_sql;
-  return false;
-exception when others then
-  return true;
-end $$;
 
 begin;
 select t.req('member', 'POST', '/rpc/x');

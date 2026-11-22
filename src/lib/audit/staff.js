@@ -46,11 +46,21 @@ export async function signInStaff(memberId, pin) {
   } catch {
     const data = await legacyVerify(memberId, pin)
     if (data.valid) {
-      // Tell the server who the old function says signed in. Best effort:
-      // without it the person is still signed in on this till, the log
-      // just has no session to attribute to.
+      // The person is signed in on this till whatever happens next; what
+      // follows only decides how well the server can attribute their work.
       clearStaffSession()
       try {
+        // The first attempt may have failed for a passing reason (a blip,
+        // a cold start). The PIN is now known to be right, so one retry
+        // usually gets a proper PIN-checked session.
+        const { data: retry, error: retryError } = await supabase.rpc('staff_sign_in', { p_member_id: memberId, p_pin: pin })
+        if (!retryError && retry?.valid && retry.session) {
+          setStaffSession({ id: retry.session.id, token: retry.session.token, staffId: memberId, trust: 'pin' })
+          return data
+        }
+        // The database really cannot check this PIN (unreadable hash): tell
+        // it who verify-pin says signed in. It records the session as
+        // "claimed", and refuses outright if it could have checked itself.
         const { data: claim, error } = await supabase.rpc('staff_session_claim', { p_member_id: memberId })
         if (!error && claim?.session) {
           setStaffSession({ id: claim.session.id, token: claim.session.token, staffId: memberId, trust: 'claimed' })

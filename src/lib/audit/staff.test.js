@@ -44,9 +44,11 @@ describe('signInStaff', () => {
   })
 
   it('falls back to verify-pin when the database cannot check, and registers a claimed session', async () => {
+    const unreadable = { data: null, error: { message: 'unsupported PIN hash format' } }
     supabase.rpc
-      .mockResolvedValueOnce({ data: null, error: { code: 'PGRST202', message: 'Could not find the function' } })
-      .mockResolvedValueOnce({ data: { valid: true, session: { id: 'sess-2', token: 'tok-2' } }, error: null })
+      .mockResolvedValueOnce(unreadable) // staff_sign_in
+      .mockResolvedValueOnce(unreadable) // staff_sign_in retry
+      .mockResolvedValueOnce({ data: { valid: true, session: { id: 'sess-2', token: 'tok-2' } }, error: null }) // claim
     supabase.functions.invoke.mockResolvedValueOnce({ data: { valid: true, member: { id: 'm1', name: 'Sam' } }, error: null })
 
     const res = await signInStaff('m1', '4821')
@@ -55,6 +57,31 @@ describe('signInStaff', () => {
     expect(supabase.rpc).toHaveBeenLastCalledWith('staff_session_claim', { p_member_id: 'm1' })
     expect(res.valid).toBe(true)
     expect(getStaffSession()).toEqual({ id: 'sess-2', token: 'tok-2', staffId: 'm1', trust: 'claimed' })
+  })
+
+  it('after a passing database failure, a retry gets a proper PIN-checked session', async () => {
+    supabase.rpc
+      .mockRejectedValueOnce(new Error('network blip'))
+      .mockResolvedValueOnce({ data: { valid: true, member: { id: 'm1', name: 'Sam' }, session: SESSION }, error: null })
+    supabase.functions.invoke.mockResolvedValueOnce({ data: { valid: true, member: { id: 'm1', name: 'Sam' } }, error: null })
+
+    const res = await signInStaff('m1', '4821')
+
+    expect(res.valid).toBe(true)
+    expect(getStaffSession()).toEqual({ id: 'sess-1', token: 'tok-1', staffId: 'm1', trust: 'pin' })
+    expect(supabase.rpc).toHaveBeenCalledTimes(2)
+    expect(supabase.rpc).not.toHaveBeenCalledWith('staff_session_claim', expect.anything())
+  })
+
+  it('stays signed in with no session when the database refuses the claim', async () => {
+    supabase.rpc
+      .mockRejectedValueOnce(new Error('timeout'))
+      .mockRejectedValueOnce(new Error('timeout'))
+      .mockResolvedValueOnce({ data: { valid: false, reason: 'use_staff_sign_in' }, error: null })
+    supabase.functions.invoke.mockResolvedValueOnce({ data: { valid: true, member: { id: 'm1', name: 'Sam' } }, error: null })
+
+    expect((await signInStaff('m1', '4821')).valid).toBe(true)
+    expect(getStaffSession()).toBeNull()
   })
 
   it('still signs in through verify-pin on a database with no sessions at all', async () => {
