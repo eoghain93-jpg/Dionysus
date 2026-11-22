@@ -4,6 +4,10 @@ import tailwindcss from '@tailwindcss/vite'
 import { VitePWA } from 'vite-plugin-pwa'
 
 export default defineConfig({
+  // Build id shown in the audit log next to every change (src/lib/audit/build.js).
+  define: {
+    __APP_BUILD__: JSON.stringify((process.env.VERCEL_GIT_COMMIT_SHA ?? '').slice(0, 7) || 'dev'),
+  },
   plugins: [
     react(),
     tailwindcss(),

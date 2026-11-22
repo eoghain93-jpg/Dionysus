@@ -4,8 +4,10 @@ import { BrowserRouter } from 'react-router-dom'
 import './index.css'
 import App from './App.jsx'
 import { bootstrapTillId } from './lib/till'
+import { initAudit } from './lib/audit/init'
 
 bootstrapTillId()
+initAudit()
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
