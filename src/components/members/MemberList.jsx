@@ -1,4 +1,4 @@
-import { Clock, Pencil } from '../../lib/icons'
+import { Clock, Pencil, Lock } from '../../lib/icons'
 import BlurredAmount from '../ui/BlurredAmount'
 
 /**
@@ -66,6 +66,12 @@ export default function MemberList({ members, onSelect, onEdit }) {
             {/* Tab balance — rendered outside the profile-open button so the
                 blur/reveal tap doesn't navigate. Visible to customers when
                 the till faces the bar, hence the BlurredAmount wrapper. */}
+            {member.tab_blocked && (
+              <span className="inline-flex items-center gap-1 text-red-300 text-xs shrink-0">
+                <Lock size={14} aria-hidden="true" />
+                <span>Tab blocked</span>
+              </span>
+            )}
             {hasTab && (
               <span className="text-blue-400 text-sm font-medium shrink-0 flex items-center gap-1">
                 <span>Tab:</span>

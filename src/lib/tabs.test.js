@@ -6,7 +6,10 @@ vi.mock('./supabase', async () => {
   return { supabase: createSupabaseMock() }
 })
 import { supabase } from './supabase'
-import { fetchOpenTabs, fetchTabOrders, adjustTabBalance, removeOrderFromTab, applyTabDelta } from './tabs'
+import {
+  fetchOpenTabs, fetchTabOrders, adjustTabBalance, removeOrderFromTab, applyTabDelta,
+  tabStanding, fetchTabAges, setTabBlocked, isTabBlocked, TAB_OVERDUE_DAYS,
+} from './tabs'
 
 beforeEach(() => supabase.__reset())
 
@@ -21,10 +24,44 @@ describe('fetchOpenTabs', () => {
     const result = await fetchOpenTabs()
     const chain = supabase.__chain('members')
     expect(supabase.from).toHaveBeenCalledWith('members')
-    expect(chain.select).toHaveBeenCalledWith('id, name, tab_balance, membership_number')
     expect(chain.gt).toHaveBeenCalledWith('tab_balance', 0)
     expect(chain.order).toHaveBeenCalledWith('tab_balance', { ascending: false })
-    expect(result).toEqual(members)
+    expect(result.map(m => m.id)).toEqual(['m1', 'm2'])
+    expect(result[0]).toMatchObject({ name: 'Alice', tab_balance: 15.50 })
+  })
+
+  it('adds how long each tab has gone unpaid and whether it is blocked', async () => {
+    const daysAgo = n => new Date(Date.now() - n * 86400000).toISOString()
+    supabase.__configure({
+      members: {
+        data: [
+          { id: 'm1', name: 'Alice', tab_balance: 15.50, tab_blocked: true },
+          { id: 'm2', name: 'Bob', tab_balance: 8.00 },
+        ],
+      },
+    })
+    supabase.rpc.mockResolvedValue({
+      data: [
+        { member_id: 'm1', unpaid_since: daysAgo(30), last_paid_at: daysAgo(30) },
+        { member_id: 'm2', unpaid_since: daysAgo(3), last_paid_at: null },
+      ],
+      error: null,
+    })
+
+    const result = await fetchOpenTabs()
+    expect(supabase.rpc).toHaveBeenCalledWith('open_tab_ages', { p_member_id: null })
+    expect(result[0]).toMatchObject({ id: 'm1', days: 30, overdue: true, tab_blocked: true })
+    expect(result[1]).toMatchObject({ id: 'm2', days: 3, overdue: false, tab_blocked: false })
+  })
+
+  it('still returns the tabs when the age lookup fails', async () => {
+    supabase.__configure({ members: { data: [{ id: 'm1', name: 'Alice', tab_balance: 15.50 }] } })
+    supabase.rpc.mockResolvedValue({ data: null, error: { message: 'function not found' } })
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+
+    const result = await fetchOpenTabs()
+    expect(result).toHaveLength(1)
+    expect(result[0]).toMatchObject({ id: 'm1', days: null, overdue: false })
   })
 
   it('returns empty array when no open tabs', async () => {
@@ -223,5 +260,80 @@ describe('removeOrderFromTab', () => {
     expect(creditsChain.update).toHaveBeenCalledWith({ status: 'cancelled' })
     expect(creditsChain.eq).toHaveBeenCalledWith('order_id', 'order-1')
     expect(creditsChain.eq).toHaveBeenCalledWith('status', 'banked')
+  })
+})
+
+describe('tabStanding', () => {
+  const now = new Date('2026-11-22T12:00:00Z')
+
+  it('counts whole days since the last payment', () => {
+    expect(tabStanding('2026-11-19T13:00:00Z', now)).toEqual({ days: 2, overdue: false })
+  })
+
+  it('is overdue from the threshold day onwards', () => {
+    const at = d => new Date(now.getTime() - d * 86400000).toISOString()
+    expect(tabStanding(at(TAB_OVERDUE_DAYS - 1), now).overdue).toBe(false)
+    expect(tabStanding(at(TAB_OVERDUE_DAYS), now)).toEqual({ days: TAB_OVERDUE_DAYS, overdue: true })
+  })
+
+  it('is never overdue when the age is unknown', () => {
+    expect(tabStanding(null, now)).toEqual({ days: null, overdue: false })
+  })
+})
+
+describe('fetchTabAges', () => {
+  it('looks up a single member and keys the result by member id', async () => {
+    supabase.rpc.mockResolvedValue({
+      data: [{ member_id: 'm1', unpaid_since: '2020-01-01T00:00:00Z', last_paid_at: null }],
+      error: null,
+    })
+    const ages = await fetchTabAges('m1')
+    expect(supabase.rpc).toHaveBeenCalledWith('open_tab_ages', { p_member_id: 'm1' })
+    expect(ages.m1.overdue).toBe(true)
+    expect(ages.m1.last_paid_at).toBeNull()
+  })
+
+  it('throws on error', async () => {
+    supabase.rpc.mockResolvedValue({ data: null, error: { message: 'nope' } })
+    await expect(fetchTabAges()).rejects.toThrow('nope')
+  })
+})
+
+describe('setTabBlocked', () => {
+  it('blocks the tab and records who did it', async () => {
+    await setTabBlocked('m1', true, 'staff-1')
+    const chain = supabase.__chain('members')
+    expect(chain.update).toHaveBeenCalledWith({
+      tab_blocked: true,
+      tab_blocked_at: expect.any(String),
+      tab_blocked_by: 'staff-1',
+    })
+    expect(chain.eq).toHaveBeenCalledWith('id', 'm1')
+  })
+
+  it('clears the block details when unblocking', async () => {
+    await setTabBlocked('m1', false, 'staff-1')
+    expect(supabase.__chain('members').update).toHaveBeenCalledWith({
+      tab_blocked: false,
+      tab_blocked_at: null,
+      tab_blocked_by: null,
+    })
+  })
+
+  it('throws on error', async () => {
+    supabase.__configure({ members: { data: null, error: { message: 'denied' } } })
+    await expect(setTabBlocked('m1', true)).rejects.toThrow('denied')
+  })
+})
+
+describe('isTabBlocked', () => {
+  it('returns the live flag', async () => {
+    supabase.__configure({ members: { data: { tab_blocked: true } } })
+    expect(await isTabBlocked('m1')).toBe(true)
+  })
+
+  it('does not block the sale when the lookup fails', async () => {
+    supabase.__configure({ members: { data: null, error: { message: 'offline' } } })
+    expect(await isTabBlocked('m1')).toBe(false)
   })
 })
