@@ -131,7 +131,7 @@ Repairs by hand (dashboard, SQL) still work, and are always recorded as
   colleague's PIN from it and sign in as them. So "PIN checked" means the
   right PIN was entered, not proof of who entered it. Closing this needs the
   PIN check moved fully into the database and the old sign-in function
-  redeployed — a follow-up, once both tills run this version. (This version
+  redeployed — a follow-up, once every till runs this version. (This version
   no longer asks the server for them, and clears copies kept by older
   versions when the till starts; the database itself still lets a till
   device read them until that follow-up.)
@@ -199,7 +199,7 @@ unusual situations are labelled.
   staff PIN hashes from the database, and the `verify-pin` edge function
   still lets anyone holding the app's public key trigger a 15-minute PIN
   lockout. Both need the edge functions redeploying (they are not deployed
-  automatically) and the hash column closing off once both tills run this
+  automatically) and the hash column closing off once every till runs this
   version.
 - **Sign-out time after an offline lock.** See "Signing in and locking": the
   server stamps a sign-out when it hears of it, not when the till locked.
@@ -214,4 +214,4 @@ unusual situations are labelled.
 - **Supabase's GraphQL door** is not used by the app and is refused by the
   guards; switching it off in the Supabase dashboard removes it altogether.
 - **The audit trigger on a tab adjustment made by an old app version** is an
-  alert with no staff name until both tills run this version.
+  alert with no staff name until every till runs this version.
