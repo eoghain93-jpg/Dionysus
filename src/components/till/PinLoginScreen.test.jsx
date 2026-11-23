@@ -273,7 +273,7 @@ describe('PinLoginScreen', () => {
   // ── Used from the lock screen ("Someone else") ─────────────────────────────
   it('shows no Back button on its own', async () => {
     render(<PinLoginScreen />)
-    await screen.findByRole('combobox', { name: /staff member/i })
+    await screen.findByRole('group', { name: /staff member/i })
     expect(screen.queryByRole('button', { name: /^back$/i })).not.toBeInTheDocument()
   })
 

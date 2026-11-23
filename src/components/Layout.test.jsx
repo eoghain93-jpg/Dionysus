@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, fireEvent, waitFor, act, cleanup } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor, act, cleanup, within } from '@testing-library/react'
 import { MemoryRouter, Routes, Route, Link } from 'react-router-dom'
 
 const { mockInit, mockStop, mockSignIn, mockVerify, mockFrom } = vi.hoisted(() => ({
@@ -76,19 +76,19 @@ describe('Layout — the whole app is behind a staff sign-in', () => {
   it.each(['/', '/reports', '/settings'])('with nobody signed in, %s shows only the PIN login', async (path) => {
     render(<App initialPath={path} />)
 
-    expect(screen.getByRole('heading', { name: /staff login/i })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /who.s on the bar/i })).toBeInTheDocument()
     // no page content, no navigation, no status bar
     expect(screen.queryByText(/till page|reports page|settings page/i)).not.toBeInTheDocument()
     expect(screen.queryByRole('link')).not.toBeInTheDocument()
     expect(screen.queryByRole('navigation')).not.toBeInTheDocument()
     expect(screen.queryByTestId('till-badge')).not.toBeInTheDocument()
-    await screen.findByRole('combobox', { name: /staff member/i })
+    await screen.findByRole('group', { name: /staff member/i })
   })
 
   it('opens on the requested route after sign-in, with navigation', async () => {
     mockSignIn.mockResolvedValue({ valid: true, member: ALICE })
     render(<App initialPath="/reports" />)
-    fireEvent.change(await screen.findByRole('combobox', { name: /staff member/i }), { target: { value: 'staff-1' } })
+    fireEvent.click(await screen.findByRole('button', { name: 'Alice' }))
     enterPin('4821')
 
     expect(await screen.findByText(/reports page/i)).toBeVisible()
@@ -106,8 +106,8 @@ describe('Layout — the whole app is behind a staff sign-in', () => {
 
     expect(screen.queryByText(/reports page/i)).not.toBeInTheDocument()
     expect(screen.queryByRole('link')).not.toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: /staff login/i })).toBeInTheDocument()
-    await screen.findByRole('combobox', { name: /staff member/i })
+    expect(screen.getByRole('heading', { name: /who.s on the bar/i })).toBeInTheDocument()
+    await screen.findByRole('group', { name: /staff member/i })
   })
 
   // ── Connectivity + sync must not depend on the gate ────────────────────────
@@ -117,13 +117,13 @@ describe('Layout — the whole app is behind a staff sign-in', () => {
 
     expect(mockInit).toHaveBeenCalledTimes(1)
     expect(useSyncStore.getState().isOnline).toBe(navigator.onLine)
-    expect(screen.getByRole('heading', { name: /staff login/i })).toBeInTheDocument()
-    await screen.findByRole('combobox', { name: /staff member/i })
+    expect(screen.getByRole('heading', { name: /who.s on the bar/i })).toBeInTheDocument()
+    await screen.findByRole('group', { name: /staff member/i })
   })
 
   it('does not restart it when someone signs in, locks or signs out', async () => {
     render(<App />)
-    await screen.findByRole('combobox', { name: /staff member/i })
+    await screen.findByRole('group', { name: /staff member/i })
     act(() => session().setActiveStaff(ALICE))
     act(() => session().lock())
     act(() => session().unlock())
@@ -131,7 +131,7 @@ describe('Layout — the whole app is behind a staff sign-in', () => {
 
     expect(mockInit).toHaveBeenCalledTimes(1)
     expect(mockStop).not.toHaveBeenCalled()
-    await screen.findByRole('combobox', { name: /staff member/i })
+    await screen.findByRole('group', { name: /staff member/i })
   })
 
   it('stops it when the layout itself goes away (device signed out)', () => {
@@ -162,10 +162,10 @@ describe('Layout — page views', () => {
   it('logs nothing while nobody is signed in (no page is shown), then the page on sign-in', async () => {
     mockSignIn.mockResolvedValue({ valid: true, member: ALICE })
     render(<App initialPath="/reports" />)
-    const select = await screen.findByRole('combobox', { name: /staff member/i })
+    const picker = await screen.findByRole('group', { name: /staff member/i })
     expect(pageViews()).toHaveLength(0)
 
-    fireEvent.change(select, { target: { value: 'staff-1' } })
+    fireEvent.click(within(picker).getByRole('button', { name: 'Alice' }))
     enterPin()
     await screen.findByText(/reports page/i)
 

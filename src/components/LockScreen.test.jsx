@@ -379,7 +379,7 @@ describe('LockScreen', () => {
     render(<LockScreen />)
     fireEvent.click(screen.getByRole('button', { name: /someone else/i }))
 
-    fireEvent.change(await screen.findByRole('combobox', { name: /staff member/i }), { target: { value: 'staff-2' } })
+    fireEvent.click(await screen.findByRole('button', { name: 'Bob' }))
     enterPin('2468')
 
     await waitFor(() => expect(session().activeStaff).toEqual({ id: 'staff-2', name: 'Bob' }))
@@ -394,7 +394,7 @@ describe('LockScreen', () => {
     mockSignIn.mockResolvedValue({ valid: false, attemptsRemaining: 4 })
     render(<LockScreen />)
     fireEvent.click(screen.getByRole('button', { name: /someone else/i }))
-    fireEvent.change(await screen.findByRole('combobox', { name: /staff member/i }), { target: { value: 'staff-2' } })
+    fireEvent.click(await screen.findByRole('button', { name: 'Bob' }))
     enterPin('0000')
 
     expect(await screen.findByRole('alert')).toHaveTextContent(/incorrect pin/i)
@@ -406,7 +406,7 @@ describe('LockScreen', () => {
     mockSignIn.mockRejectedValue(new Error('Failed to fetch'))
     render(<LockScreen />)
     fireEvent.click(screen.getByRole('button', { name: /someone else/i }))
-    fireEvent.change(await screen.findByRole('combobox', { name: /staff member/i }), { target: { value: 'staff-2' } })
+    fireEvent.click(await screen.findByRole('button', { name: 'Bob' }))
     enterPin()
 
     expect(await screen.findByRole('alert')).toHaveTextContent(/something went wrong/i)
@@ -419,7 +419,7 @@ describe('LockScreen', () => {
     render(<LockScreen />)
     expect(carryOnButton()).toBeInTheDocument() // for Alice, whose till it is
     fireEvent.click(screen.getByRole('button', { name: /someone else/i }))
-    await screen.findByRole('combobox', { name: /staff member/i })
+    await screen.findByRole('group', { name: /staff member/i })
     expect(carryOnButton()).not.toBeInTheDocument()
   })
 
@@ -427,7 +427,7 @@ describe('LockScreen', () => {
     mockSignIn.mockResolvedValue({ valid: false, reason: 'locked', retryAfterSeconds: 900 })
     render(<LockScreen />)
     fireEvent.click(screen.getByRole('button', { name: /someone else/i }))
-    fireEvent.change(await screen.findByRole('combobox', { name: /staff member/i }), { target: { value: 'staff-2' } })
+    fireEvent.click(await screen.findByRole('button', { name: 'Bob' }))
     enterPin()
 
     expect(await screen.findByRole('status')).toHaveTextContent(/locked after too many attempts/i)

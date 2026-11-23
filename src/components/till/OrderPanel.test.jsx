@@ -24,12 +24,15 @@ beforeEach(() => {
 })
 
 describe('OrderPanel — removing a line', () => {
+  // The redesign has no separate remove button: minus on the last one of a
+  // line removes it (and the button says so).
   it('removes the line and logs what came off the order', () => {
-    renderPanel({ orderItems: [guinness, lager] })
+    const oneGuinness = { ...guinness, quantity: 1, subtotal: 7.4 }
+    renderPanel({ orderItems: [oneGuinness, lager] })
     fireEvent.click(screen.getByRole('button', { name: 'Remove Guinness' }))
     expect(items().map(i => i.name)).toEqual(['Lager'])
     expect(logEvent.mock.calls).toEqual([
-      ['cart.line_removed', { product: 'Guinness', quantity: 3, unit_price: 7.4, value: 22.2 }, { severity: 1 }],
+      ['cart.line_removed', { product: 'Guinness', quantity: 1, unit_price: 7.4, value: 7.4 }, { severity: 1 }],
     ])
   })
 
@@ -52,7 +55,7 @@ describe('OrderPanel — removing a line', () => {
   it('says whose drink it was when a "one for staff" line is removed', () => {
     const credit = { line_id: 'credit:s9:p1', product_id: 'p1', name: 'Guinness', quantity: 1, unit_price: 7.4, subtotal: 7.4, staff_credit_for: 's9', staff_credit_name: 'Dave' }
     renderPanel({ orderItems: [guinness, credit] })
-    fireEvent.click(screen.getAllByRole('button', { name: 'Remove Guinness' })[1])
+    fireEvent.click(screen.getByRole('button', { name: 'Remove Guinness' }))
     // only the credit line went — the buyer's own Guinness stays
     expect(items()).toEqual([guinness])
     expect(logEvent.mock.calls).toEqual([
@@ -73,7 +76,7 @@ describe('OrderPanel — changing a quantity', () => {
 
   it('minus to zero counts as a removed line, not a reduced quantity', () => {
     renderPanel({ orderItems: [lager] })
-    fireEvent.click(screen.getByRole('button', { name: 'Decrease quantity' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Remove Lager' }))
     expect(items()).toEqual([])
     expect(logEvent.mock.calls).toEqual([
       ['cart.line_removed', { product: 'Lager', quantity: 1, unit_price: 5, value: 5 }, { severity: 1 }],
@@ -110,7 +113,11 @@ describe('OrderPanel — changing a quantity', () => {
 describe('OrderPanel — Void Order', () => {
   it('clears the order and logs what was thrown away', () => {
     renderPanel({ orderItems: [guinness, lager], activeMember: alice })
-    fireEvent.click(screen.getByRole('button', { name: /void order/i }))
+    // two taps: the first only arms it, and logs nothing
+    fireEvent.click(screen.getByRole('button', { name: 'Void' }))
+    expect(items()).toHaveLength(2)
+    expect(logEvent).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm void' }))
     expect(items()).toEqual([])
     expect(useTillStore.getState().activeMember).toBeNull()
     expect(logEvent.mock.calls).toEqual([
@@ -129,13 +136,14 @@ describe('OrderPanel — Void Order', () => {
 
   it('records a walk-in order with member: null', () => {
     renderPanel({ orderItems: [lager] })
-    fireEvent.click(screen.getByRole('button', { name: /void order/i }))
+    fireEvent.click(screen.getByRole('button', { name: 'Void' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm void' }))
     expect(logEvent.mock.calls[0][1]).toMatchObject({ lines: 1, value: 5, member: null, member_id: null })
   })
 
   it('offers no Void Order (and so logs nothing) on an empty order', () => {
     renderPanel()
-    expect(screen.queryByRole('button', { name: /void order/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /void/i })).not.toBeInTheDocument()
     expect(logEvent).not.toHaveBeenCalled()
   })
 })
@@ -242,7 +250,13 @@ describe('OrderPanel tab standing', () => {
 })
 
 describe('OrderPanel order controls', () => {
-  beforeEach(() => useTillStore.setState({ parkedOrders: [], parkSeq: 1, lastSale: null }))
+  const item = { product_id: 'p1', name: 'Guinness', quantity: 1, unit_price: 5.5, subtotal: 5.5 }
+  const member = { id: 'm1', name: 'Alice', tab_balance: 20 }
+
+  beforeEach(() => useTillStore.setState({
+    orderItems: [item], activeMember: null, activeMemberTab: null, membersOnlyMode: false,
+    parkedOrders: [], parkSeq: 1, lastSale: null,
+  }))
 
   it('needs a second tap to void the order', () => {
     render(<OrderPanel onCheckout={vi.fn()} />)
@@ -259,6 +273,39 @@ describe('OrderPanel order controls', () => {
     fireEvent.click(screen.getByRole('button', { name: /resume parked order order 1/i }))
     expect(useTillStore.getState().orderItems).toMatchObject([{ product_id: 'p1' }])
     expect(useTillStore.getState().parkedOrders).toHaveLength(0)
+  })
+
+  // A parked order exists only in the till's memory, so the log has to say
+  // what was set aside and whether it came back.
+  it('logs what was parked and that it was resumed, under the same park id', () => {
+    render(<OrderPanel onCheckout={vi.fn()} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Park' }))
+    const parkId = useTillStore.getState().parkedOrders[0].id
+    const detail = { lines: 1, value: 5.5, member: null, member_id: null, items: [{ product: 'Guinness', quantity: 1, value: 5.5 }] }
+    expect(logEvent.mock.calls).toEqual([
+      ['cart.order_parked', { park_id: parkId, label: 'Order 1', ...detail }],
+    ])
+    logEvent.mockClear()
+    fireEvent.click(screen.getByRole('button', { name: /resume parked order order 1/i }))
+    expect(logEvent.mock.calls).toEqual([
+      ['cart.order_resumed', { park_id: parkId, label: 'Order 1', ...detail }],
+    ])
+  })
+
+  it('logs the order that is set aside when a parked one is swapped in', () => {
+    render(<OrderPanel onCheckout={vi.fn()} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Park' }))
+    const firstId = useTillStore.getState().parkedOrders[0].id
+    const lager = { product_id: 'p2', name: 'Lager', quantity: 2, unit_price: 5, subtotal: 10 }
+    act(() => useTillStore.setState({ orderItems: [lager] }))
+    logEvent.mockClear()
+    fireEvent.click(screen.getByRole('button', { name: /resume parked order order 1/i }))
+    const swapped = useTillStore.getState().parkedOrders[0]
+    expect(logEvent.mock.calls.map(c => [c[0], c[1].park_id, c[1].value])).toEqual([
+      ['cart.order_parked', swapped.id, 10],
+      ['cart.order_resumed', firstId, 5.5],
+    ])
+    expect(logEvent.mock.calls[0][1].swapped_for).toBe(firstId)
   })
 
   it('offers the member\'s usual and the last sale again', () => {

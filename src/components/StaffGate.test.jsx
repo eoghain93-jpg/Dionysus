@@ -86,29 +86,29 @@ afterEach(() => {
 describe('StaffGate — nobody signed in', () => {
   it('shows the PIN login and nothing of the app', async () => {
     renderGate()
-    expect(screen.getByRole('heading', { name: /staff login/i })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /who.s on the bar/i })).toBeInTheDocument()
     expect(screen.queryByText('Stock page')).not.toBeInTheDocument()
     expect(screen.queryByRole('link')).not.toBeInTheDocument()
     expect(screen.queryByTestId('staff-gate-content')).not.toBeInTheDocument()
-    await screen.findByRole('combobox', { name: /staff member/i })
+    await screen.findByRole('group', { name: /staff member/i })
   })
 
   it('opens once someone signs in with their PIN', async () => {
     mockSignIn.mockResolvedValue({ valid: true, member: ALICE })
     renderGate()
-    fireEvent.change(await screen.findByRole('combobox', { name: /staff member/i }), { target: { value: 'staff-1' } })
+    fireEvent.click(await screen.findByRole('button', { name: 'Alice' }))
     enterPin('4821')
 
     expect(await screen.findByText('Stock page')).toBeVisible()
     expect(mockSignIn).toHaveBeenCalledWith('staff-1', '4821')
-    expect(screen.queryByRole('heading', { name: /staff login/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: /who.s on the bar/i })).not.toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Members' })).toBeVisible()
   })
 
   it('stays closed on a wrong PIN', async () => {
     mockSignIn.mockResolvedValue({ valid: false, attemptsRemaining: 4 })
     renderGate()
-    fireEvent.change(await screen.findByRole('combobox', { name: /staff member/i }), { target: { value: 'staff-1' } })
+    fireEvent.click(await screen.findByRole('button', { name: 'Alice' }))
     enterPin('0000')
 
     expect(await screen.findByRole('alert')).toHaveTextContent(/incorrect pin/i)
@@ -123,8 +123,8 @@ describe('StaffGate — nobody signed in', () => {
     act(() => session().clearSession())
 
     expect(screen.queryByText('Stock page')).not.toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: /staff login/i })).toBeInTheDocument()
-    await screen.findByRole('combobox', { name: /staff member/i })
+    expect(screen.getByRole('heading', { name: /who.s on the bar/i })).toBeInTheDocument()
+    await screen.findByRole('group', { name: /staff member/i })
   })
 
   it('switches members-only pricing off on sign-out so the next person does not inherit it', async () => {
@@ -139,7 +139,7 @@ describe('StaffGate — nobody signed in', () => {
     // the log saw it go on, so it is told it went off by itself
     expect(logEvent).toHaveBeenCalledTimes(1)
     expect(logEvent).toHaveBeenCalledWith('pricing.members_only_mode_off', { reason: 'staff_signed_out' }, { severity: 1 })
-    await screen.findByRole('combobox', { name: /staff member/i })
+    await screen.findByRole('group', { name: /staff member/i })
   })
 
   it('logs nothing about members-only pricing when it was not on', async () => {
@@ -147,7 +147,7 @@ describe('StaffGate — nobody signed in', () => {
     renderGate()
     act(() => session().clearSession())
     expect(logEvent).not.toHaveBeenCalled()
-    await screen.findByRole('combobox', { name: /staff member/i })
+    await screen.findByRole('group', { name: /staff member/i })
   })
 
   it('leaves members-only pricing alone through a lock and unlock', () => {
@@ -171,7 +171,7 @@ describe('StaffGate — signed in', () => {
     renderGate()
     expect(screen.getByText('Stock page')).toBeVisible()
     expect(screen.queryByRole('dialog', { name: /till locked/i })).not.toBeInTheDocument()
-    expect(screen.queryByRole('heading', { name: /staff login/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: /who.s on the bar/i })).not.toBeInTheDocument()
     expect(screen.getByTestId('staff-gate-content')).not.toHaveAttribute('inert')
     expect(screen.getByTestId('staff-gate-content')).not.toHaveAttribute('aria-hidden')
   })
@@ -264,7 +264,7 @@ describe('StaffGate — signed in', () => {
     act(() => session().lock())
 
     fireEvent.click(screen.getByRole('button', { name: /someone else/i }))
-    fireEvent.change(await screen.findByRole('combobox', { name: /staff member/i }), { target: { value: 'staff-2' } })
+    fireEvent.click(await screen.findByRole('button', { name: 'Bob' }))
     enterPin('2468')
 
     await waitFor(() => expect(session().activeStaff).toEqual({ id: 'staff-2', name: 'Bob' }))

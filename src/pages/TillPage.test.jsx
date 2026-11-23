@@ -24,6 +24,11 @@ vi.mock('../lib/starPrinter', () => ({
   printReceipt: vi.fn(),
   getPrinterIp: vi.fn(),
 }))
+vi.mock('../lib/favourites', () => ({
+  fetchPopularProductIds: vi.fn().mockResolvedValue([]),
+  fetchMemberUsual: vi.fn().mockResolvedValue([]),
+}))
+vi.mock('../lib/members', () => ({ findMemberByNumber: vi.fn().mockResolvedValue(null) }))
 
 // The page is tested for what IT does (checkout, and the handlers it passes
 // down); every child is a stub with just enough buttons to drive them.
@@ -197,7 +202,7 @@ describe('TillPage — sale.completed', () => {
 describe('TillPage — one for staff', () => {
   it('logs who the drink was rung for', () => {
     renderTill({ orderItems: [] })
-    fireEvent.click(screen.getByRole('button', { name: 'One for Staff' }))
+    fireEvent.click(screen.getByRole('button', { name: 'One for staff' }))
     fireEvent.click(screen.getByRole('button', { name: 'Credit for Dave' }))
     expect(useTillStore.getState().orderItems).toHaveLength(1)
     expect(logEvent.mock.calls).toEqual([
@@ -209,7 +214,7 @@ describe('TillPage — one for staff', () => {
 
   it('flags the server ringing one in for themselves', () => {
     renderTill({ orderItems: [] })
-    fireEvent.click(screen.getByRole('button', { name: 'One for Staff' }))
+    fireEvent.click(screen.getByRole('button', { name: 'One for staff' }))
     fireEvent.click(screen.getByRole('button', { name: 'Credit for Sam' }))
     expect(logEvent.mock.calls).toEqual([
       ['cart.staff_credit_added', {
@@ -222,7 +227,7 @@ describe('TillPage — one for staff', () => {
 describe('TillPage — other events', () => {
   it('logs that today\'s sales list was opened (Fix Payment)', () => {
     renderTill()
-    fireEvent.click(screen.getByRole('button', { name: 'Fix Payment' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Fix payment' }))
     expect(screen.getByTestId('recent-sales')).toBeInTheDocument()
     expect(logEvent.mock.calls).toEqual([['sales.recent_viewed']])
   })
@@ -247,7 +252,8 @@ describe('TillPage — other events', () => {
 
   it('logs nothing just for showing the till', async () => {
     renderTill()
-    await waitFor(() => expect(screen.getByText(/no products in this category/i)).toBeInTheDocument())
+    // loaded: the placeholder tiles have gone
+    await waitFor(() => expect(document.querySelector('.animate-pulse')).toBeNull())
     expect(logEvent).not.toHaveBeenCalled()
   })
 })

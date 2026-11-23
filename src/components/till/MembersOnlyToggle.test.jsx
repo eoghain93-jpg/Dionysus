@@ -16,7 +16,7 @@ beforeEach(() => {
 describe('MembersOnlyToggle', () => {
   it('turning event mode on is logged once it is confirmed', () => {
     render(<MembersOnlyToggle />)
-    fireEvent.click(screen.getByRole('button', { name: /start members-only event mode/i }))
+    fireEvent.click(screen.getByRole('button', { name: /^members-only event mode$/i }))
     // the confirmation is showing — nothing has changed yet
     expect(mode()).toBe(false)
     expect(logEvent).not.toHaveBeenCalled()
@@ -45,7 +45,7 @@ describe('MembersOnlyToggle', () => {
 
   it('cancelling the confirmation changes nothing and logs nothing', () => {
     render(<MembersOnlyToggle />)
-    fireEvent.click(screen.getByRole('button', { name: /start members-only event mode/i }))
+    fireEvent.click(screen.getByRole('button', { name: /^members-only event mode$/i }))
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
     expect(mode()).toBe(false)
     expect(logEvent).not.toHaveBeenCalled()
