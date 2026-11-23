@@ -4,6 +4,7 @@ import { supabase } from '../../lib/supabase'
 import { setTabBlocked } from '../../lib/tabs'
 import { useSessionStore } from '../../stores/sessionStore'
 import { useToastStore } from '../../hooks/useToast'
+import { useCanUnblockTabs } from '../../hooks/useCanUnblockTabs'
 import SettleTabModal from './SettleTabModal'
 import AdjustTabModal from './AdjustTabModal'
 import SetPinModal from './SetPinModal'
@@ -32,6 +33,7 @@ export default function MemberProfile({ member, onClose, onEdit, onSettleTab }) 
   const [tabBlocked, setTabBlockedState] = useState(!!member.tab_blocked)
   const [savingBlock, setSavingBlock] = useState(false)
   const { activeStaff } = useSessionStore()
+  const canUnblock = useCanUnblockTabs(activeStaff?.id)
 
   useEffect(() => { setTabBlockedState(!!member.tab_blocked) }, [member.id, member.tab_blocked])
 
@@ -44,7 +46,10 @@ export default function MemberProfile({ member, onClose, onEdit, onSettleTab }) 
       onSettleTab()
     } catch (err) {
       console.error('Failed to update tab block:', err)
-      useToastStore.getState().addToast('Could not update the tab block — try again', 'error')
+      useToastStore.getState().addToast(
+        err?.code === '42501' ? 'Only Admin or Nikki can unblock a tab' : 'Could not update the tab block — try again',
+        'error'
+      )
     } finally {
       setSavingBlock(false)
     }
@@ -275,6 +280,7 @@ export default function MemberProfile({ member, onClose, onEdit, onSettleTab }) 
             <Edit2 size={18} aria-hidden="true" />
             Adjust Tab
           </button>
+          {!(tabBlocked && !canUnblock) && (
           <button
             onClick={handleToggleBlock}
             disabled={savingBlock}
@@ -283,6 +289,7 @@ export default function MemberProfile({ member, onClose, onEdit, onSettleTab }) 
             <Lock size={18} aria-hidden="true" />
             {tabBlocked ? 'Unblock Tab' : 'Block Tab'}
           </button>
+          )}
           {member.membership_tier === 'staff' && (
             <button
               onClick={() => setSetPinOpen(true)}

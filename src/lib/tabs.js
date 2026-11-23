@@ -65,18 +65,42 @@ export async function fetchOpenTabs() {
   }))
 }
 
-// Block (or unblock) a member from putting more drinks on their tab. The
-// till checks the flag before a tab sale; settling is never blocked.
+// Block or unblock a member's tab. Anyone can block; unblocking goes
+// through the unblock_tab RPC, which only lets Admin and Nikki
+// (members.can_unblock_tabs) do it, checked against the server-side staff
+// session. Settling a blocked tab is never stopped.
 export async function setTabBlocked(member_id, blocked, staff_id) {
+  if (!blocked) {
+    const { error } = await supabase.rpc('unblock_tab', { p_member_id: member_id })
+    if (error) throw error
+    return
+  }
   const { error } = await supabase
     .from('members')
     .update({
-      tab_blocked: blocked,
-      tab_blocked_at: blocked ? new Date().toISOString() : null,
-      tab_blocked_by: blocked ? (staff_id ?? null) : null,
+      tab_blocked: true,
+      tab_blocked_at: new Date().toISOString(),
+      tab_blocked_by: staff_id ?? null,
     })
     .eq('id', member_id)
   if (error) throw error
+}
+
+// Whether this staff member may unblock tabs. Used to show or hide the
+// Unblock button; the database makes the real decision.
+export async function canUnblockTabs(staff_id) {
+  if (!staff_id) return false
+  try {
+    const { data, error } = await supabase
+      .from('members')
+      .select('can_unblock_tabs')
+      .eq('id', staff_id)
+      .single()
+    if (error) return false
+    return !!data?.can_unblock_tabs
+  } catch {
+    return false
+  }
 }
 
 // Fresh check right before a tab sale: the member on the order may have

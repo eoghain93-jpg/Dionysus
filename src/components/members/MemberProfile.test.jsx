@@ -9,6 +9,8 @@ const { mockAdjustTabBalance } = vi.hoisted(() => ({
 
 vi.mock('../../lib/tabs', () => ({
   adjustTabBalance: mockAdjustTabBalance,
+  setTabBlocked: vi.fn(),
+  canUnblockTabs: vi.fn().mockResolvedValue(false),
 }))
 
 vi.mock('../../stores/sessionStore', () => ({
