@@ -47,21 +47,21 @@ export default function PrizeWinModal({ onClose, onSaved }) {
 
   return (
     <div
-      className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4"
+      className="ui-modal-backdrop"
       role="dialog"
       aria-modal="true"
       aria-label="Record Prize Win"
     >
-      <div className="bg-[#0F172A] border border-slate-700 rounded-2xl w-full max-w-sm p-5 flex flex-col gap-4">
-        <div className="flex items-center justify-between">
-          <h2 className="text-white font-bold text-lg">Record Prize Win</h2>
-          <button onClick={onClose} aria-label="Close" className="text-slate-400 hover:text-white cursor-pointer">
-            <X size={20} aria-hidden="true" />
+      <div className="ui-modal">
+        <div className="flex items-start justify-between gap-3">
+          <h2 className="ui-modal-title">Record Prize Win</h2>
+          <button onClick={onClose} aria-label="Close" className="ui-btn ui-btn-ghost ui-btn-icon shrink-0">
+            <X size={22} aria-hidden="true" />
           </button>
         </div>
-        <form onSubmit={handleSubmit} className="flex flex-col gap-3">
-          <div className="flex flex-col gap-1">
-            <label htmlFor="prize-amount" className="text-slate-300 text-sm">Voucher amount (£)</label>
+        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+          <div>
+            <label htmlFor="prize-amount" className="ui-label">Voucher amount (£)</label>
             <input
               id="prize-amount"
               type="number"
@@ -70,25 +70,21 @@ export default function PrizeWinModal({ onClose, onSaved }) {
               value={amount}
               onChange={e => setAmount(e.target.value)}
               placeholder="e.g. 5.00"
-              className="bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="ui-input min-h-[64px] text-[28px] font-extrabold"
               autoFocus
             />
           </div>
 
-          <fieldset className="flex flex-col gap-1">
-            <legend className="text-slate-300 text-sm mb-1">Machine</legend>
-            <div className="grid grid-cols-2 gap-2">
+          <fieldset>
+            <legend className="ui-label">Machine</legend>
+            <div className="grid grid-cols-2 gap-2.5">
               {['1', '2'].map(m => (
                 <button
                   key={m}
                   type="button"
                   onClick={() => setMachine(m)}
                   aria-pressed={machine === m}
-                  className={`min-h-[44px] rounded-xl border text-sm font-semibold transition-colors cursor-pointer ${
-                    machine === m
-                      ? 'bg-blue-600 border-blue-500 text-white'
-                      : 'bg-slate-800 border-slate-600 text-slate-300 hover:bg-slate-700'
-                  }`}
+                  className={`ui-tab min-h-[64px] rounded-2xl text-[17px] ${machine === m ? 'ui-tab-active' : ''}`}
                 >
                   Machine {m}
                 </button>
@@ -96,20 +92,20 @@ export default function PrizeWinModal({ onClose, onSaved }) {
             </div>
           </fieldset>
 
-          {error && <p role="alert" className="text-red-400 text-sm">{error}</p>}
-          <div className="flex gap-2 mt-1">
+          {error && <p role="alert" className="ui-error">{error}</p>}
+          <div className="ui-modal-actions">
             <button
               type="button"
               onClick={onClose}
               disabled={saving}
-              className="flex-1 min-h-[44px] rounded-xl border border-slate-600 text-slate-300 hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium cursor-pointer transition-colors"
+              className="ui-btn ui-btn-ghost ui-btn-lg flex-1"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={saving}
-              className="flex-1 min-h-[44px] rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-semibold cursor-pointer transition-colors"
+              className="ui-btn ui-btn-primary ui-btn-lg flex-1"
             >
               {saving ? 'Saving…' : 'Record'}
             </button>

@@ -40,7 +40,7 @@ export default function Layout({ children }) {
 
   return (
     <StaffGate>
-      <div className="flex h-screen overflow-hidden bg-[#020617] flex-col">
+      <div className="flex h-screen overflow-hidden bg-[#121314] flex-col">
         <StatusBar />
         <div className="flex flex-1 overflow-hidden">
           <NavBar />

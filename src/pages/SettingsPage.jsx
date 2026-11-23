@@ -87,81 +87,70 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="p-6 max-w-lg">
-      <h1 className="text-white text-xl font-bold mb-6">Settings</h1>
+    <div className="ui-page">
+      <div className="ui-page-header">
+        <h1 className="ui-title">Settings</h1>
+      </div>
 
-      <section className="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-4">
-        <div className="flex items-center gap-2">
-          <Printer size={18} className="text-slate-400" aria-hidden="true" />
-          <h2 className="text-white font-semibold">Receipt Printer</h2>
+      <section className="ui-card p-5 flex flex-col gap-5 w-full max-w-xl">
+        <div className="flex items-center gap-2.5">
+          <Printer size={22} className="text-slate-400" aria-hidden="true" />
+          <h2 className="ui-section-title">Receipt Printer</h2>
         </div>
 
-        <div className="space-y-2">
-          <label htmlFor="printer-ip" className="text-slate-400 text-sm block">
+        <div>
+          <label htmlFor="printer-ip" className="ui-label">
             Printer IP Address
           </label>
-          <div className="flex gap-2">
+          <div className="flex gap-3 flex-wrap">
             <input
               id="printer-ip"
               type="text"
               value={ip}
               onChange={e => setIp(e.target.value)}
               placeholder="e.g. 192.168.1.100"
-              className="flex-1 bg-slate-800 border border-slate-700 rounded-xl px-3 py-2
-                text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="ui-input flex-1 basis-48 w-auto"
             />
-            <button
-              onClick={handleSave}
-              className="bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold
-                px-4 py-2 rounded-xl transition-colors cursor-pointer min-h-[44px]"
-            >
+            <button onClick={handleSave} className="ui-btn ui-btn-primary min-w-[96px]">
               Save
             </button>
           </div>
           {saveStatus === 'saved' && (
-            <p role="alert" className="text-emerald-400 text-xs flex items-center gap-1">
-              <Check size={12} aria-hidden="true" /> Saved
+            <p role="alert" className="text-emerald-300 text-[15px] font-semibold flex items-center gap-1.5 mt-2">
+              <Check size={16} aria-hidden="true" /> Saved
             </p>
           )}
         </div>
 
-        <div className="flex gap-3 pt-1">
-          <div className="flex-1 space-y-1">
-            <button
-              onClick={handleTest}
-              className="w-full bg-slate-700 hover:bg-slate-600 text-white text-sm font-medium
-                py-3 rounded-xl transition-colors cursor-pointer min-h-[44px]"
-            >
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="flex flex-col gap-2">
+            <button onClick={handleTest} className="ui-btn ui-btn-secondary w-full">
               Test Connection
             </button>
             {testStatus === 'success' && (
-              <p role="alert" className="text-emerald-400 text-xs flex items-center gap-1">
-                <Check size={12} aria-hidden="true" /> Test print sent
+              <p role="alert" className="text-emerald-300 text-[15px] font-semibold flex items-center gap-1.5">
+                <Check size={16} aria-hidden="true" /> Test print sent
               </p>
             )}
             {testStatus === 'error' && (
-              <p role="alert" className="text-red-400 text-xs">Connection failed — check IP and printer power</p>
+              <p role="alert" className="ui-error text-[15px]">Connection failed — check IP and printer power</p>
             )}
             {testStatus === 'simulation' && (
-              <p role="alert" className="text-slate-400 text-xs">Simulation mode — no IP configured</p>
+              <p role="alert" className="text-slate-400 text-[15px]">Simulation mode — no IP configured</p>
             )}
           </div>
 
-          <div className="flex-1 space-y-1">
-            <button
-              onClick={handleOpenDrawer}
-              className="w-full bg-slate-700 hover:bg-slate-600 text-white text-sm font-medium
-                py-3 rounded-xl transition-colors cursor-pointer min-h-[44px]"
-            >
+          <div className="flex flex-col gap-2">
+            <button onClick={handleOpenDrawer} className="ui-btn ui-btn-secondary w-full">
               Open Drawer
             </button>
             {drawerStatus === 'success' && (
-              <p role="alert" className="text-emerald-400 text-xs flex items-center gap-1">
-                <Check size={12} aria-hidden="true" /> Drawer opened
+              <p role="alert" className="text-emerald-300 text-[15px] font-semibold flex items-center gap-1.5">
+                <Check size={16} aria-hidden="true" /> Drawer opened
               </p>
             )}
             {drawerStatus === 'error' && (
-              <p role="alert" className="text-red-400 text-xs">Failed to open drawer</p>
+              <p role="alert" className="ui-error text-[15px]">Failed to open drawer</p>
             )}
           </div>
         </div>

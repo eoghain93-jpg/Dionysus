@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { NavLink, useLocation } from 'react-router-dom'
-import { ShoppingCart, Package, Users, BarChart2, Tag, Receipt, ArrowLeftRight, Settings, MoreHorizontal, X, UserPlus, ScrollText, Lock, LogOut } from 'lucide-react'
+import { ShoppingCart, Package, Users, BarChart2, Tag, Receipt, Settings, MoreHorizontal, X, UserPlus, ScrollText, Lock, LogOut } from 'lucide-react'
 import { useSessionStore } from '../stores/sessionStore'
 import { useToastStore } from '../hooks/useToast'
 import { useTabAlertStore } from '../stores/tabAlertStore'
@@ -161,78 +161,73 @@ export default function NavBar() {
   return (
     <>
       {/* Sidebar — tablet/desktop (shows all links) */}
-      <nav className="hidden md:flex flex-col w-20 lg:w-52 bg-slate-900 border-r border-slate-800 p-3 gap-1 shrink-0 overflow-y-auto">
-        <div className="px-1 py-3 hidden lg:flex justify-center">
-          <img src="/fairmile-logo.png" alt="The Fairmile Pub & Kitchen"
-            className="w-28 h-auto" />
-        </div>
+      <nav className="hidden md:flex flex-col items-center w-[88px] bg-slate-950 px-2 pt-4 pb-3 gap-1 shrink-0 overflow-y-auto">
         {allLinks.map(({ to, label, Icon }) => (
           <NavLink
             key={to}
             to={to}
             end={to === '/'}
             className={({ isActive }) =>
-              `flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium
-               transition-colors duration-200 cursor-pointer min-h-[44px]
+              `w-[72px] min-h-[62px] flex flex-col items-center justify-center gap-1 rounded-2xl text-[13px]
+               transition-colors duration-200 cursor-pointer
                ${isActive
-                 ? 'bg-blue-600 text-white'
-                 : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`
+                 ? 'bg-blue-600 text-white font-bold'
+                 : 'text-slate-400 font-semibold hover:bg-slate-800 hover:text-white'}`
             }
           >
             <span className="relative flex">
-              <Icon size={20} aria-hidden="true" />
+              <Icon size={22} aria-hidden="true" />
               {to === '/tabs' && <OverdueBadge count={overdueCount} />}
             </span>
-            <span className="hidden lg:block">{label}</span>
+            <span>{label}</span>
           </NavLink>
         ))}
         {activeStaff && (
-          <div className="mt-auto pt-3 border-t border-slate-800 flex flex-col gap-1">
+          <div className="mt-auto pt-3 flex flex-col items-center gap-1">
             <button
               onClick={openDavey}
-              className="w-full flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium
+              className="w-[72px] min-h-[56px] flex flex-col items-center justify-center gap-1 rounded-2xl text-[13px] font-semibold
                 text-slate-400 hover:bg-slate-800 hover:text-white transition-colors duration-200 cursor-pointer
                 focus:outline-none focus:ring-2 focus:ring-blue-500"
               aria-label="Davey mode"
             >
               <StripesIcon size={20} />
-              <span className="hidden lg:block">Davey</span>
+              <span>Davey</span>
             </button>
             <button
               onClick={() => setShowSwitch(true)}
-              className="w-full flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium
-                text-slate-400 hover:bg-slate-800 hover:text-white transition-colors duration-200 cursor-pointer
+              className="w-[72px] min-h-[68px] flex flex-col items-center justify-center gap-1 rounded-2xl text-[13px] font-semibold
+                border border-slate-700 text-slate-100 hover:bg-slate-800 transition-colors duration-200 cursor-pointer
                 focus:outline-none focus:ring-2 focus:ring-blue-500"
               aria-label="Switch user"
             >
-              <span className="w-7 h-7 rounded-full bg-blue-600 flex items-center justify-center text-white text-xs font-bold shrink-0">
+              <span className="w-[30px] h-[30px] rounded-full bg-slate-100 text-[#121314] flex items-center justify-center text-[13px] font-extrabold shrink-0">
                 {initials(activeStaff.name)}
               </span>
-              <span className="hidden lg:block truncate flex-1 text-left">{activeStaff.name}</span>
-              <ArrowLeftRight size={14} className="hidden lg:block shrink-0" aria-hidden="true" />
+              <span className="max-w-full px-1 truncate">{activeStaff.name.split(' ')[0]}</span>
             </button>
-            {/* Lock + Sign out — one compact row on wide sidebars, stacked icons on narrow */}
-            <div className="flex flex-col lg:flex-row gap-1">
+            {/* Lock + Sign out — side by side so the rail stays short */}
+            <div className="w-[72px] flex gap-1">
               <button
                 onClick={handleLock}
-                className="flex-1 flex items-center justify-center gap-2 px-2 py-3 rounded-xl text-xs font-medium min-h-[44px]
-                  text-slate-400 hover:bg-slate-800 hover:text-white transition-colors duration-200 cursor-pointer
+                title="Lock"
+                className="flex-1 min-h-[52px] flex items-center justify-center rounded-2xl
+                  border border-slate-700 text-slate-100 hover:bg-slate-800 transition-colors duration-200 cursor-pointer
                   focus:outline-none focus:ring-2 focus:ring-blue-500"
                 aria-label="Lock till"
               >
-                <Lock size={18} className="shrink-0" aria-hidden="true" />
-                <span className="hidden lg:block">Lock</span>
+                <Lock size={20} aria-hidden="true" />
               </button>
               <button
                 onClick={handleSignOut}
                 disabled={signingOut}
-                className="flex-1 flex items-center justify-center gap-2 px-2 py-3 rounded-xl text-xs font-medium min-h-[44px]
-                  text-slate-400 hover:bg-slate-800 hover:text-white transition-colors duration-200 cursor-pointer
+                title="Sign out"
+                className="flex-1 min-h-[52px] flex items-center justify-center rounded-2xl
+                  border border-slate-700 text-slate-100 hover:bg-slate-800 transition-colors duration-200 cursor-pointer
                   focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
                 aria-label="Sign out"
               >
-                <LogOut size={18} className="shrink-0" aria-hidden="true" />
-                <span className="hidden lg:block whitespace-nowrap">Sign out</span>
+                <LogOut size={20} aria-hidden="true" />
               </button>
             </div>
           </div>
@@ -281,7 +276,21 @@ export default function NavBar() {
             onClick={() => setShowMore(false)}
           />
           <div className="md:hidden fixed bottom-16 right-2 z-50 bg-slate-800 border border-slate-700
-            rounded-2xl shadow-xl overflow-hidden min-w-[160px]">
+            rounded-2xl shadow-xl overflow-hidden min-w-[220px]">
+            {activeStaff && (
+              <button
+                onClick={() => { setShowMore(false); setShowSwitch(true) }}
+                aria-label={`Logged in as ${activeStaff.name}. Tap to switch user.`}
+                className="w-full flex items-center gap-3 px-4 py-4 text-sm font-bold transition-colors duration-150
+                  text-white border-b border-slate-700 hover:bg-slate-700 cursor-pointer"
+              >
+                <span className="w-7 h-7 rounded-full bg-slate-100 text-[#121314] flex items-center justify-center text-xs font-extrabold shrink-0">
+                  {initials(activeStaff.name)}
+                </span>
+                <span className="flex-1 text-left truncate">{activeStaff.name}</span>
+                <span className="text-slate-400 font-semibold">Switch</span>
+              </button>
+            )}
             {moreLinks.map(({ to, label, Icon }) => (
               <NavLink
                 key={to}
@@ -329,23 +338,11 @@ export default function NavBar() {
         </>
       )}
 
-      {activeStaff && (
-        <button
-          onClick={() => setShowSwitch(true)}
-          aria-label={`Logged in as ${activeStaff.name}. Tap to switch user.`}
-          className="md:hidden fixed top-8 right-3 z-40 w-11 h-11 rounded-full bg-blue-600 hover:bg-blue-500
-            flex items-center justify-center text-white text-sm font-bold shadow-lg cursor-pointer
-            focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617]"
-        >
-          {initials(activeStaff.name)}
-        </button>
-      )}
-
       {/* Covers the till for the moment it takes the server to answer */}
       {signingOut && (
         <div
           role="status"
-          className="fixed inset-0 z-[150] bg-slate-900 flex items-center justify-center text-slate-400 text-sm"
+          className="fixed inset-0 z-[150] bg-[#121314] flex items-center justify-center text-slate-300 text-base font-semibold"
         >
           Signing out…
         </div>

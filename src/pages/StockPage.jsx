@@ -59,14 +59,10 @@ export default function StockPage() {
   }
 
   return (
-    <div className="flex flex-col h-full min-h-0 p-4 gap-4 overflow-auto">
+    <div className="ui-page">
       {/* Page header */}
-      <div className="flex items-center justify-between gap-4 flex-wrap">
-        <h1
-          className="text-2xl font-bold text-white"
-        >
-          Stock
-        </h1>
+      <div className="ui-page-header">
+        <h1 className="ui-title">Stock</h1>
         <button
           onClick={() => setShowPriceChanges(true)}
           className="ml-auto flex items-center gap-2 px-4 min-h-[44px] rounded-xl border border-slate-600 text-slate-300 hover:bg-slate-700 hover:text-white text-sm font-medium transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617]"
@@ -76,9 +72,9 @@ export default function StockPage() {
         </button>
         <button
           onClick={() => setProductModal(null)}
-          className="flex items-center gap-2 px-4 min-h-[44px] rounded-xl bg-[#22C55E] hover:bg-green-400 text-slate-900 font-bold text-sm transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617]"
+          className="ui-btn ui-btn-primary"
         >
-          <Plus size={16} aria-hidden="true" />
+          <Plus size={20} aria-hidden="true" />
           Add Product
         </button>
       </div>
@@ -87,9 +83,9 @@ export default function StockPage() {
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">
           <Search
-            size={16}
+            size={20}
             aria-hidden="true"
-            className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"
+            className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"
           />
           <input
             type="search"
@@ -97,7 +93,7 @@ export default function StockPage() {
             onChange={e => setSearch(e.target.value)}
             placeholder="Search products…"
             aria-label="Search products"
-            className="w-full bg-[#0F172A] border border-slate-700 rounded-xl pl-9 pr-3 py-2 text-white placeholder-slate-500 min-h-[44px] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617]"
+            className="ui-input pl-12"
           />
         </div>
 
@@ -105,7 +101,7 @@ export default function StockPage() {
           value={category}
           onChange={e => setCategory(e.target.value)}
           aria-label="Filter by category"
-          className="bg-[#0F172A] border border-slate-700 rounded-xl px-3 py-2 text-white min-h-[44px] capitalize focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617] cursor-pointer"
+          className="ui-select capitalize sm:min-w-[200px]"
         >
           {CATEGORIES.map(c => (
             <option key={c} value={c} className="capitalize">{c === 'all' ? 'All categories' : c}</option>
@@ -114,9 +110,9 @@ export default function StockPage() {
       </div>
 
       {/* Content */}
-      <div className="flex-1 bg-[#0F172A] rounded-2xl border border-slate-700 overflow-hidden">
+      <div className="ui-card flex-1 min-h-[320px] overflow-hidden flex flex-col">
         {loading ? (
-          <p className="text-slate-400 text-sm p-6 text-center">Loading products…</p>
+          <p className="ui-empty">Loading products…</p>
         ) : (
           <StockList
             products={filtered}

@@ -70,13 +70,13 @@ export default function ReportsPage() {
   }
 
   return (
-    <div className="flex flex-col h-full min-h-0 p-4 gap-6 overflow-auto">
+    <div className="ui-page gap-6">
       {/* Page header */}
-      <div className="flex items-center justify-between gap-4 flex-wrap">
-        <h1 className="text-2xl font-bold text-white">
+      <div className="ui-page-header">
+        <h1 className="ui-title">
           Reports
         </h1>
-        <div className="flex items-center gap-3 flex-wrap">
+        <div className="flex items-center gap-2.5 flex-wrap">
           {/* Date picker */}
           <input
             type="date"
@@ -84,39 +84,33 @@ export default function ReportsPage() {
             onChange={e => setDate(e.target.value)}
             max={todayISO()}
             aria-label="Select report date"
-            className="bg-[#0F172A] border border-slate-700 rounded-xl px-3 min-h-[44px] text-white text-sm cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617]"
+            className="ui-input w-auto font-bold cursor-pointer [color-scheme:dark]"
           />
           {/* Export CSV */}
           <button
             onClick={handleExportCSV}
             disabled={exporting}
-            className="flex items-center gap-2 px-4 min-h-[44px] rounded-xl bg-[#1E293B] hover:bg-slate-700 border border-slate-600 text-white text-sm font-semibold transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617]"
+            className="ui-btn ui-btn-secondary"
           >
-            <Download size={16} aria-hidden="true" />
+            <Download size={18} aria-hidden="true" />
             {exporting ? 'Exporting…' : 'Export CSV'}
           </button>
           {/* Stocktake — opens dedicated page with date range, table, CSV download, email */}
-          <Link
-            to="/stocktake"
-            className="flex items-center gap-2 px-4 min-h-[44px] rounded-xl bg-[#1E293B] hover:bg-slate-700 border border-slate-600 text-white text-sm font-semibold transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617]"
-          >
-            <Package size={16} aria-hidden="true" />
+          <Link to="/stocktake" className="ui-btn ui-btn-secondary">
+            <Package size={18} aria-hidden="true" />
             Stocktake
           </Link>
           {/* Monthly report — month picker, daily takings, totals, CSV + email for the accountant */}
-          <Link
-            to="/monthly-report"
-            className="flex items-center gap-2 px-4 min-h-[44px] rounded-xl bg-[#1E293B] hover:bg-slate-700 border border-slate-600 text-white text-sm font-semibold transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617]"
-          >
-            <Calendar size={16} aria-hidden="true" />
+          <Link to="/monthly-report" className="ui-btn ui-btn-secondary">
+            <Calendar size={18} aria-hidden="true" />
             Monthly
           </Link>
           {/* Z Report */}
           <button
             onClick={() => setShowPinGate(true)}
-            className="flex items-center gap-2 px-4 min-h-[44px] rounded-xl bg-red-900/60 hover:bg-red-800 border border-red-700/60 text-white text-sm font-semibold transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 focus:ring-offset-[#020617]"
+            className="ui-btn ui-btn-primary"
           >
-            <FileText size={16} aria-hidden="true" />
+            <FileText size={18} aria-hidden="true" />
             Z Report
           </button>
         </div>
@@ -124,49 +118,40 @@ export default function ReportsPage() {
 
       {/* Daily Summary */}
       <section aria-labelledby="daily-summary-heading">
-        <div className="flex items-center gap-2 mb-3">
-          <BarChart2 size={18} aria-hidden="true" className="text-[#22C55E]" />
-          <h2
-            id="daily-summary-heading"
-            className="text-base font-semibold text-white"
-          >
+        <div className="flex items-baseline gap-2.5 flex-wrap mb-3">
+          <BarChart2 size={18} aria-hidden="true" className="text-slate-400 self-center" />
+          <h2 id="daily-summary-heading" className="ui-section-title">
             Daily Summary
           </h2>
-          <span className="text-slate-500 text-sm ml-1">{date}</span>
+          <span className="ui-subtitle">{date}</span>
         </div>
         <DailySummary date={date} />
       </section>
 
       {/* Busiest Hours */}
       <section aria-labelledby="busiest-hours-heading">
-        <div className="flex items-center gap-2 mb-3">
-          <Clock size={18} aria-hidden="true" className="text-[#3B82F6]" />
-          <h2
-            id="busiest-hours-heading"
-            className="text-base font-semibold text-white"
-          >
+        <div className="flex items-baseline gap-2.5 flex-wrap mb-3">
+          <Clock size={18} aria-hidden="true" className="text-slate-400 self-center" />
+          <h2 id="busiest-hours-heading" className="ui-section-title">
             Busiest Hours
           </h2>
-          <span className="text-slate-500 text-sm ml-1">Last 7 days</span>
+          <span className="ui-subtitle">Last 7 days</span>
         </div>
-        <div className="bg-[#0F172A] border border-slate-700 rounded-2xl p-4">
+        <div className="ui-card p-4">
           <BusiestHours />
         </div>
       </section>
 
       {/* Top Products */}
       <section aria-labelledby="top-products-heading">
-        <div className="flex items-center gap-2 mb-3">
-          <TrendingUp size={18} aria-hidden="true" className="text-[#3B82F6]" />
-          <h2
-            id="top-products-heading"
-            className="text-base font-semibold text-white"
-          >
+        <div className="flex items-baseline gap-2.5 flex-wrap mb-3">
+          <TrendingUp size={18} aria-hidden="true" className="text-slate-400 self-center" />
+          <h2 id="top-products-heading" className="ui-section-title">
             Top 10 Products
           </h2>
-          <span className="text-slate-500 text-sm ml-1">Last 7 days by revenue</span>
+          <span className="ui-subtitle">Last 7 days by revenue</span>
         </div>
-        <div className="bg-[#0F172A] border border-slate-700 rounded-2xl p-4">
+        <div className="ui-card">
           <TopProducts />
         </div>
       </section>

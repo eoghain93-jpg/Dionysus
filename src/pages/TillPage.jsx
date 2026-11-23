@@ -1,11 +1,13 @@
 import { useState, useEffect, useCallback } from 'react'
-import { ShoppingCart } from 'lucide-react'
+import { ShoppingCart, Beer, GlassWater, Trash2, Banknote, Trophy, UserPlus, RotateCcw } from 'lucide-react'
 import { fetchProducts } from '../lib/products'
 import { fetchActivePromotions } from '../lib/promotions'
 import { isBundleEnabled } from '../lib/promos'
 import { newOrderId, saveOrder } from '../lib/orders'
 import { getTillId } from '../lib/till'
 import { fetchTabAges, isTabBlocked } from '../lib/tabs'
+import { fetchPopularProductIds, fetchMemberUsual } from '../lib/favourites'
+import { findMemberByNumber } from '../lib/members'
 import { printReceipt, getPrinterIp } from '../lib/starPrinter'
 import { logEvent } from '../lib/audit/log'
 import { useToastStore } from '../hooks/useToast'
@@ -29,9 +31,18 @@ import BottleBundleModal from '../components/till/BottleBundleModal'
 import GuestSignInModal from '../components/guests/GuestSignInModal'
 import { BOTTLE_BUNDLE_PROMO_NAME } from '../lib/bottleBundle'
 
+// How long the Undo prompt stays up after a tile tap.
+const UNDO_MS = 5000
+
 export default function TillPage() {
   const [products, setProducts] = useState([])
-  const [category, setCategory] = useState('all')
+  const [category, setCategory] = useState('popular')
+  // Best-selling product ids (drives the Popular tab) and the active member's
+  // usual order ([{ product_id, quantity }]).
+  const [popularIds, setPopularIds] = useState([])
+  const [usual, setUsual] = useState([])
+  // The last tile tapped ({ id, name }), offered back as an Undo prompt.
+  const [undo, setUndo] = useState(null)
   const [loading, setLoading] = useState(true)
   const [showWastage, setShowWastage] = useState(false)
   const [showStaffDrink, setShowStaffDrink] = useState(false)
@@ -50,6 +61,7 @@ export default function TillPage() {
   // date backstop without needing the page to reload.
   const bottleBundleEnabled = isBundleEnabled(activePromos, BOTTLE_BUNDLE_PROMO_NAME)
   const setMembersOnlyMode = useTillStore(s => s.setMembersOnlyMode)
+  const membersOnlyMode = useTillStore(s => s.membersOnlyMode)
   const { isOnline } = useSyncStore()
   const { activeStaff } = useSessionStore()
 
@@ -67,7 +79,15 @@ export default function TillPage() {
   useEffect(() => {
     fetchProducts().then(setProducts).catch(console.error).finally(() => setLoading(false))
     loadPromos(fetchActivePromotions)
+    fetchPopularProductIds().then(setPopularIds)
   }, [])
+
+  // The Undo prompt clears itself a few seconds after the last tap.
+  useEffect(() => {
+    if (!undo) return
+    const timer = setTimeout(() => setUndo(null), UNDO_MS)
+    return () => clearTimeout(timer)
+  }, [undo])
 
   // Flag a member's tab standing the moment they're put on the sale: a
   // toast (seen whichever panel is open) plus a note in the order panel.
@@ -95,6 +115,15 @@ export default function TillPage() {
     return () => { cancelled = true }
     // Keyed on the id only: the member object is replaced on every lookup.
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeMemberId])
+
+  // Look up what this member usually orders, to offer it in one tap.
+  useEffect(() => {
+    setUsual([])
+    if (!activeMemberId) return
+    let cancelled = false
+    fetchMemberUsual(activeMemberId).then(result => { if (!cancelled) setUsual(result) })
+    return () => { cancelled = true }
   }, [activeMemberId])
 
   // Auto-close mobile order sheet after checkout clears the cart
@@ -164,6 +193,9 @@ export default function TillPage() {
       logEvent('receipt.print_failed', { what: 'receipt', message: String(err?.message ?? err).slice(0, 300), order_id: order.id }, { severity: 1 })
     }
 
+    // Kept for the "Sale complete" note and the "Same again" button.
+    useTillStore.getState().setLastSale({ items: currentItems, member: currentMember, total, paymentMethod })
+    setUndo(null)
     clearOrder()
 
     // Logged last, once the till is ready for the next customer. The order
@@ -188,91 +220,148 @@ export default function TillPage() {
 
   const CATEGORY_ORDER = ['draught', 'bottle', 'spirit', 'soft', 'food', 'other']
   const sorted = [...products].sort((a, b) => CATEGORY_ORDER.indexOf(a.category) - CATEGORY_ORDER.indexOf(b.category))
-  const filtered = category === 'all' ? sorted : sorted.filter(p => p.category === category)
+  // Popular needs sales history; without any, the till opens on All instead.
+  const showPopular = sorted.some(p => popularIds.includes(p.id))
+  const activeCategory = category === 'popular' && !showPopular ? 'all' : category
+  const filtered = activeCategory === 'all'
+    ? sorted
+    : activeCategory === 'popular'
+      ? sorted.filter(p => popularIds.includes(p.id))
+      : sorted.filter(p => p.category === activeCategory)
+
+  // Bundle deals sit in the grid as tiles, ahead of the products.
+  const deals = [
+    { key: 'shots', name: '4 Shots for £10', price: '£10.00', category: 'spirit', onClick: () => setShowShotBundle(true) },
+    bottleBundleEnabled && {
+      key: 'bottles', name: '5 for 4 Bottles', price: 'Cheapest free', category: 'bottle', onClick: () => setShowBottleBundle(true),
+    },
+  ].filter(deal => deal && ['popular', 'all', deal.category].includes(activeCategory))
+
+  const actions = [
+    { label: 'One for staff', Icon: Beer, onClick: () => setShowOneForStaff(true) },
+    { label: 'Staff drink', Icon: GlassWater, onClick: () => setShowStaffDrink(true) },
+    { label: 'Wastage', Icon: Trash2, onClick: () => setShowWastage(true) },
+    { label: 'Cashback', Icon: Banknote, onClick: () => setShowCashback(true) },
+    { label: 'Prize win', Icon: Trophy, onClick: () => setShowPrizeWin(true) },
+    { label: 'Sign in guest', Icon: UserPlus, onClick: () => setShowGuestSignIn(true) },
+    { label: 'Fix payment', Icon: RotateCcw, onClick: () => { setShowRecentSales(true); logEvent('sales.recent_viewed') } },
+  ]
+
+  const usualLines = usual
+    .map(u => ({ product: products.find(p => p.id === u.product_id), quantity: u.quantity }))
+    .filter(u => u.product)
+
+  function handleAddUsual() {
+    const { addItem } = useTillStore.getState()
+    for (const { product, quantity } of usualLines) {
+      for (let n = 0; n < quantity; n++) addItem(product)
+    }
+    setUsual([])
+    setUndo(null)
+  }
+
+  function handleUndo() {
+    useTillStore.getState().removeOne(undo.id)
+    setUndo(null)
+  }
+
+  function handleSameAgain() {
+    const { lastSale, repeatLastSale } = useTillStore.getState()
+    repeatLastSale(products)
+    // The member on the last sale is a snapshot from before it was paid —
+    // refresh them so the tab balance and any block are current.
+    const member = lastSale?.member
+    if (member?.membership_number && isOnline) {
+      findMemberByNumber(member.membership_number)
+        .then(fresh => {
+          if (fresh && useTillStore.getState().activeMember?.id === fresh.id) {
+            useTillStore.setState({ activeMember: fresh })
+          }
+        })
+        .catch(err => console.error('Failed to refresh member:', err))
+    }
+  }
+
+  const orderPanelProps = {
+    onCheckout: handleCheckout,
+    products,
+    usual: usualLines,
+    onAddUsual: handleAddUsual,
+    onSameAgain: handleSameAgain,
+    onFixPayment: () => { setShowRecentSales(true); logEvent('sales.recent_viewed') },
+  }
 
   return (
     <div className="flex h-full min-h-0">
-      <div className="flex-1 flex flex-col overflow-hidden">
-        <div className="p-4 space-y-3 overflow-auto flex-1">
-          <MembersOnlyToggle />
-          <MemberLookup />
-          <CategoryFilter active={category} onChange={setCategory} />
-          <div className="flex gap-2">
-            <button
-              onClick={() => setShowWastage(true)}
-              className="px-3 min-h-[36px] rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-400 text-xs font-medium cursor-pointer transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617]"
-            >
-              Wastage
-            </button>
-            <button
-              onClick={() => setShowStaffDrink(true)}
-              className="px-3 min-h-[36px] rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-400 text-xs font-medium cursor-pointer transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617]"
-            >
-              Staff Drink
-            </button>
-            <button
-              onClick={() => setShowOneForStaff(true)}
-              className="px-3 min-h-[36px] rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-400 text-xs font-medium cursor-pointer transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617]"
-            >
-              One for Staff
-            </button>
-            <button
-              onClick={() => setShowCashback(true)}
-              className="px-3 min-h-[36px] rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-400 text-xs font-medium cursor-pointer transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617]"
-            >
-              Cashback
-            </button>
-            <button
-              onClick={() => setShowPrizeWin(true)}
-              className="px-3 min-h-[36px] rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-400 text-xs font-medium cursor-pointer transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617]"
-            >
-              Prize Win
-            </button>
-            <button
-              onClick={() => setShowShotBundle(true)}
-              className="px-3 min-h-[36px] rounded-lg bg-purple-900 hover:bg-purple-800 border border-purple-700 text-purple-100 text-xs font-bold cursor-pointer transition-colors focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 focus:ring-offset-[#020617]"
-            >
-              4 Shots £10
-            </button>
-            {bottleBundleEnabled && (
-              <button
-                onClick={() => setShowBottleBundle(true)}
-                className="px-3 min-h-[36px] rounded-lg bg-amber-900 hover:bg-amber-800 border border-amber-700 text-amber-100 text-xs font-bold cursor-pointer transition-colors focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2 focus:ring-offset-[#020617]"
-              >
-                5 for 4 Bottles
-              </button>
-            )}
-            <button
-              onClick={() => setShowGuestSignIn(true)}
-              className="px-3 min-h-[36px] rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-400 text-xs font-medium cursor-pointer transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617]"
-            >
-              Sign In Guest
-            </button>
-            <button
-              onClick={() => { setShowRecentSales(true); logEvent('sales.recent_viewed') }}
-              className="px-3 min-h-[36px] rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-400 text-xs font-medium cursor-pointer transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617]"
-            >
-              Fix Payment
-            </button>
+      <div className="relative flex-1 min-w-0 flex flex-col overflow-hidden">
+        <div className="flex flex-wrap items-start gap-3 px-4 md:px-6 pt-4 pb-3">
+          {!activeMember && (
+            <div className="flex-1 min-w-[240px]">
+              <MemberLookup />
+            </div>
+          )}
+          <div className={membersOnlyMode ? 'w-full order-first' : activeMember ? '' : 'shrink-0'}>
+            <MembersOnlyToggle />
           </div>
+        </div>
+        <div className="px-4 md:px-6 pb-3">
+          <CategoryFilter active={activeCategory} onChange={setCategory} showPopular={showPopular} />
+        </div>
+        <div className="flex-1 min-h-0 overflow-auto px-4 md:px-6 pb-3">
           {loading ? (
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2">
-              {Array.from({ length: 10 }).map((_, i) => (
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-5 gap-2.5">
+              {Array.from({ length: 12 }).map((_, i) => (
                 <div
                   key={i}
-                  className="bg-slate-800 rounded-xl min-h-[80px] animate-pulse motion-reduce:animate-none"
+                  className="bg-slate-800 rounded-2xl min-h-[100px] animate-pulse motion-reduce:animate-none"
                 />
               ))}
             </div>
-          ) : filtered.length === 0 ? (
+          ) : filtered.length === 0 && deals.length === 0 ? (
             <div className="text-slate-400 text-sm">No products in this category</div>
           ) : (
-            <ProductGrid products={filtered} />
+            <ProductGrid
+              products={filtered}
+              deals={deals}
+              onAdded={product => setUndo({ id: product.id, name: product.name })}
+            />
           )}
+        </div>
+
+        {undo && (
+          <div
+            role="status"
+            className="absolute left-1/2 -translate-x-1/2 bottom-[152px] md:bottom-[92px] z-20 flex items-center gap-3
+              pl-5 pr-1.5 py-1.5 rounded-2xl bg-slate-100 text-[#121314] shadow-2xl whitespace-nowrap"
+          >
+            <span className="text-base font-bold">Added {undo.name}</span>
+            <button
+              onClick={handleUndo}
+              className="min-h-[48px] px-5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-base
+                font-extrabold cursor-pointer transition-colors"
+            >
+              Undo
+            </button>
+          </div>
+        )}
+
+        <div className="flex gap-2 px-4 md:px-6 py-3 border-t border-slate-800 overflow-x-auto scrollbar-hide">
+          {actions.map(({ label, Icon, onClick }) => (
+            <button
+              key={label}
+              onClick={onClick}
+              className="flex-1 min-w-[92px] min-h-[60px] rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-100
+                text-[13px] font-semibold flex flex-col items-center justify-center gap-1 whitespace-nowrap
+                cursor-pointer transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400"
+            >
+              <Icon size={20} className="text-blue-300" aria-hidden="true" />
+              {label}
+            </button>
+          ))}
         </div>
       </div>
       <div className="hidden md:flex">
-        <OrderPanel onCheckout={handleCheckout} />
+        <OrderPanel {...orderPanelProps} />
       </div>
 
       {/* Mobile: floating order button */}
@@ -280,10 +369,10 @@ export default function TillPage() {
         <button
           onClick={() => setShowMobileOrder(true)}
           aria-label={`View order — ${orderItems.length} item${orderItems.length > 1 ? 's' : ''}, £${getTotal().toFixed(2)}`}
-          className="md:hidden fixed bottom-20 right-4 z-30 flex items-center gap-2
+          className="md:hidden fixed bottom-[168px] right-4 z-30 flex items-center gap-2
             bg-blue-600 hover:bg-blue-500 active:scale-95 text-white font-semibold
             px-4 py-3 rounded-2xl shadow-xl transition-all duration-150 cursor-pointer
-            focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-2 focus:ring-offset-[#020617]"
+            focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-2 focus:ring-offset-[#121314]"
         >
           <ShoppingCart size={18} aria-hidden="true" />
           <span>{orderItems.length}</span>
@@ -300,7 +389,7 @@ export default function TillPage() {
             onClick={() => setShowMobileOrder(false)}
           />
           <div className="absolute inset-x-0 bottom-0 max-h-[85dvh] overflow-auto rounded-t-2xl">
-            <OrderPanel onCheckout={handleCheckout} onClose={() => setShowMobileOrder(false)} />
+            <OrderPanel {...orderPanelProps} onClose={() => setShowMobileOrder(false)} />
           </div>
         </div>
       )}

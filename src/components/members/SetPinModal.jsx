@@ -123,22 +123,22 @@ export default function SetPinModal({ member, onClose, onSaved, requireCurrentPi
   return (
     <div
       ref={overlayRef}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 overflow-y-auto"
+      className="ui-modal-backdrop"
       onClick={handleOverlayClick}
     >
       <div
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        className="w-full max-w-sm bg-[#0F172A] border border-slate-700 rounded-2xl shadow-xl flex flex-col"
+        className="ui-modal"
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-slate-700">
-          <div className="flex items-center gap-2">
-            <KeyRound size={18} className="text-slate-400" aria-hidden="true" />
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <KeyRound size={24} className="text-slate-400 shrink-0" aria-hidden="true" />
             <h2
               id={titleId}
-              className="text-lg font-bold text-white"
+              className="ui-modal-title"
             >
               Set PIN — {member.name}
             </h2>
@@ -146,93 +146,87 @@ export default function SetPinModal({ member, onClose, onSaved, requireCurrentPi
           <button
             onClick={onClose}
             aria-label="Close modal"
-            className="text-slate-400 hover:text-white transition-colors cursor-pointer
-              min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg"
+            className="ui-btn ui-btn-ghost ui-btn-icon shrink-0"
           >
-            <X size={20} aria-hidden="true" />
+            <X size={22} aria-hidden="true" />
           </button>
         </div>
 
-        <div className="px-5 py-5 space-y-4">
-          {/* Step indicator */}
-          <p className="text-slate-300 text-sm text-center">
-            {success
-              ? 'PIN set successfully!'
-              : step === 0
-                ? 'Enter current PIN'
-                : step === 1
-                  ? 'Enter new PIN'
-                  : 'Confirm new PIN'}
-          </p>
+        {/* Step indicator */}
+        <p className={`text-lg font-bold text-center ${success ? 'text-emerald-300' : 'text-slate-100'}`}>
+          {success
+            ? 'PIN set successfully!'
+            : step === 0
+              ? 'Enter current PIN'
+              : step === 1
+                ? 'Enter new PIN'
+                : 'Confirm new PIN'}
+        </p>
 
-          {/* PIN dot display */}
-          <div
-            aria-label="PIN display"
-            className="flex justify-center gap-4"
-          >
-            {[0, 1, 2, 3].map(i => (
-              <span
-                key={i}
-                data-filled={i < digits.length ? 'true' : 'false'}
-                className={`w-4 h-4 rounded-full transition-colors duration-150 ${
-                  i < digits.length ? 'bg-white' : 'bg-slate-600'
-                }`}
-                aria-hidden="true"
-              />
+        {/* PIN dot display */}
+        <div
+          aria-label="PIN display"
+          className="flex justify-center gap-3.5 py-2"
+        >
+          {[0, 1, 2, 3].map(i => (
+            <span
+              key={i}
+              data-filled={i < digits.length ? 'true' : 'false'}
+              className={`w-6 h-6 rounded-full border-2 transition-colors duration-150 ${
+                i < digits.length ? 'bg-slate-100 border-slate-100' : 'border-slate-400'
+              }`}
+              aria-hidden="true"
+            />
+          ))}
+        </div>
+
+        {/* Saving indicator */}
+        {saving && (
+          <p className="text-center text-slate-400 text-base">Saving…</p>
+        )}
+
+        {/* Error */}
+        {error && (
+          <p role="alert" className="text-red-300 text-base font-semibold bg-red-400/10 px-4 py-3 rounded-xl">
+            {error}
+          </p>
+        )}
+
+        {/* Numpad */}
+        {!success && (
+          <div className="grid grid-cols-3 gap-2.5">
+            {PIN_KEYS.map(key => (
+              <button
+                key={key}
+                onClick={() => handleKey(key)}
+                disabled={saving || success}
+                aria-label={
+                  key === 'back' ? 'Backspace' :
+                  key === 'clear' ? 'Clear PIN' :
+                  key
+                }
+                className="min-h-[72px] rounded-2xl bg-slate-800 hover:bg-slate-700 active:scale-95
+                  disabled:opacity-40 disabled:cursor-not-allowed text-white text-3xl font-bold
+                  transition-all duration-150 cursor-pointer flex items-center justify-center"
+              >
+                {key === 'back' && <Delete size={26} aria-hidden="true" />}
+                {key === 'clear' && <X size={26} aria-hidden="true" />}
+                {key !== 'back' && key !== 'clear' && key}
+              </button>
             ))}
           </div>
+        )}
 
-          {/* Saving indicator */}
-          {saving && (
-            <p className="text-center text-slate-400 text-sm">Saving…</p>
-          )}
-
-          {/* Error */}
-          {error && (
-            <p role="alert" className="text-red-400 text-sm text-center bg-red-400/10 px-4 py-2 rounded-xl">
-              {error}
-            </p>
-          )}
-
-          {/* Numpad */}
-          {!success && (
-            <div className="grid grid-cols-3 gap-2">
-              {PIN_KEYS.map(key => (
-                <button
-                  key={key}
-                  onClick={() => handleKey(key)}
-                  disabled={saving || success}
-                  aria-label={
-                    key === 'back' ? 'Backspace' :
-                    key === 'clear' ? 'Clear PIN' :
-                    key
-                  }
-                  className="bg-slate-800 hover:bg-slate-700 active:scale-95 disabled:opacity-40
-                    disabled:cursor-not-allowed text-white font-semibold py-4 rounded-xl text-xl
-                    transition-all duration-150 cursor-pointer flex items-center justify-center
-                    border border-slate-700"
-                >
-                  {key === 'back' && <Delete size={20} aria-hidden="true" />}
-                  {key === 'clear' && <X size={20} aria-hidden="true" />}
-                  {key !== 'back' && key !== 'clear' && key}
-                </button>
-              ))}
-            </div>
-          )}
-
-          {/* Cancel */}
-          {!success && (
-            <button
-              onClick={onClose}
-              disabled={saving}
-              className="w-full min-h-[44px] rounded-xl border border-slate-600 text-slate-300
-                hover:bg-slate-700 hover:text-white transition-colors cursor-pointer text-sm font-medium
-                disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Cancel
-            </button>
-          )}
-        </div>
+        {/* Cancel */}
+        {!success && (
+          <button
+            onClick={onClose}
+            disabled={saving}
+            className="ui-btn ui-btn-ghost ui-btn-lg w-full"
+          >
+            Cancel
+          </button>
+        )}
       </div>
     </div>
   )

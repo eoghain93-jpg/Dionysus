@@ -1,20 +1,44 @@
-@import url('https://fonts.googleapis.com/css2?family=Karla:wght@300;400;500;600;700&family=Playfair+Display+SC:wght@400;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&display=swap');
 @import "tailwindcss";
+
+/* Graphite: the neutral charcoal palette. Remapping the slate and blue scales
+   here restyles every screen that uses Tailwind's slate-* / blue-* classes. */
+@theme {
+  --color-slate-50: #F8F9FA;
+  --color-slate-100: #F2F3F4;
+  --color-slate-200: #E1E4E8;
+  --color-slate-300: #C9CED4;
+  --color-slate-400: #A9AFB6;
+  --color-slate-500: #7C838B;
+  --color-slate-600: #4A5057;
+  --color-slate-700: #363A3F;
+  --color-slate-800: #232629;
+  --color-slate-900: #191B1D;
+  --color-slate-950: #0A0B0C;
+
+  --color-blue-300: #9CC0FF;
+  --color-blue-400: #7FAEFF;
+  --color-blue-500: #4A86EE;
+  --color-blue-600: #2F6FE0;
+  --color-blue-700: #2459BD;
+  --color-blue-900: #1E3660;
+  --color-blue-950: #152238;
+}
 
 :root {
   /* Base surfaces */
-  --color-bg: #020617;
-  --color-surface: #0F172A;
-  --color-surface-2: #1E293B;
-  --color-surface-3: #334155;
+  --color-bg: #121314;
+  --color-surface: #191B1D;
+  --color-surface-2: #232629;
+  --color-surface-3: #363A3F;
 
   /* Text */
-  --color-text: #F8FAFC;
-  --color-muted: #94A3B8;
+  --color-text: #F2F3F4;
+  --color-muted: #A9AFB6;
 
   /* Brand */
   --color-cta: #22C55E;
-  --color-accent: #3B82F6;
+  --color-accent: #2F6FE0;
 
   /* Semantic payment buttons */
   --color-btn-cash: #15803D;
@@ -32,29 +56,33 @@
   --color-danger-border: rgba(185, 28, 28, 0.6);
 
   /* Nav */
-  --color-nav-bg: #0F172A;
-  --color-nav-border: #1E293B;
-  --color-nav-active-bg: #1D4ED8;
+  --color-nav-bg: #0A0B0C;
+  --color-nav-border: #232629;
+  --color-nav-active-bg: #2F6FE0;
   --color-nav-active-text: #FFFFFF;
-  --color-nav-idle-text: #64748B;
+  --color-nav-idle-text: #A9AFB6;
 }
+
+/* Dark app: native date/time pickers, selects and scrollbars follow suit. */
+:root { color-scheme: dark; }
 
 body {
   background-color: var(--color-bg);
   color: var(--color-text);
-  font-family: 'Karla', sans-serif;
+  font-family: 'Bricolage Grotesque', system-ui, sans-serif;
+  font-variant-numeric: tabular-nums;
   font-size: 16px;
   line-height: 1.6;
 }
 
 h1, h2, h3 {
-  font-family: 'Playfair Display SC', serif;
-  line-height: 1.3;
+  font-family: 'Bricolage Grotesque', system-ui, sans-serif;
+  line-height: 1.2;
 }
 
 /* Display font utility — for brand name, labels not using h1-h3 */
 .font-display {
-  font-family: 'Playfair Display SC', serif;
+  font-family: 'Bricolage Grotesque', system-ui, sans-serif;
 }
 
 /* Accessible focus rings */
@@ -117,4 +145,88 @@ h1, h2, h3 {
 /* Reduced motion: skip the fade so Davey mode still shows as a still card */
 @media (prefers-reduced-motion: reduce) {
   .davey-overlay { animation-name: none !important; }
+}
+
+/* ───────────────────────────────────────────────────────────────────────────
+   Shared UI kit — the till redesign's look, for every page and pop-up.
+   Use these instead of re-typing long utility strings, so buttons, fields,
+   cards and modals stay identical across the app. Touch targets are 48px+.
+   ─────────────────────────────────────────────────────────────────────────── */
+@layer components {
+  /* Page scaffolding */
+  .ui-page { @apply flex flex-col h-full min-h-0 overflow-auto gap-4 px-4 md:px-6 pt-4 pb-6; }
+  .ui-page-header { @apply flex items-center justify-between gap-3 flex-wrap; }
+  .ui-title { @apply text-white text-[28px] leading-tight font-extrabold tracking-tight; }
+  .ui-subtitle { @apply text-slate-400 text-[15px]; }
+  .ui-section-title { @apply text-white text-lg font-extrabold; }
+
+  /* Buttons. .ui-btn is the base; add ONE variant. */
+  .ui-btn {
+    @apply inline-flex items-center justify-center gap-2 min-h-[48px] px-4 rounded-xl
+      text-[15px] font-bold whitespace-nowrap cursor-pointer transition-colors duration-150
+      focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400
+      disabled:opacity-35 disabled:cursor-not-allowed;
+  }
+  .ui-btn-primary { @apply bg-slate-100 text-[#121314] hover:bg-white; }          /* the main action on a screen */
+  .ui-btn-pay { @apply bg-emerald-700 text-white hover:bg-emerald-600; }           /* taking money / settling / confirming a sale */
+  .ui-btn-accent { @apply bg-blue-600 text-white hover:bg-blue-500; }              /* member / tab / selected things */
+  .ui-btn-secondary { @apply bg-slate-800 text-slate-100 hover:bg-slate-700; }     /* ordinary secondary action */
+  .ui-btn-ghost { @apply border border-slate-700 text-slate-100 hover:bg-slate-800; } /* low-key: cancel, back */
+  .ui-btn-danger { @apply border border-slate-700 text-red-300 hover:bg-slate-800; }  /* delete, void, block */
+  .ui-btn-warn { @apply bg-amber-500 text-[#1A1205] hover:bg-amber-400; }          /* attention: overdue, low stock */
+  .ui-btn-lg { @apply min-h-[56px] px-6 rounded-2xl text-[17px] font-extrabold; }  /* modal confirm / big actions */
+  .ui-btn-icon { @apply w-12 px-0; }                                               /* square icon-only button */
+
+  /* Form fields */
+  .ui-label { @apply block text-slate-300 text-sm font-bold mb-1.5; }
+  .ui-input {
+    @apply w-full min-h-[48px] px-4 rounded-xl bg-slate-800 border border-slate-700 text-white text-base
+      placeholder-slate-400 transition-colors
+      focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent
+      disabled:opacity-50;
+  }
+  .ui-select { @apply min-h-[48px] px-4 rounded-xl bg-slate-800 border border-slate-700 text-white text-base
+      cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500; }
+  .ui-help { @apply text-slate-400 text-sm; }
+  .ui-error { @apply text-red-300 text-sm font-semibold; }
+
+  /* Surfaces */
+  .ui-card { @apply bg-slate-900 border border-slate-800 rounded-2xl; }
+  .ui-row { @apply flex items-center gap-3 px-4 min-h-[64px] border-b border-slate-800 last:border-b-0; }
+  .ui-stat { @apply bg-slate-900 border border-slate-800 rounded-2xl px-5 py-4; }
+  .ui-stat-label { @apply text-slate-400 text-sm font-semibold; }
+  .ui-stat-value { @apply text-white text-[32px] leading-tight font-extrabold tracking-tight; }
+  .ui-empty { @apply text-slate-400 text-base text-center py-10; }
+
+  /* Tables */
+  .ui-th { @apply text-left text-slate-400 text-[13px] font-bold uppercase tracking-wide px-4 py-3; }
+  .ui-td { @apply text-slate-100 text-[15px] px-4 py-3.5; }
+
+  /* Segmented filters / tabs (same as the till's category row) */
+  .ui-tab {
+    @apply min-h-[48px] px-4 rounded-xl border border-slate-700 text-slate-100 text-[15px] font-bold
+      whitespace-nowrap cursor-pointer transition-colors hover:bg-slate-800
+      focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400;
+  }
+  .ui-tab-active { @apply bg-slate-100 border-slate-100 text-[#121314] hover:bg-slate-100; }
+
+  /* Status tags */
+  .ui-tag { @apply inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[13px] font-bold whitespace-nowrap; }
+  .ui-tag-neutral { @apply bg-slate-800 text-slate-300; }
+  .ui-tag-good { @apply bg-emerald-950 text-emerald-300; }
+  .ui-tag-warn { @apply bg-amber-950 text-amber-300; }
+  .ui-tag-bad { @apply bg-red-950 text-red-300; }
+  .ui-tag-accent { @apply bg-blue-950 text-blue-300; }
+
+  /* Banners (a full-width note above content) */
+  .ui-banner { @apply flex items-center gap-3 flex-wrap rounded-2xl px-4 py-3 text-[15px] font-semibold; }
+  .ui-banner-warn { @apply bg-amber-950 text-amber-200 border border-amber-800; }
+  .ui-banner-bad { @apply bg-red-950 text-red-200 border border-red-900; }
+  .ui-banner-good { @apply bg-emerald-950 text-emerald-200 border border-emerald-900; }
+
+  /* Modals */
+  .ui-modal-backdrop { @apply fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4; }
+  .ui-modal { @apply w-full max-w-md max-h-[92dvh] overflow-auto bg-slate-900 border border-slate-700 rounded-3xl p-6 flex flex-col gap-4; }
+  .ui-modal-title { @apply text-white text-[22px] leading-tight font-extrabold; }
+  .ui-modal-actions { @apply flex gap-3 mt-1; }
 }

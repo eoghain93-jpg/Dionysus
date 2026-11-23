@@ -46,34 +46,34 @@ export default function TopProducts() {
 
   if (loading) {
     return (
-      <p className="text-slate-400 text-sm text-center py-8">Loading top products…</p>
+      <p className="ui-empty">Loading top products…</p>
     )
   }
 
   if (error) {
     return (
-      <p className="text-red-400 text-sm text-center py-8">Error: {error}</p>
+      <p className="ui-banner ui-banner-bad m-4">Error: {error}</p>
     )
   }
 
   if (products.length === 0) {
     return (
-      <p className="text-slate-400 text-sm text-center py-8">No sales data for the last 7 days.</p>
+      <p className="ui-empty">No sales data for the last 7 days.</p>
     )
   }
 
   return (
-    <ol className="flex flex-col divide-y divide-slate-700/50" aria-label="Top 10 products by revenue">
+    <ol className="flex flex-col" aria-label="Top 10 products by revenue">
       {products.map((p, i) => (
-        <li key={p.id} className="flex items-center gap-3 py-3">
+        <li key={p.id} className="ui-row min-h-[56px]">
           <span
-            className="w-6 text-right text-slate-500 text-sm font-mono shrink-0"
+            className="w-7 text-right text-slate-400 text-[15px] font-bold shrink-0"
             aria-hidden="true"
           >
             {i + 1}
           </span>
-          <span className="flex-1 text-white text-sm truncate">{p.name}</span>
-          <span className="text-[#22C55E] text-sm font-semibold shrink-0">
+          <span className="flex-1 min-w-0 text-white text-[17px] font-semibold truncate">{p.name}</span>
+          <span className="text-white text-[17px] font-extrabold shrink-0">
             £{p.revenue.toFixed(2)}
           </span>
         </li>

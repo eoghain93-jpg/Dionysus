@@ -94,15 +94,38 @@ describe('SwitchUserModal', () => {
     expect(onClose).not.toHaveBeenCalled()
   })
 
-  it('does not switch when the PIN is locked out', async () => {
+  it('shows a lockout countdown, not "Incorrect PIN", and does not switch when the PIN is locked', async () => {
     const onClose = vi.fn()
-    mockSignIn.mockResolvedValue({ valid: false, reason: 'locked', retryAfterSeconds: 900 })
+    mockSignIn.mockResolvedValue({ valid: false, reason: 'locked', retryAfterSeconds: 90 })
     render(<SwitchUserModal onClose={onClose} />)
     await pickBobAndEnter()
 
-    await screen.findByRole('alert')
+    expect(await screen.findByRole('status')).toHaveTextContent(/PIN locked.*Try again in 1:30/)
+    expect(screen.queryByText('Incorrect PIN')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '5' })).toBeDisabled()
     expect(useSessionStore.getState().activeStaff).toEqual(ALICE)
     expect(onClose).not.toHaveBeenCalled()
+  })
+
+  it('shows "Something went wrong" when the sign-in gives no answer at all', async () => {
+    const onClose = vi.fn()
+    mockSignIn.mockResolvedValue(null)
+    render(<SwitchUserModal onClose={onClose} />)
+    await pickBobAndEnter()
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(/something went wrong/i)
+    expect(useSessionStore.getState().activeStaff).toEqual(ALICE)
+    expect(onClose).not.toHaveBeenCalled()
+  })
+
+  it('says so when the staff list cannot be loaded', async () => {
+    mockFrom.mockReturnValue({
+      select: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      order: vi.fn().mockResolvedValue({ data: null, error: { message: 'offline' } }),
+    })
+    render(<SwitchUserModal onClose={vi.fn()} />)
+    expect(await screen.findByRole('alert')).toHaveTextContent(/could not load staff/i)
   })
 
   it('shows "Something went wrong" when the server cannot be reached (signInStaff rejects)', async () => {
