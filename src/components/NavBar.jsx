@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { NavLink, useLocation } from 'react-router-dom'
 import { ShoppingCart, Package, Users, BarChart2, Tag, Receipt, ArrowLeftRight, Settings, MoreHorizontal, X, UserPlus } from 'lucide-react'
 import { useSessionStore } from '../stores/sessionStore'
+import { useTabAlertStore } from '../stores/tabAlertStore'
 import SwitchUserModal from './till/SwitchUserModal'
 import DaveyMode from './ui/DaveyMode'
 
@@ -19,6 +20,24 @@ const allLinks = [
 // Primary nav: max 5 items for bottom bar
 const primaryLinks = allLinks.slice(0, 5)
 const moreLinks = allLinks.slice(5)
+
+// Re-check overdue tabs this often while the till sits on one screen.
+const TAB_ALERT_REFRESH_MS = 5 * 60 * 1000
+
+// Count of tabs that have gone too long without a payment, shown on the
+// Tabs link. Hidden when there are none.
+function OverdueBadge({ count }) {
+  if (!count) return null
+  return (
+    <span
+      aria-label={`${count} overdue ${count === 1 ? 'tab' : 'tabs'}`}
+      className="absolute -top-1.5 -right-2 min-w-[18px] h-[18px] px-1 rounded-full bg-amber-500
+        text-slate-900 text-[11px] font-bold leading-[18px] text-center"
+    >
+      {count}
+    </span>
+  )
+}
 
 // Black-and-white stripes swatch for the Davey mode button
 function StripesIcon({ size }) {
@@ -41,6 +60,16 @@ export default function NavBar() {
   const [showMore, setShowMore] = useState(false)
   const [showDavey, setShowDavey] = useState(false)
   const location = useLocation()
+  const overdueCount = useTabAlertStore(s => s.overdueCount)
+  const refreshTabAlerts = useTabAlertStore(s => s.refresh)
+
+  // Refresh on every screen change (cheap, and catches a tab settled a
+  // moment ago) plus a timer for a till left sitting on one screen.
+  useEffect(() => {
+    refreshTabAlerts()
+    const timer = setInterval(refreshTabAlerts, TAB_ALERT_REFRESH_MS)
+    return () => clearInterval(timer)
+  }, [location.pathname, refreshTabAlerts])
 
   const moreIsActive = moreLinks.some(l => location.pathname === l.to)
 
@@ -69,7 +98,10 @@ export default function NavBar() {
                  : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`
             }
           >
-            <Icon size={20} aria-hidden="true" />
+            <span className="relative flex">
+              <Icon size={20} aria-hidden="true" />
+              {to === '/tabs' && <OverdueBadge count={overdueCount} />}
+            </span>
             <span className="hidden lg:block">{label}</span>
           </NavLink>
         ))}
@@ -115,7 +147,10 @@ export default function NavBar() {
                ${isActive ? 'text-blue-400' : 'text-slate-500'}`
             }
           >
-            <Icon size={22} aria-hidden="true" />
+            <span className="relative flex">
+              <Icon size={22} aria-hidden="true" />
+              {to === '/tabs' && <OverdueBadge count={overdueCount} />}
+            </span>
             <span>{label}</span>
           </NavLink>
         ))}

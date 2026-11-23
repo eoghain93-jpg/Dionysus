@@ -75,9 +75,13 @@ export const useTillStore = create((set, get) => ({
   // days etc.) where the door staff have already verified everyone in the
   // building is a member. Auto-reset on staff change in TillPage.
   membersOnlyMode: false,
+  // How long the active member's tab has gone unpaid ({ days, overdue }),
+  // looked up by TillPage when a member with a tab is put on the sale.
+  activeMemberTab: null,
 
-  setActiveMember: (member) => set({ activeMember: member }),
-  clearMember: () => set({ activeMember: null }),
+  setActiveMember: (member) => set({ activeMember: member, activeMemberTab: null }),
+  clearMember: () => set({ activeMember: null, activeMemberTab: null }),
+  setActiveMemberTab: (activeMemberTab) => set({ activeMemberTab }),
   setMembersOnlyMode: (value) => set({ membersOnlyMode: !!value }),
 
   loadPromos: async (fetchFn) => {
@@ -269,7 +273,7 @@ export const useTillStore = create((set, get) => ({
     }
   },
 
-  clearOrder: () => set({ orderItems: [], activeMember: null }),
+  clearOrder: () => set({ orderItems: [], activeMember: null, activeMemberTab: null }),
 
   getTotal: () => get().orderItems.reduce((sum, i) => sum + i.subtotal, 0),
 }))

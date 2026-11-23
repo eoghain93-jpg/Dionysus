@@ -1,16 +1,99 @@
 // src/lib/tabs.js
 import { supabase } from './supabase'
 
+// A tab counts as overdue once this many days pass with no payment towards
+// it (or, if nothing has ever been paid, since the tab was opened).
+export const TAB_OVERDUE_DAYS = 14
+
+const DAY_MS = 24 * 60 * 60 * 1000
+
+// Whole days since the member last paid towards their tab. `unpaidSince`
+// comes from the open_tab_ages RPC; null means it couldn't be worked out,
+// in which case we show no age rather than guess.
+export function tabStanding(unpaidSince, now = new Date()) {
+  if (!unpaidSince) return { days: null, overdue: false }
+  const days = Math.max(0, Math.floor((now.getTime() - new Date(unpaidSince).getTime()) / DAY_MS))
+  return { days, overdue: days >= TAB_OVERDUE_DAYS }
+}
+
+// "No payment for N days" figures for open tabs, keyed by member id. Pass a
+// member id to look up a single tab. Throws on error — callers decide
+// whether the age is essential (it never is: a tab still works without it).
+export async function fetchTabAges(member_id = null) {
+  const { data, error } = await supabase.rpc('open_tab_ages', { p_member_id: member_id })
+  if (error) throw error
+  const ages = {}
+  for (const row of data ?? []) {
+    ages[row.member_id] = {
+      unpaid_since: row.unpaid_since,
+      last_paid_at: row.last_paid_at,
+      ...tabStanding(row.unpaid_since),
+    }
+  }
+  return ages
+}
+
 // Tab state is stored as a denormalized `tab_balance` column on the `members` table.
-// A positive balance means the member has an open tab.
+// A positive balance means the member has an open tab. Each tab is returned
+// with how long it has gone unpaid (`days`, `overdue`) and whether staff
+// have blocked it (`tab_blocked`).
 export async function fetchOpenTabs() {
   const { data, error } = await supabase
     .from('members')
-    .select('id, name, tab_balance, membership_number')
+    // '*' rather than a column list so tab_blocked comes along when it
+    // exists without the Tabs page breaking on a database that hasn't had
+    // the tab-block migration yet.
+    .select('*')
     .gt('tab_balance', 0)
     .order('tab_balance', { ascending: false })
   if (error) throw error
-  return data ?? []
+  const tabs = data ?? []
+  if (tabs.length === 0) return tabs
+
+  // The ages are a nice-to-have on top of the list: if the lookup fails the
+  // Tabs page must still load so staff can settle.
+  let ages = {}
+  try {
+    ages = await fetchTabAges()
+  } catch (err) {
+    console.error('Failed to load tab ages:', err)
+  }
+  return tabs.map(m => ({
+    ...m,
+    tab_blocked: !!m.tab_blocked,
+    ...(ages[m.id] ?? { unpaid_since: null, last_paid_at: null, days: null, overdue: false }),
+  }))
+}
+
+// Block (or unblock) a member from putting more drinks on their tab. The
+// till checks the flag before a tab sale; settling is never blocked.
+export async function setTabBlocked(member_id, blocked, staff_id) {
+  const { error } = await supabase
+    .from('members')
+    .update({
+      tab_blocked: blocked,
+      tab_blocked_at: blocked ? new Date().toISOString() : null,
+      tab_blocked_by: blocked ? (staff_id ?? null) : null,
+    })
+    .eq('id', member_id)
+  if (error) throw error
+}
+
+// Fresh check right before a tab sale: the member on the order may have
+// been looked up before another till blocked them. Never throws and never
+// blocks on a failed lookup — a network blip must not stop a sale.
+export async function isTabBlocked(member_id) {
+  try {
+    const { data, error } = await supabase
+      .from('members')
+      .select('tab_blocked')
+      .eq('id', member_id)
+      .single()
+    if (error) return false
+    return !!data?.tab_blocked
+  } catch {
+    return false
+  }
 }
 
 export async function fetchTabOrders(member_id) {
