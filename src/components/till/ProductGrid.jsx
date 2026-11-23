@@ -14,8 +14,14 @@ const CATEGORY_TINTS = {
 }
 const DEFAULT_TINT = { bg: '#232629', border: '#363A3F', text: '#F2F3F4' }
 
-const TILE_CLASS = `relative rounded-2xl border-[1.5px] px-3.5 py-3 text-left text-white
-  flex flex-col justify-between gap-2 min-h-[100px] cursor-pointer
+// Rows grow to use spare height and shrink on a short screen, within these
+// limits. TillPage uses the same numbers to work out how many tiles fit.
+export const TILE_MIN_HEIGHT = 96
+export const TILE_MAX_HEIGHT = 132
+export const TILE_GAP = 10
+
+const TILE_CLASS = `relative rounded-2xl border-[1.5px] px-3.5 py-2.5 text-left text-white
+  flex flex-col justify-between gap-1.5 min-h-0 overflow-hidden cursor-pointer
   transition-transform duration-100 active:scale-[0.97]
   focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400
   focus-visible:ring-offset-2 focus-visible:ring-offset-[#121314]`
@@ -37,7 +43,10 @@ export default function ProductGrid({ products, deals = [], onAdded, now = new D
   }
 
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-5 gap-2.5">
+    <div
+      className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-5 gap-2.5 h-full content-start"
+      style={{ gridAutoRows: `minmax(${TILE_MIN_HEIGHT}px, ${TILE_MAX_HEIGHT}px)` }}
+    >
       {deals.map(deal => {
         const tint = CATEGORY_TINTS[deal.category] ?? DEFAULT_TINT
         return (
@@ -85,8 +94,8 @@ export default function ProductGrid({ products, deals = [], onAdded, now = new D
                 {quantity}
               </span>
             )}
-            <span className="font-semibold text-[17px] leading-tight pr-8">{product.name}</span>
-            <span className="flex items-baseline gap-2 flex-wrap">
+            <span className="font-semibold text-[17px] leading-tight pr-8 line-clamp-2">{product.name}</span>
+            <span className="flex items-baseline gap-2 whitespace-nowrap">
               <span className="font-extrabold text-xl" style={{ color: tint.text }}>
                 £{displayPrice.toFixed(2)}
               </span>
@@ -103,8 +112,11 @@ export default function ProductGrid({ products, deals = [], onAdded, now = new D
                 </span>
               )}
               {isLowStock && (
-                <span className="ml-auto text-amber-400 text-xs font-extrabold uppercase tracking-wide">
-                  Low stock
+                <span
+                  aria-label="Low stock"
+                  className="ml-auto text-amber-400 text-xs font-extrabold uppercase tracking-wide"
+                >
+                  Low
                 </span>
               )}
             </span>

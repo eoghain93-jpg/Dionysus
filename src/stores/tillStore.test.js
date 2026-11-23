@@ -282,12 +282,19 @@ describe('tillStore', () => {
       expect(orderItems[0].unit_price).toBe(5.50)
     })
 
-    it('charges standard price even when a member is active (tips are full price)', () => {
+    it('charges the member price when a member is on the sale', () => {
       useTillStore.setState({ activeMember: { id: 'mem-1', name: 'Test' } })
       useTillStore.getState().addStaffCreditItem(mockProduct, staff)
       const { orderItems } = useTillStore.getState()
-      expect(orderItems[0].unit_price).toBe(5.50)
-      expect(orderItems[0].member_price_applied).toBe(false)
+      expect(orderItems[0].unit_price).toBe(mockProduct.member_price)
+      expect(orderItems[0].member_price_applied).toBe(true)
+    })
+
+    it('charges the member price in members-only mode', () => {
+      useTillStore.setState({ membersOnlyMode: true })
+      useTillStore.getState().addStaffCreditItem(mockProduct, staff)
+      expect(useTillStore.getState().orderItems[0].unit_price).toBe(mockProduct.member_price)
+      useTillStore.setState({ membersOnlyMode: false })
     })
 
     it('never merges with a regular line for the same product', () => {

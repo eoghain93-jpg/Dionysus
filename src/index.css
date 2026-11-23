@@ -63,6 +63,13 @@
   --color-nav-idle-text: #A9AFB6;
 }
 
+/* Scrollbars: slim and dark everywhere (the till runs on Windows, where the
+   default bars are wide and light). .scrollbar-hide removes the bar entirely
+   for touch-scrolled strips — the content still scrolls. */
+* { scrollbar-width: thin; scrollbar-color: #363A3F transparent; }
+.scrollbar-hide { scrollbar-width: none; -ms-overflow-style: none; }
+.scrollbar-hide::-webkit-scrollbar { display: none; }
+
 /* Dark app: native date/time pickers, selects and scrollbars follow suit. */
 :root { color-scheme: dark; }
 

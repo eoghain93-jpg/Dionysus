@@ -2,12 +2,13 @@ import { useState, useEffect } from 'react'
 import { X } from '../../lib/icons'
 import { fetchStaffMembers } from '../../lib/staffCredits'
 import { useSessionStore } from '../../stores/sessionStore'
+import { useTillStore, staffCreditPrice } from '../../stores/tillStore'
 
 /**
  * "One in for yourself" — a customer buys a drink for a staff member.
  * Adds a staff-credit line to the current order: the customer pays for it
  * now as part of their round; the drink is banked for the staff member to
- * pour later (Staff Drink → Banked). Always standard price.
+ * pour later (Staff Drink → Banked). Member price when a member is on the sale.
  *
  * Props:
  *   products — product list (same array the till grid uses)
@@ -38,6 +39,9 @@ export default function OneForStaffModal({ products, onAdd, onClose }) {
   }, [activeStaff?.id])
 
   const product = products.find(p => p.id === productId)
+  const activeMember = useTillStore(st => st.activeMember)
+  const membersOnlyMode = useTillStore(st => st.membersOnlyMode)
+  const charge = product ? staffCreditPrice(product, { activeMember, membersOnlyMode }) : null
 
   function handleAdd(e) {
     e.preventDefault()
@@ -107,7 +111,8 @@ export default function OneForStaffModal({ products, onAdd, onClose }) {
           </div>
           {product && (
             <p className="bg-slate-800 rounded-2xl px-4 py-3 text-slate-300 text-base text-center">
-              Adds <span className="text-white text-xl font-extrabold">£{Number(product.standard_price).toFixed(2)}</span> to this order
+              Adds <span className="text-white text-xl font-extrabold">£{Number(charge.price).toFixed(2)}</span> to this order
+              {charge.member_price_applied && <span className="block text-blue-300 text-sm font-semibold">Member price</span>}
             </p>
           )}
           {error && <p role="alert" className="ui-error">{error}</p>}

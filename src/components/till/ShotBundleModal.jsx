@@ -1,22 +1,12 @@
 import { useState } from 'react'
 import { X, RotateCcw } from 'lucide-react'
 import { useTillStore } from '../../stores/tillStore'
+import { SHOT_BUNDLE_QTY, SHOT_BUNDLE_TOTAL, isShotBundleEligible } from '../../lib/shotBundle'
 
-const BUNDLE_QTY = 4
-const BUNDLE_TOTAL = 10.00
+const BUNDLE_QTY = SHOT_BUNDLE_QTY
+const BUNDLE_TOTAL = SHOT_BUNDLE_TOTAL
 const UNIT_PRICE = BUNDLE_TOTAL / BUNDLE_QTY
-
-// Only these spirits are eligible for the 4-for-£10 deal. Match is
-// case-insensitive substring against product.name so "Sambuca Black",
-// "Tequila Rose", etc. would also qualify if they were on the menu.
-// To change the eligible list, edit this array — no DB migration needed.
-const BUNDLE_ELIGIBLE_KEYWORDS = ['sambuca', 'fireball', 'tequila']
-
-function isBundleEligible(product) {
-  if (product.category !== 'spirit') return false
-  const lower = product.name.toLowerCase()
-  return BUNDLE_ELIGIBLE_KEYWORDS.some(kw => lower.includes(kw))
-}
+const isBundleEligible = isShotBundleEligible
 
 /**
  * ShotBundleModal — pick 4 spirits for £10 (the always-on shot promo).
