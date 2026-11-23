@@ -5,10 +5,11 @@ import AuditPage from './AuditPage'
 import {
   fetchAuditEntries, fetchAuditHealth, fetchAuditNames, fetchAuditSessions, markAuditChecked, verifyAuditNow,
 } from '../lib/audit/view'
-import { rememberedSeal } from '../lib/audit/seal'
+import { disputedSeals, rememberedSeal } from '../lib/audit/seal'
 import { setAuditHeadersEnabled } from '../lib/audit/fetch'
 import { setStaffSession, clearStaffSession } from '../lib/audit/staffSession'
 import { findView, rangeToIso } from '../components/audit/quickViews'
+import { useSessionStore } from '../stores/sessionStore'
 
 // The page talks to the database only through view.js.
 vi.mock('../lib/audit/view', () => ({
@@ -17,6 +18,7 @@ vi.mock('../lib/audit/view', () => ({
     NOT_SIGNED_IN: 'not_signed_in',
     NOT_ALLOWED: 'not_allowed',
     OFFLINE: 'offline',
+    TIMEOUT: 'timeout',
     FAILED: 'failed',
   },
   fetchAuditEntries: vi.fn(),
@@ -26,7 +28,7 @@ vi.mock('../lib/audit/view', () => ({
   markAuditChecked: vi.fn(),
   verifyAuditNow: vi.fn(),
 }))
-vi.mock('../lib/audit/seal', () => ({ rememberedSeal: vi.fn(() => null) }))
+vi.mock('../lib/audit/seal', () => ({ rememberedSeal: vi.fn(() => null), disputedSeals: vi.fn(() => []) }))
 
 const SAM = '5a000000-0000-0000-0000-000000000001'
 const KIM = '5a000000-0000-0000-0000-000000000002'
@@ -100,6 +102,7 @@ beforeEach(() => {
   vi.setSystemTime(NOW)
   vi.clearAllMocks()
   rememberedSeal.mockReturnValue(null)
+  disputedSeals.mockReturnValue([])
   fetchAuditEntries.mockResolvedValue(page([]))
   fetchAuditHealth.mockResolvedValue(healthy())
   fetchAuditSessions.mockResolvedValue([])
@@ -115,6 +118,7 @@ afterEach(() => {
   vi.useRealTimers()
   setAuditHeadersEnabled(false)
   clearStaffSession()
+  useSessionStore.setState({ activeStaff: null, locked: false })
 })
 
 describe('AuditPage — needs a look (the default view)', () => {
@@ -212,7 +216,8 @@ describe('AuditPage — needs a look (the default view)', () => {
     expect(screen.getByRole('button', { name: '3 alerts need a look' })).toBeInTheDocument()
   })
 
-  it('in any other view a checked alert stays where it is and shows as checked', async () => {
+  it('in any other view a checked alert stays where it is and shows who checked it and when', async () => {
+    useSessionStore.setState({ activeStaff: { id: KIM, name: 'Kim Newstarter' } })
     renderPage()
     await screen.findByText('Nothing here')
     fetchAuditEntries.mockResolvedValue(page([priceChange(120), sale(110)]))
@@ -221,7 +226,9 @@ describe('AuditPage — needs a look (the default view)', () => {
 
     fireEvent.click(within(card).getByRole('button', { name: 'Mark as checked' }))
 
-    expect(await within(card).findByText('Checked')).toBeInTheDocument()
+    expect(await within(card).findByText('Checked by Kim Newstarter · Sun 22 Nov, 14:00')).toBeInTheDocument()
+    // Kim is not the person the alert is about (Sam changed the price)
+    expect(within(card).queryByText('Checked by the person it is about')).not.toBeInTheDocument()
     expect(markAuditChecked).toHaveBeenCalledWith(120, null)
     expect(screen.getByText('Changed Guinness standard price from £7.40 to £6.40')).toBeInTheDocument()
     expect(within(card).queryByRole('button', { name: 'Mark as checked' })).not.toBeInTheDocument()
@@ -246,11 +253,90 @@ describe('AuditPage — needs a look (the default view)', () => {
   })
 
   it('offers no "Mark as checked" on routine entries or ones already checked', async () => {
+    // "checked" with nothing else is all an older database says
     fetchAuditEntries.mockResolvedValue(page([priceChange(120, { checked: true }), sale(110)]))
     renderPage()
     const card = (await screen.findByText('Changed Guinness standard price from £7.40 to £6.40')).closest('li')
     expect(within(card).getByText('Checked')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Mark as checked' })).not.toBeInTheDocument()
+  })
+
+  it('shows who checked an alert, when, and the note they left', async () => {
+    fetchAuditEntries.mockResolvedValue(page([
+      priceChange(120, { checked: true, checked_at: at(13, 30), checked_by: 'Kim Newstarter', checked_by_self: false, check_note: 'Sam corrected a typo' }),
+    ]))
+    renderPage()
+    const card = (await screen.findByText('Changed Guinness standard price from £7.40 to £6.40')).closest('li')
+    expect(within(card).getByText('Checked by Kim Newstarter · Sun 22 Nov, 13:30')).toBeInTheDocument()
+    expect(within(card).getByText('Note left when it was checked: “Sam corrected a typo”')).toBeInTheDocument()
+    expect(within(card).queryByText('Checked by the person it is about')).not.toBeInTheDocument()
+  })
+
+  it('makes it visible when someone checked an alert about their own action', async () => {
+    fetchAuditEntries.mockResolvedValue(page([
+      priceChange(120, { checked: true, checked_at: at(13, 30), checked_by: 'Sam Staff', checked_by_self: true, check_note: null }),
+    ]))
+    renderPage()
+    const card = (await screen.findByText('Changed Guinness standard price from £7.40 to £6.40')).closest('li')
+    expect(within(card).getByText('Checked by Sam Staff · Sun 22 Nov, 13:30')).toBeInTheDocument()
+    expect(within(card).getByText('Checked by the person it is about')).toBeInTheDocument()
+  })
+
+  it('says so straight away when the person signed in checks their own alert', async () => {
+    useSessionStore.setState({ activeStaff: { id: SAM, name: 'Sam Staff' } })
+    renderPage()
+    await screen.findByText('Nothing here')
+    fetchAuditEntries.mockResolvedValue(page([priceChange(120)]))
+    fireEvent.click(screen.getByRole('button', { name: 'Everything' }))
+    const card = (await screen.findByText('Changed Guinness standard price from £7.40 to £6.40')).closest('li')
+
+    fireEvent.click(within(card).getByRole('button', { name: 'Add a note first' }))
+    fireEvent.change(within(card).getByLabelText('Note for this alert'), { target: { value: 'my own typo' } })
+    fireEvent.click(within(card).getByRole('button', { name: 'Mark as checked' }))
+
+    expect(await within(card).findByText('Checked by the person it is about')).toBeInTheDocument()
+    expect(within(card).getByText('Note left when it was checked: “my own typo”')).toBeInTheDocument()
+  })
+})
+
+describe('AuditPage — who a sale is about', () => {
+  it('names who rang it with how sure the log is, and says when someone else sent it', async () => {
+    fetchAuditEntries.mockResolvedValue(page([
+      sale(110, {
+        at: at(13, 0), severity: 1, staff_id: KIM, staff_name: 'Kim Newstarter', staff_trust: 'session_record',
+        new: { ...sale().new, staff_id: KIM, created_at: at(10, 0) },
+        detail: { late_by_seconds: 10800, rung_by_trust: 'session_record', sent_by: SAM, sent_by_trust: 'pin', flags: ['arrived_late'] },
+      }),
+    ]))
+    renderPage()
+    const card = (await screen.findByText('Sale of £13.80 on tab')).closest('li')
+    expect(within(card).getByText('Kim Newstarter')).toBeInTheDocument()
+    expect(within(card).getByText('matched a sign-in')).toBeInTheDocument()
+    expect(within(card).queryByText('PIN checked')).not.toBeInTheDocument()
+    expect(within(card).getByText('Sent to the server under Sam Staff’s sign-in (PIN checked) — the sale itself names Kim Newstarter as who rang it')).toBeInTheDocument()
+    expect(within(card).getByText('Reached the server 3 hours after it was rung — usually a sale taken while the till was offline')).toBeInTheDocument()
+    expect(within(card).getByText('happened 10:00, arrived 13:00')).toBeInTheDocument()
+  })
+
+  it('still names who rang it on a sale filed the earlier way, under whoever sent it', async () => {
+    fetchAuditEntries.mockResolvedValue(page([
+      sale(110, { new: { ...sale().new, staff_id: KIM }, detail: { rung_by_trust: 'claimed', flags: ['staff_unverified'] } }),
+    ]))
+    renderPage()
+    const card = (await screen.findByText('Sale of £13.80 on tab')).closest('li')
+    expect(await within(card).findByText('Kim Newstarter')).toBeInTheDocument()
+    expect(within(card).getByText('said to be')).toBeInTheDocument()
+    expect(within(card).getByText(/^Sent to the server under Sam Staff’s sign-in \(PIN checked\)/)).toBeInTheDocument()
+  })
+
+  it('does not say "nobody signed in" about a sale that simply names nobody', async () => {
+    fetchAuditEntries.mockResolvedValue(page([
+      sale(110, { staff_id: null, staff_name: null, staff_trust: 'none', new: { ...sale().new, staff_id: null }, detail: { flags: ['no_staff_on_sale'] } }),
+    ]))
+    renderPage()
+    const card = (await screen.findByText('Sale of £13.80 on tab')).closest('li')
+    expect(within(card).getByText('Nobody named on the sale')).toBeInTheDocument()
+    expect(within(card).queryByText('Nobody signed in')).not.toBeInTheDocument()
   })
 })
 
@@ -333,6 +419,24 @@ describe('AuditPage — quick views and filters', () => {
     await waitFor(() => expect(lastFilters()).toEqual([{ unchecked: true }]))
   })
 
+  it('"Tabs and cash" asks for members whose balance changed, and the search box still goes to the database', async () => {
+    renderPage()
+    await screen.findByText('Nothing here')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Tabs and cash' }))
+    await waitFor(() => expect(fetchAuditEntries).toHaveBeenCalledTimes(2))
+    expect(lastFilters()).toContainEqual({ kinds: ['row'], tables: ['members'], changed: 'tab_balance', from: RANGE.from, to: RANGE.to })
+
+    fireEvent.change(screen.getByLabelText('Search the log'), { target: { value: 'mo member' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Search' }))
+    await waitFor(() => expect(fetchAuditEntries).toHaveBeenCalledTimes(3))
+    // every filter carries the search to the database; nothing is filtered on the till
+    for (const filter of lastFilters()) {
+      expect(filter.q).toBe('mo member')
+      expect(filter.local_q).toBeUndefined()
+    }
+  })
+
   it('"Sign-ins" also shows who was signed in where and when', async () => {
     fetchAuditSessions.mockResolvedValue([
       { id: 's2', staff_id: KIM, staff_name: 'Kim Newstarter', till_id: 'till-2', trust: 'claimed', started_at: at(12, 0), ended_at: null, end_reason: null, ip: '203.0.113.20' },
@@ -412,6 +516,22 @@ describe('AuditPage — paging', () => {
     expect(screen.getByRole('button', { name: 'Load more' })).toBeInTheDocument()
   })
 
+  it('does not say "Nothing here" above a "Load more" button', async () => {
+    fetchAuditEntries
+      .mockResolvedValueOnce(page([], 900))
+      .mockResolvedValueOnce(page([drawerOpened(118)], null))
+    renderPage()
+
+    expect(await screen.findByText('Nothing in this stretch of the log')).toBeInTheDocument()
+    expect(screen.queryByText('Nothing here')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Load more' }))
+
+    expect(await screen.findByText('Cash drawer opened without a sale (from the Settings page)')).toBeInTheDocument()
+    expect(fetchAuditEntries).toHaveBeenLastCalledWith([{ unchecked: true }], { beforeSeq: 900, limit: 100 })
+    expect(screen.queryByText('Nothing in this stretch of the log')).not.toBeInTheDocument()
+  })
+
   it('shows a sale and its lines as one entry', async () => {
     fetchAuditEntries.mockResolvedValue(page([saleLines(111), sale(110)]))
     renderPage()
@@ -434,6 +554,57 @@ describe('AuditPage — the health strip', () => {
     expect(within(strip).getByText('passed · 05:17 (9 hours ago)')).toBeInTheDocument()
     expect(within(strip).getByText('4.2 MB · 12,340 entries (310 in the last 24 hours)')).toBeInTheDocument()
     expect(within(strip).queryByRole('button', { name: /need a look|needs a look/ })).not.toBeInTheDocument()
+  })
+
+  it('is just as quiet when the database also says its code and every protection are as accepted', async () => {
+    fetchAuditHealth.mockResolvedValue(healthy({ unchecked_alerts: 0, code_unchanged: true, coverage: { tables: 22, missing: [], disabled: [], repointed: [] } }))
+    renderPage()
+    const strip = await screen.findByRole('region', { name: 'Log health' })
+    expect(await within(strip).findByText('Everything is being recorded, and nothing is wrong with the log itself.')).toBeInTheDocument()
+    expect(within(strip).queryByRole('alert')).not.toBeInTheDocument()
+    expect(within(strip).queryByRole('group', { name: 'What this till remembers' })).not.toBeInTheDocument()
+  })
+
+  it('warns when the log’s own code has changed, or a protection is gone, off or redirected', async () => {
+    fetchAuditHealth.mockResolvedValue(healthy({
+      code_unchanged: false,
+      coverage: { tables: 22, missing: ['orders:guard'], disabled: ['members:protected_fields'], repointed: ['products:truncate', 'auditlog.log:append_only'] },
+    }))
+    renderPage()
+    const strip = await screen.findByRole('region', { name: 'Log health' })
+    const alert = await within(strip).findByRole('alert')
+    expect(alert).toHaveTextContent('Something is wrong with the log')
+    expect(alert).toHaveTextContent('Protection is missing: the guard on sales.')
+    expect(alert).toHaveTextContent('Protection has been switched off: the guard on PINs, tab balances and app logins.')
+    expect(alert).toHaveTextContent('Redirected away from the log’s own code: products being wiped all at once, the lock on the log itself.')
+    expect(alert).toHaveTextContent('The log’s own recording code has been changed since it was last accepted.')
+    expect(alert.textContent).not.toMatch(/orders:guard|protected_fields|repointed|truncate|append_only/)
+  })
+
+  it('lists the seals this till once held that the database later no longer had, for as long as the till keeps them', async () => {
+    disputedSeals.mockReturnValue([
+      { id: 41, hash: 'cc'.repeat(32), code: 'S41-0000-1111', at: at(9, 0, 1), noticed_at: at(9, 30) },
+      { id: 42, hash: 'dd'.repeat(32), code: 'S42-2222-3333', at: at(9, 10), noticed_at: at(10, 5) },
+    ])
+    fetchAuditHealth.mockResolvedValue(healthy({ unchecked_alerts: 0 }))
+    renderPage()
+    const strip = await screen.findByRole('region', { name: 'Log health' })
+    const evidence = await within(strip).findByRole('group', { name: 'What this till remembers' })
+    expect(evidence).toHaveTextContent('This till’s own evidence that the log’s history changed')
+    expect(evidence).toHaveTextContent('This till was shown each of these seals, and the database later no longer had it: the log’s history was changed underneath this till — rewritten, or restored from a backup.')
+    const rows = within(evidence).getAllByRole('listitem').map(li => li.textContent)
+    expect(rows).toEqual([
+      'Seal S41-0000-1111, made Sat 21 Nov, 09:00 — noticed missing Sun 22 Nov, 09:30',
+      'Seal S42-2222-3333, made Sun 22 Nov, 09:10 — noticed missing Sun 22 Nov, 10:05',
+    ])
+    // today's health is fine, and the strip does not pretend otherwise — but it does not say "nothing is wrong" either
+    expect(within(strip).queryByText('Everything is being recorded, and nothing is wrong with the log itself.')).not.toBeInTheDocument()
+    expect(within(strip).getByText('Everything is being recorded now — but see what this till remembers, below.')).toBeInTheDocument()
+
+    // still there after a refresh and after a passed check
+    fireEvent.click(screen.getByRole('button', { name: 'Check now' }))
+    await screen.findByRole('status')
+    expect(within(strip).getByRole('group', { name: 'What this till remembers' })).toBeInTheDocument()
   })
 
   it('makes anything wrong impossible to miss', async () => {
@@ -483,6 +654,39 @@ describe('AuditPage — the health strip', () => {
     expect(result).toHaveTextContent('Checked just now: all 12,345 entries are intact and nothing has been altered. Newest seal S43-AB12-CD34.')
     expect(verifyAuditNow).toHaveBeenCalledTimes(1)
     await waitFor(() => expect(fetchAuditHealth).toHaveBeenCalledTimes(2))
+    expect(screen.getByRole('button', { name: 'Check now' })).not.toBeDisabled()
+  })
+
+  it('"Check now" says when it re-read only recent entries', async () => {
+    verifyAuditNow.mockResolvedValue({
+      ok: true, scope: 'recent', since: at(14, 0, 30), seals_checked: 9000, seals_rehashed: 8600, rows_checked: 31000, unsealed_rows: 2, problems: [],
+      head: { id: 9000, code: 'S9000-AB12-CD34' },
+    })
+    renderPage()
+    await screen.findByText('Nothing here')
+    fireEvent.click(screen.getByRole('button', { name: 'Check now' }))
+    expect(await screen.findByRole('status')).toHaveTextContent(
+      'Checked just now: the chain of all 9,000 seals is unbroken, and all 31,000 entries recorded since Fri 23 Oct, 14:00 are intact. Older entries were not re-read this time; the nightly check covers them. Newest seal S9000-AB12-CD34.',
+    )
+  })
+
+  it('"Check now" says when it re-read the whole log', async () => {
+    verifyAuditNow.mockResolvedValue({ ok: true, scope: 'everything', since: null, seals_checked: 43, seals_rehashed: 43, rows_checked: 12345, unsealed_rows: 0, problems: [], head: { id: 43, code: 'S43-AB12-CD34' } })
+    renderPage()
+    await screen.findByText('Nothing here')
+    fireEvent.click(screen.getByRole('button', { name: 'Check now' }))
+    expect(await screen.findByRole('status')).toHaveTextContent('Checked just now: all 12,345 entries are intact and nothing has been altered (the whole log). Newest seal S43-AB12-CD34.')
+  })
+
+  it('"Check now" that runs out of time says the nightly check still runs, not that something failed', async () => {
+    verifyAuditNow.mockRejectedValue(errorOf('timeout', 'The check took too long to finish here; the nightly check still runs'))
+    renderPage()
+    await screen.findByText('Nothing here')
+    fireEvent.click(screen.getByRole('button', { name: 'Check now' }))
+    expect(await screen.findByText('The check took too long to finish here; the nightly check still runs')).toBeInTheDocument()
+    expect(screen.queryByText(/Could not run the check/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/FAILED/)).not.toBeInTheDocument()
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Check now' })).not.toBeDisabled()
   })
 
@@ -550,6 +754,19 @@ describe('AuditPage — when the log cannot be shown', () => {
     expect(screen.queryByText('The log will be available once the database update has been applied')).not.toBeInTheDocument()
   })
 
+  it('still shows the seals this till kept, because that needs nothing from the server', async () => {
+    // a database put back to before the log existed looks exactly like this
+    const missing = errorOf('not_available', 'The log will be available once the database update has been applied')
+    fetchAuditEntries.mockRejectedValue(missing)
+    fetchAuditHealth.mockRejectedValue(missing)
+    disputedSeals.mockReturnValue([{ id: 41, hash: 'cc'.repeat(32), code: 'S41-0000-1111', at: at(9, 0, 1), noticed_at: at(9, 30) }])
+    renderPage()
+    expect(await screen.findByText('The log will be available once the database update has been applied')).toBeInTheDocument()
+    const evidence = screen.getByRole('group', { name: 'What this till remembers' })
+    expect(evidence).toHaveTextContent('Seal S41-0000-1111, made Sat 21 Nov, 09:00 — noticed missing Sun 22 Nov, 09:30')
+    expect(screen.queryByRole('region', { name: 'Log health' })).not.toBeInTheDocument()
+  })
+
   describe('when the server does not know who is signed in', () => {
     beforeEach(() => {
       const noStaff = errorOf('not_signed_in', 'Sign in with your PIN to see the log')
@@ -561,7 +778,8 @@ describe('AuditPage — when the log cannot be shown', () => {
       setAuditHeadersEnabled(true)
       renderPage()
       expect(await screen.findByText('Sign in with your PIN to see the log')).toBeInTheDocument()
-      expect(screen.getByText(/your sign-in on this till is from before the log was switched on\. Sign out, sign back in with your PIN/)).toBeInTheDocument()
+      // true after "Carry on without checking the PIN" too, where no server sign-in exists
+      expect(screen.getByText(/the server has no PIN-checked sign-in for you on this till — as after “Carry on without checking the PIN”, or a sign-in from before the log was switched on\. Lock the till and unlock it with your PIN \(or sign out and sign back in\)/)).toBeInTheDocument()
       expect(screen.queryByRole('region', { name: 'Log health' })).not.toBeInTheDocument()
       expect(screen.getByRole('button', { name: 'Try again' })).toBeInTheDocument()
     })
@@ -570,14 +788,14 @@ describe('AuditPage — when the log cannot be shown', () => {
       setAuditHeadersEnabled(true)
       setStaffSession({ id: 'session-1', token: 'not-shown-anywhere', staffId: SAM, trust: 'pin' })
       const { container } = renderPage()
-      expect(await screen.findByText(/your PIN sign-in is too old for it/)).toBeInTheDocument()
+      expect(await screen.findByText(/your PIN sign-in is too old for it \(a sign-in lasts a day at most\)\. Lock the till and unlock it with your PIN/)).toBeInTheDocument()
       expect(container.textContent).not.toContain('not-shown-anywhere')
     })
 
     it('does not tell staff to sign in again while the till is still setting up its link', async () => {
       renderPage()
       expect(await screen.findByText(/this till has not yet finished setting up the link/)).toBeInTheDocument()
-      expect(screen.queryByText(/Sign out, sign back in/)).not.toBeInTheDocument()
+      expect(screen.queryByText(/sign out and sign back in|unlock it with your PIN/i)).not.toBeInTheDocument()
     })
   })
 

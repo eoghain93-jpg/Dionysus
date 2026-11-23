@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import {
-  AUDIT_ERROR, AuditViewError, entryContains, fetchAuditEntries, fetchAuditHealth, fetchAuditNames,
+  AUDIT_ERROR, AuditViewError, CHECK_TOOK_TOO_LONG, entryContains, fetchAuditEntries, fetchAuditHealth, fetchAuditNames,
   fetchAuditSessions, isAuditNotAvailable, markAuditChecked, mergeAuditPages, toAuditViewError, verifyAuditNow,
 } from './view'
 import { supabase } from '../supabase'
@@ -48,6 +48,14 @@ describe('toAuditViewError', () => {
   it('recognises a request that never reached the server', () => {
     expect(toAuditViewError(new TypeError('Failed to fetch')).kind).toBe(AUDIT_ERROR.OFFLINE)
     expect(toAuditViewError({ message: 'TypeError: NetworkError when attempting to fetch resource.' }).kind).toBe(AUDIT_ERROR.OFFLINE)
+  })
+
+  it('recognises the server running out of time', () => {
+    const cancelled = toAuditViewError({ code: '57014', message: 'canceling statement due to statement timeout' })
+    expect(cancelled.kind).toBe(AUDIT_ERROR.TIMEOUT)
+    expect(cancelled.message).toBe('The server took too long to answer. Try again, or look at fewer days at a time.')
+    expect(cancelled.cause).toMatchObject({ code: '57014' })
+    expect(toAuditViewError({ status: 504, message: 'upstream request timeout' }).kind).toBe(AUDIT_ERROR.TIMEOUT)
   })
 
   it('keeps the message of anything else and marks it as retryable', () => {
@@ -127,6 +135,19 @@ describe('fetchAuditEntries', () => {
     expect(result.next_before_seq).toBe(50)
   })
 
+  it('sends flag, changed and actors to the database as they are, with the search box alongside', async () => {
+    supabase.rpc.mockResolvedValue(ok({ entries: [entry(3, { table: 'members', action: 'update', changed: ['tab_balance'] })], next_before_seq: null }))
+    const filters = [
+      { kinds: ['row'], tables: ['members'], changed: 'tab_balance', q: 'mo member' },
+      { flag: 'direct_insert_of_sale', q: 'mo member' },
+      { actors: ['database', 'service'], q: 'mo member' },
+    ]
+    const result = await fetchAuditEntries(filters)
+    expect(supabase.rpc.mock.calls.map(c => c[1].p_filter)).toEqual(filters)
+    // nothing is filtered again on the till: what the database matched is what is shown
+    expect(result.entries.map(e => e.seq)).toEqual([3])
+  })
+
   it('matches local_q on the till instead of sending it', async () => {
     supabase.rpc.mockResolvedValue(ok({
       entries: [
@@ -140,6 +161,19 @@ describe('fetchAuditEntries', () => {
     expect(result.entries.map(e => e.seq)).toEqual([3])
     // paging still follows what the database returned
     expect(result.next_before_seq).toBe(2)
+  })
+
+  it('local_q finds an entry by the name of who or what it is about, as the database’s own search does', async () => {
+    supabase.rpc.mockResolvedValue(ok({
+      entries: [
+        // an update stores only the changed columns: the name is not in them
+        entry(3, { table: 'products', action: 'update', subject: 'Guinness', staff_name: 'Sam Staff', old: { standard_price: 7.4 }, new: { standard_price: 6.4 } }),
+        entry(2, { table: 'products', action: 'update', subject: 'Crisps', staff_name: 'Kim Newstarter', old: { standard_price: 1 }, new: { standard_price: 1.1 } }),
+      ],
+      next_before_seq: null,
+    }))
+    expect((await fetchAuditEntries({ q: 'standard_price', local_q: 'guinness' })).entries.map(e => e.seq)).toEqual([3])
+    expect((await fetchAuditEntries({ q: 'standard_price', local_q: 'kim new' })).entries.map(e => e.seq)).toEqual([2])
   })
 
   it('throws a recognisable error when the log is not installed', async () => {
@@ -222,6 +256,21 @@ describe('the other read functions', () => {
     expect(supabase.rpc).toHaveBeenCalledWith('audit_verify_now')
     supabase.rpc.mockResolvedValue(ok({ ok: false, problems: [{ problem: 'chain_broken', seal: 2 }] }))
     expect((await verifyAuditNow()).problems).toEqual([{ problem: 'chain_broken', seal: 2 }])
+  })
+
+  it('verifyAuditNow passes on how much of the log was re-read', async () => {
+    const recent = { ok: true, scope: 'recent', since: '2026-10-22T12:00:00.000Z', seals_checked: 9000, seals_rehashed: 8600, rows_checked: 31000, problems: [], head: { code: 'S9000-AAAA-BBBB' } }
+    supabase.rpc.mockResolvedValue(ok(recent))
+    expect(await verifyAuditNow()).toEqual(recent)
+  })
+
+  it('verifyAuditNow says the nightly check still runs when the check ran out of time', async () => {
+    supabase.rpc.mockResolvedValue(fail({ code: '57014', message: 'canceling statement due to statement timeout' }))
+    await expect(verifyAuditNow()).rejects.toMatchObject({ name: 'AuditViewError', kind: AUDIT_ERROR.TIMEOUT, message: CHECK_TOOK_TOO_LONG })
+    expect(CHECK_TOOK_TOO_LONG).toBe('The check took too long to finish here; the nightly check still runs')
+    // any other failure keeps its own message
+    supabase.rpc.mockResolvedValue(fail({ code: 'XX000', message: 'boom' }))
+    await expect(verifyAuditNow()).rejects.toMatchObject({ kind: AUDIT_ERROR.FAILED, message: 'boom' })
   })
 
   it('verifyAuditNow refuses to treat an empty answer as a pass', async () => {

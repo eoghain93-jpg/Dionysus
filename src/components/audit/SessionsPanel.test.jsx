@@ -33,6 +33,18 @@ describe('SessionsPanel', () => {
     expect(rows[2]).not.toHaveTextContent('Network address')
   })
 
+  it('says when a sign-in ended because the till was locked', () => {
+    render(<SessionsPanel sessions={[
+      session(1, { end_reason: 'manual_lock' }),
+      session(2, { end_reason: 'idle_lock' }),
+      session(3, { end_reason: 'unused_unlock' }),
+    ]} />)
+    const rows = screen.getAllByRole('listitem')
+    expect(rows[0]).toHaveTextContent('— till was locked')
+    expect(rows[1]).toHaveTextContent('— till locked itself')
+    expect(rows[2]).toHaveTextContent('— PIN accepted too late to unlock the till')
+  })
+
   it('shows the first few and offers the rest', () => {
     render(<SessionsPanel sessions={Array.from({ length: 11 }, (_, i) => session(i + 1))} />)
     expect(screen.getAllByRole('listitem')).toHaveLength(8)

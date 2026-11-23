@@ -6,11 +6,13 @@ import {
   markAuditChecked, verifyAuditNow,
 } from '../lib/audit/view'
 import { combineSaleEntries, salesIndex, tableNoun, tillLabel, uncheckedSeqs } from '../lib/audit/describe'
-import { rememberedSeal } from '../lib/audit/seal'
+import { disputedSeals, rememberedSeal } from '../lib/audit/seal'
 import { auditHeadersEnabled } from '../lib/audit/fetch'
 import { getStaffSessionId } from '../lib/audit/staffSession'
 import { getTillId } from '../lib/till'
+import { useSessionStore } from '../stores/sessionStore'
 import HealthStrip from '../components/audit/HealthStrip'
+import DisputedSeals from '../components/audit/DisputedSeals'
 import AuditEntry from '../components/audit/AuditEntry'
 import SessionsPanel from '../components/audit/SessionsPanel'
 import {
@@ -37,15 +39,21 @@ const BLOCKERS = {
 }
 
 // The log records who looks at it, so the server has to recognise the
-// person signed in at this till. Three reasons it might not:
+// person signed in at this till. Three reasons it might not. (A lock ends
+// the server's sign-in and unlocking with a PIN starts a fresh one, so
+// "lock, then unlock with your PIN" is the quickest way to get one.)
+const SIGN_IN_AGAIN = 'Lock the till and unlock it with your PIN (or sign out and sign back in), then open the Log again.'
+
 function signInHint() {
   if (!auditHeadersEnabled()) {
     return 'The log records who looks at it, and this till has not yet finished setting up the link that tells the server who is signed in. It retries by itself every few seconds: check the connection, wait a moment, then press “Try again”.'
   }
   if (!getStaffSessionId()) {
-    return 'The log records who looks at it, and your sign-in on this till is from before the log was switched on. Sign out, sign back in with your PIN, and open the Log again.'
+    // No server sign-in is held: the PIN was never checked by the server
+    // ("Carry on without checking the PIN"), or the sign-in predates the log.
+    return `The log records who looks at it, and the server has no PIN-checked sign-in for you on this till — as after “Carry on without checking the PIN”, or a sign-in from before the log was switched on. ${SIGN_IN_AGAIN}`
   }
-  return 'The log records who looks at it, and your PIN sign-in is too old for it (a sign-in lasts a day at most). Sign out, sign back in with your PIN, and open the Log again.'
+  return `The log records who looks at it, and your PIN sign-in is too old for it (a sign-in lasts a day at most). ${SIGN_IN_AGAIN}`
 }
 
 const dayKey = value => {
@@ -136,7 +144,10 @@ export default function AuditPage() {
   const [healthRefresh, setHealthRefresh] = useState(0)
   const healthKey = `${refresh}#${healthRefresh}`
   const [healthState, setHealthState] = useState({ key: null, data: null, error: null })
-  const [check, setCheck] = useState({ running: false, result: null, error: null })
+  const [check, setCheck] = useState({ running: false, result: null, error: null, timedOut: false })
+  // Seals this till once held that the database later no longer had. Read
+  // from the till's own storage, and again whenever the health is reloaded.
+  const [disputed, setDisputed] = useState(() => disputedSeals())
 
   useEffect(() => {
     let cancelled = false
@@ -144,10 +155,13 @@ export default function AuditPage() {
       .then(data => {
         if (cancelled) return
         setHealthState({ key: healthKey, data, error: null })
+        setDisputed(disputedSeals())
         setNow(Date.now())
       })
       .catch(error => {
-        if (!cancelled) setHealthState({ key: healthKey, data: null, error })
+        if (cancelled) return
+        setHealthState({ key: healthKey, data: null, error })
+        setDisputed(disputedSeals())
       })
     return () => { cancelled = true }
   }, [healthKey])
@@ -275,12 +289,17 @@ export default function AuditPage() {
   }
 
   async function runCheck() {
-    setCheck({ running: true, result: null, error: null })
+    setCheck({ running: true, result: null, error: null, timedOut: false })
     try {
       const result = await verifyAuditNow()
-      setCheck({ running: false, result, error: null })
+      setCheck({ running: false, result, error: null, timedOut: false })
     } catch (err) {
-      setCheck({ running: false, result: null, error: err?.message ?? 'Something went wrong' })
+      // Running out of time is not a fault in the log (the message says the
+      // nightly check still runs), so it is not dressed up as one.
+      setCheck({
+        running: false, result: null, error: err?.message ?? 'Something went wrong',
+        timedOut: err?.kind === AUDIT_ERROR.TIMEOUT,
+      })
     }
     // The check seals what was outstanding and records itself.
     setHealthRefresh(n => n + 1)
@@ -290,10 +309,21 @@ export default function AuditPage() {
   // In "Needs a look" a checked alert leaves the list; elsewhere it stays
   // and shows as checked.
   const leavesWhenChecked = !record && view.filters.some(f => f.unchecked)
+  const activeStaff = useSessionStore(s => s.activeStaff)
   const ack = useCallback(async (entry, note) => {
     const seqs = uncheckedSeqs(entry)
     const done = []
     const leaves = leavesWhenChecked
+    // What the database will say about this check once the page is
+    // reloaded: who (the person signed in here), when, and their note.
+    const mark = e => ({
+      ...e,
+      checked: true,
+      checked_at: new Date().toISOString(),
+      checked_by: activeStaff?.name ?? null,
+      checked_by_self: !!activeStaff?.id && activeStaff.id === e.staff_id,
+      check_note: typeof note === 'string' && note.trim() ? note.trim() : null,
+    })
     try {
       for (const seq of seqs) {
         await markAuditChecked(seq, note)
@@ -305,14 +335,14 @@ export default function AuditPage() {
           ...prev,
           entries: leaves
             ? prev.entries.filter(e => !done.includes(e.seq))
-            : prev.entries.map(e => (done.includes(e.seq) ? { ...e, checked: true } : e)),
+            : prev.entries.map(e => (done.includes(e.seq) ? mark(e) : e)),
         }))
         setHealthState(prev => (prev.data
           ? { ...prev, data: { ...prev.data, unchecked_alerts: Math.max(0, Number(prev.data.unchecked_alerts ?? 0) - done.length) } }
           : prev))
       }
     }
-  }, [leavesWhenChecked])
+  }, [leavesWhenChecked, activeStaff])
 
   const recordName = record
     ? (entries.find(e => e.subject)?.subject ?? lookup.names[record.pk] ?? null)
@@ -329,11 +359,17 @@ export default function AuditPage() {
       </div>
 
       {blocker ? (
-        <div role="alert" className="bg-[#0F172A] rounded-2xl border border-slate-700 p-6 flex flex-col gap-3 items-start">
-          <h2 className="text-white text-lg font-semibold">{blocker.title}</h2>
-          <p className="text-slate-400 text-sm">{blocker.body ?? signInHint()}</p>
-          <button onClick={reload} className={BUTTON}>Try again</button>
-        </div>
+        <>
+          <div role="alert" className="bg-[#0F172A] rounded-2xl border border-slate-700 p-6 flex flex-col gap-3 items-start">
+            <h2 className="text-white text-lg font-semibold">{blocker.title}</h2>
+            <p className="text-slate-400 text-sm">{blocker.body ?? signInHint()}</p>
+            <button onClick={reload} className={BUTTON}>Try again</button>
+          </div>
+          {/* What the till itself remembers needs nothing from the server,
+              and a database put back to before the log existed looks just
+              like one where the log "has not been set up yet". */}
+          <DisputedSeals disputed={disputed} />
+        </>
       ) : (
         <>
           <HealthStrip
@@ -343,6 +379,7 @@ export default function AuditPage() {
             onRetry={() => setHealthRefresh(n => n + 1)}
             now={now}
             remembered={rememberedSeal()}
+            disputed={disputed}
             check={check}
             onCheck={runCheck}
             onShowAlerts={() => { if (record) closeRecord(); chooseView('attention') }}
@@ -464,7 +501,15 @@ export default function AuditPage() {
               </div>
             )}
 
-            {!loading && !page.error && shown.length === 0 && (
+            {/* An empty page is only "nothing" when there is no more to load. */}
+            {!loading && !page.error && shown.length === 0 && page.next !== null && (
+              <div className="bg-[#0F172A] rounded-2xl border border-slate-700 p-8 text-center">
+                <p className="text-slate-300 font-medium">Nothing in this stretch of the log</p>
+                <p className="text-slate-500 text-sm mt-1">There is more further back — press “Load more” to keep looking.</p>
+              </div>
+            )}
+
+            {!loading && !page.error && shown.length === 0 && page.next === null && (
               <div className="bg-[#0F172A] rounded-2xl border border-slate-700 p-8 text-center">
                 <p className="text-slate-300 font-medium">Nothing here</p>
                 <p className="text-slate-500 text-sm mt-1">

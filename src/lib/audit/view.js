@@ -13,6 +13,7 @@
 //   not_signed_in  no staff member is signed in as far as the server knows
 //   not_allowed    this device is not a till (or its sign-in has lapsed)
 //   offline        the request never reached the server
+//   timeout        the server gave up before it had an answer
 //   failed         anything else (retry)
 
 import { supabase } from '../supabase'
@@ -22,6 +23,7 @@ export const AUDIT_ERROR = {
   NOT_SIGNED_IN: 'not_signed_in',
   NOT_ALLOWED: 'not_allowed',
   OFFLINE: 'offline',
+  TIMEOUT: 'timeout',
   FAILED: 'failed',
 }
 
@@ -30,8 +32,13 @@ const MESSAGES = {
   not_signed_in: 'Sign in with your PIN to see the log',
   not_allowed: 'The log can only be opened from a till',
   offline: 'Could not reach the server. Check the connection and try again.',
+  timeout: 'The server took too long to answer. Try again, or look at fewer days at a time.',
   failed: 'Could not load the log',
 }
+
+// What "Check now" says when the check itself ran out of time. Nothing is
+// wrong with the log: the nightly check has no time limit.
+export const CHECK_TOOK_TOO_LONG = 'The check took too long to finish here; the nightly check still runs'
 
 export class AuditViewError extends Error {
   constructor(kind, message, cause) {
@@ -61,6 +68,11 @@ export function toAuditViewError(error) {
   }
   if (code === '42501' || code === 'PGRST301' || status === 401 || status === 403 || /permission denied|jwt/i.test(message)) {
     return new AuditViewError(AUDIT_ERROR.NOT_ALLOWED, null, error)
+  }
+  // 57014: the database cancelled the statement at its time limit. A
+  // gateway in front of it can give up first (504).
+  if (code === '57014' || status === 504 || /statement timeout|upstream request timeout/i.test(message)) {
+    return new AuditViewError(AUDIT_ERROR.TIMEOUT, null, error)
   }
   if (globalThis.navigator?.onLine === false || /failed to fetch|networkerror|network request failed|load failed/i.test(message)) {
     return new AuditViewError(AUDIT_ERROR.OFFLINE, null, error)
@@ -115,8 +127,11 @@ export function mergeAuditPages(pages) {
 
 /**
  * Does the entry mention this text? The same idea as the database's own
- * search (the entry's name, list and stored values), for the few filters
- * that cannot pass the search box to the database (see `local_q` below).
+ * search — the entry's name, list and stored values, the NAME of the
+ * product or member it is about and of the staff member who did it — for a
+ * filter that cannot pass the search box to the database (see `local_q`
+ * below). It must never be narrower than the database's search, or the two
+ * would disagree about what "Guinness" finds.
  */
 export function entryContains(entry, text) {
   const needle = String(text ?? '').trim().toLowerCase()
@@ -136,8 +151,11 @@ export function entryContains(entry, text) {
  *        from some tables PLUS till reports with certain names, which one
  *        filter cannot express)
  *        A filter may carry `local_q`: text that is matched here, on the
- *        results, instead of being sent — for filters whose own `q` is
- *        already taken.
+ *        results, instead of being sent — only for a filter whose own `q`
+ *        is already taken (no quick view has one today: views pick entries
+ *        by flag, changed column or who made the change, which the
+ *        database matches exactly and which leave `q` free for the search
+ *        box).
  * @param {{ beforeSeq?: number, limit?: number }} [page]
  * @returns {Promise<{ entries: object[], next_before_seq: number | null }>}
  */
@@ -178,9 +196,25 @@ export async function fetchAuditSessions(from = null, to = null) {
   return Array.isArray(data) ? data : []
 }
 
-/** Seal whatever is outstanding and re-check the whole log, now. */
+/**
+ * Seal whatever is outstanding and re-check the log, now.
+ *
+ * The result's `scope` says how much was re-read: 'everything', or 'recent'
+ * (the chain of every seal, but only the entries of the last 30 days — what
+ * the database does once the log is large; the nightly check covers the
+ * rest). An older database does not say.
+ *
+ * Throws kind 'timeout' (with a message that says the nightly check still
+ * runs) when the database ran out of time.
+ */
 export async function verifyAuditNow() {
-  const data = await call('audit_verify_now')
+  let data
+  try {
+    data = await call('audit_verify_now')
+  } catch (error) {
+    if (error?.kind === AUDIT_ERROR.TIMEOUT) throw new AuditViewError(AUDIT_ERROR.TIMEOUT, CHECK_TOOK_TOO_LONG, error.cause)
+    throw error
+  }
   if (!data || typeof data !== 'object') throw new AuditViewError(AUDIT_ERROR.FAILED, 'The check did not return a result')
   return { ...data, problems: Array.isArray(data.problems) ? data.problems : [] }
 }

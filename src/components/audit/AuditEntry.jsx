@@ -1,7 +1,7 @@
 import { memo, useState } from 'react'
 import { Check, ChevronDown, ChevronUp, History } from 'lucide-react'
 import {
-  describeEntry, describeVia, describeWho, entrySeverity, fieldLabel, formatDateTime, formatTime,
+  describeCheck, describeEntry, describeVia, describeWho, entrySeverity, fieldLabel, formatDateTime, formatTime,
   formatValue, happenedAt, tableNoun, tillLabel, uncheckedSeqs,
 } from '../../lib/audit/describe'
 
@@ -38,16 +38,21 @@ function exactTime(value) {
 
 const isRecord = v => v !== null && typeof v === 'object' && !Array.isArray(v)
 
-/** One stored record as a list of "label: value". */
-function RecordFields({ record, ctx }) {
-  const fields = Object.entries(record ?? {}).filter(([key, value]) => key !== 'id' && value !== null && value !== undefined && value !== '')
+/**
+ * One stored record as a list of "label: value". Empty values are left out
+ * unless `showEmpty` (where "nothing" is itself what was written). `words`
+ * replaces the value shown for a field.
+ */
+function RecordFields({ record, ctx, showEmpty = false, words = null }) {
+  const fields = Object.entries(record ?? {})
+    .filter(([key, value]) => key !== 'id' && (showEmpty || (value !== null && value !== undefined && value !== '')))
   if (fields.length === 0) return <p className="text-slate-500 text-sm">Nothing stored.</p>
   return (
     <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1">
       {fields.map(([key, value]) => (
         <div key={key} className="flex gap-2 text-sm min-w-0">
           <dt className="text-slate-500 shrink-0">{fieldLabel(key)}:</dt>
-          <dd className="text-slate-200 break-all min-w-0">{formatValue(key, value, ctx)}</dd>
+          <dd className="text-slate-200 break-all min-w-0">{words?.[key] ?? formatValue(key, value, ctx)}</dd>
         </div>
       ))}
     </dl>
@@ -78,14 +83,25 @@ function withLineInfo(entry) {
 
 function StoredValues({ entry, ctx }) {
   if (entry.kind === 'guard') {
+    // A refused write to a member's protected details stores just those
+    // fields (and never a PIN's value, so two PINs look alike here); any
+    // other refused edit stores the whole record before and after.
+    const fieldsOnly = entry.detail?.rule === 'protected_fields'
+    const listed = fieldsOnly && Array.isArray(entry.changed) ? entry.changed : null
     const attempted = isRecord(entry.new) && isRecord(entry.old)
-      ? Object.fromEntries(Object.entries(entry.new).filter(([k, v]) => JSON.stringify(v) !== JSON.stringify(entry.old[k])))
+      ? Object.fromEntries(Object.entries(entry.new).filter(([k, v]) => (listed ? listed.includes(k) : JSON.stringify(v) !== JSON.stringify(entry.old[k]))))
       : null
+    const wentThrough = String(entry.action ?? '').startsWith('would_block')
+    const pinWords = attempted && attempted.pin_hash && entry.old.pin_hash ? { pin_hash: 'a different PIN (hidden)' } : null
     return (
       <>
-        {isRecord(entry.old) && <Section title="The record"><RecordFields record={entry.old} ctx={ctx} /></Section>}
+        {isRecord(entry.old) && (
+          <Section title={fieldsOnly ? 'As it was' : 'The record'}><RecordFields record={entry.old} ctx={ctx} showEmpty={fieldsOnly} /></Section>
+        )}
         {attempted && Object.keys(attempted).length > 0 && (
-          <Section title="What they tried to change it to"><RecordFields record={attempted} ctx={ctx} /></Section>
+          <Section title={wentThrough ? 'What it was changed to' : 'What they tried to change it to'}>
+            <RecordFields record={attempted} ctx={ctx} showEmpty={fieldsOnly} words={pinWords} />
+          </Section>
         )}
       </>
     )
@@ -144,8 +160,15 @@ function EntryDetail({ entry, ctx, onOpenRecord }) {
   const hidden = new Set(['flags', 'lines'])
   const extra = Object.fromEntries(Object.entries(detail).filter(([key]) => !hidden.has(key)))
   const lines = entry.sale_lines
-  const recordTable = entry.table === 'order_items' && entry.action === 'insert' ? 'orders' : entry.table
-  const canOpenRecord = onOpenRecord && entry.kind !== 'system' && recordTable && entry.pk
+  // Anything about a sale's lines belongs to the sale: the lines, a later
+  // change to one and a refused attempt on one are all filed under the
+  // sale's id (older entries about a single line carry it as order_id).
+  const aboutLine = entry.table === 'order_items'
+  const recordTable = aboutLine ? 'orders' : entry.table
+  const recordPk = aboutLine && entry.action !== 'insert'
+    ? (entry.old?.order_id ?? entry.new?.order_id ?? entry.pk)
+    : entry.pk
+  const canOpenRecord = onOpenRecord && entry.kind !== 'system' && recordTable && recordPk
   const numbers = [entry.seq, lines?.seq].filter(n => n !== null && n !== undefined)
 
   return (
@@ -180,7 +203,7 @@ function EntryDetail({ entry, ctx, onOpenRecord }) {
 
       {canOpenRecord && (
         <button
-          onClick={() => onOpenRecord(recordTable, entry.pk)}
+          onClick={() => onOpenRecord(recordTable, recordPk)}
           className="self-start flex items-center gap-2 min-h-[44px] px-4 rounded-xl border border-slate-600 text-slate-200 hover:bg-slate-700 text-sm font-medium cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500"
         >
           <History size={16} aria-hidden="true" />
@@ -198,7 +221,7 @@ function EntryDetail({ entry, ctx, onOpenRecord }) {
  *
  * Props:
  *   entry         an audit_view entry (a sale may carry its lines as sale_lines)
- *   ctx           { names, sales } passed to describeEntry
+ *   ctx           { names, sales } passed to describeEntry and describeWho
  *   onAck         (entry, note) => Promise — mark as checked; rejects on failure
  *   onOpenRecord  (table, pk) => void — show one record's whole history
  */
@@ -212,11 +235,13 @@ function AuditEntry({ entry, ctx, onAck, onOpenRecord }) {
   const { title, lines, tags } = describeEntry(entry, ctx)
   const severity = entrySeverity(entry)
   const style = SEVERITY[severity] ?? SEVERITY[0]
-  const who = describeWho(entry)
+  const who = describeWho(entry, ctx)
   const till = tillLabel(entry.till_id)
   const happened = happenedAt(entry)
   const needsCheck = uncheckedSeqs(entry).length > 0
-  const wasChecked = severity >= 2 && !needsCheck
+  // Who marked it as checked, when and with what note — where the database
+  // says (an older one only says that it was).
+  const check = needsCheck ? null : describeCheck(entry)
 
   async function mark() {
     if (!onAck || marking) return
@@ -248,10 +273,16 @@ function AuditEntry({ entry, ctx, onAck, onOpenRecord }) {
             {style.label && (
               <span className={`border rounded-md px-1.5 py-0.5 font-semibold ${style.badge}`}>{style.label}</span>
             )}
-            {wasChecked && (
+            {check && (
               <span className="flex items-center gap-1 text-emerald-300">
                 <Check size={12} aria-hidden="true" />
-                Checked
+                {`Checked${check.by ? ` by ${check.by}` : ''}${check.at ? ` · ${formatDateTime(check.at)}` : ''}`}
+              </span>
+            )}
+            {/* Allowed (the owner works the bar too), but shown for what it is. */}
+            {check?.bySelf && (
+              <span className="border rounded-md px-1.5 py-0.5 font-semibold bg-amber-900/60 text-amber-200 border-amber-600/60">
+                Checked by the person it is about
               </span>
             )}
           </div>
@@ -260,6 +291,9 @@ function AuditEntry({ entry, ctx, onAck, onOpenRecord }) {
           {lines.map((line, i) => (
             <p key={i} className="text-slate-300 text-sm break-words">{line}</p>
           ))}
+          {check?.note && (
+            <p className="text-emerald-200 text-sm break-words">Note left when it was checked: “{check.note}”</p>
+          )}
 
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-slate-400 mt-1.5">
             <span className="text-slate-200">{who.name ?? 'Nobody signed in'}</span>

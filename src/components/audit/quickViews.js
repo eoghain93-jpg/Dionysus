@@ -16,7 +16,11 @@
 //                  'service' (a server function or the service key) ·
 //                  'database' (dashboard, SQL, a migration) · 'anon'
 //   flag           entries marked with this reason, e.g. 'stock_typed_in'
-//   q              text the entry must contain
+//   changed        updates that changed this column, e.g. 'tab_balance'
+//   q              text the entry must contain (also matches the name of
+//                  the product or member it is about, and who did it).
+//                  Leave it for the search box: pick entries by flag,
+//                  changed or actors instead, which are exact.
 //
 // To change what a button shows, edit its `filters`. Nothing else needs to
 // know.
@@ -61,7 +65,9 @@ export const QUICK_VIEWS = [
     hint: 'Tab balances and payments, cashback, prize payouts, the cash drawer and closing the day',
     filters: [
       { kinds: ['row', 'guard'], tables: ['tab_adjustments', 'tab_payments', 'cashback_transactions', 'prize_wins', 'z_reports'] },
-      { kinds: ['row'], tables: ['members'], q: 'tab_balance' },
+      // A member's balance moving — not every entry that merely mentions
+      // one (a new member starts with a balance of nothing).
+      { kinds: ['row'], tables: ['members'], changed: 'tab_balance' },
       { kinds: ['event'], action_prefix: 'tab.' },
       { kinds: ['event'], action_prefix: 'drawer.' },
       { kinds: ['event'], action_prefix: 'day.' },
@@ -113,9 +119,12 @@ export const QUICK_VIEWS = [
       // Everything not done by a till: the dashboard, SQL, migrations, server
       // functions, the phone app.
       { actors: ['database', 'service', 'member', 'anon'] },
-      // A till writing straight into a sale or a protected field.
+      // A till writing straight into a sale or a protected field, or
+      // putting a sale or a sale line in without the app's own sale routine.
       { flag: 'direct_edit_of_sale' },
       { flag: 'direct_edit_of_protected_field' },
+      { flag: 'direct_insert_of_sale' },
+      { flag: 'direct_insert_of_sale_line' },
       { kinds: ['guard'] },
       { kinds: ['system'], action_prefix: 'device.' },
     ],
@@ -166,7 +175,11 @@ export function recordFromParams(params) {
   return { table, pk }
 }
 
-/** Filters for the whole history of one record. A sale includes its lines. */
+/**
+ * Filters for the whole history of one record. A sale includes its lines:
+ * the database files a sale's lines — and every later change to one, or
+ * refused attempt on one — under the sale's id.
+ */
 export function recordFilters({ table, pk }) {
   if (table === 'orders') return [{ table: 'orders', pk }, { table: 'order_items', pk }]
   return [{ table, pk }]
@@ -175,10 +188,11 @@ export function recordFilters({ table, pk }) {
 /**
  * Everything the page's controls say, as the list of filters to fetch.
  *
- * A filter that already carries its own `q` cannot take the search box as
- * well (the database accepts one piece of text per filter), so for those
- * the search text travels as `local_q` and is applied to the results on
- * the till (see fetchAuditEntries).
+ * The search box goes to the database as `q` on every filter. Only a
+ * filter that already carries its own `q` cannot take it as well (the
+ * database accepts one piece of text per filter); for such a filter the
+ * search text travels as `local_q` and is applied to the results on the
+ * till (see fetchAuditEntries). No quick view needs that today.
  */
 export function buildFilters({ view, record = null, range, staffId, tillId, search } = {}) {
   const base = record ? recordFilters(record) : (view ?? findView(DEFAULT_VIEW)).filters

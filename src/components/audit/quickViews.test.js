@@ -4,7 +4,16 @@ import {
 } from './quickViews'
 
 const KINDS = ['row', 'event', 'auth', 'guard', 'system']
-const FILTER_KEYS = ['kinds', 'tables', 'action_prefix', 'min_severity', 'unchecked', 'q', 'actors', 'flag']
+const FILTER_KEYS = ['kinds', 'tables', 'action_prefix', 'min_severity', 'unchecked', 'q', 'actors', 'flag', 'changed']
+// Every reason the database marks an entry with (the flags in the audit migration).
+const FLAGS = [
+  'arrived_late', 'below_list_price', 'direct_edit_of_protected_field', 'direct_edit_of_sale', 'direct_insert_of_sale',
+  'direct_insert_of_sale_line', 'history_rewrite_attempt', 'member_discount_removed', 'no_staff_on_sale', 'outside_the_till',
+  'pin_changed', 'price_changed', 'report_recipients_changed', 'staff_mismatch', 'staff_unverified', 'stock_typed_in',
+  'tab_balance_adjusted', 'table_emptied', 'tier_changed', 'till_claim_mismatch', 'till_registration_changed',
+  'unexpected_actor', 'voided',
+]
+const ACTORS = ['till', 'member', 'service', 'database', 'anon']
 // Every list the audit log knows about (see the brief / migration).
 const TABLES = [
   'products', 'orders', 'order_items', 'stock_movements', 'members', 'promotions', 'promotion_items',
@@ -35,8 +44,28 @@ describe('QUICK_VIEWS', () => {
         for (const key of Object.keys(filter)) expect(FILTER_KEYS).toContain(key)
         for (const kind of filter.kinds ?? []) expect(KINDS).toContain(kind)
         for (const table of filter.tables ?? []) expect(TABLES).toContain(table)
+        for (const actor of filter.actors ?? []) expect(ACTORS).toContain(actor)
+        if ('flag' in filter) expect(FLAGS).toContain(filter.flag)
+        // one flag, one column: the database takes a single name for each
+        if ('changed' in filter) expect(typeof filter.changed).toBe('string')
       }
     }
+  })
+
+  it('leaves the one piece of text a filter can carry free for the search box', () => {
+    for (const view of QUICK_VIEWS) {
+      for (const filter of view.filters) expect(filter.q, view.id).toBeUndefined()
+    }
+  })
+
+  it('"Tabs and cash" picks out members whose balance changed, not every entry that mentions one', () => {
+    const members = findView('tabs').filters.filter(f => (f.tables ?? []).includes('members'))
+    expect(members).toEqual([{ kinds: ['row'], tables: ['members'], changed: 'tab_balance' }])
+  })
+
+  it('"Outside the till" includes sales and lines written straight into the books', () => {
+    const flags = findView('outside').filters.map(f => f.flag).filter(Boolean)
+    expect(flags).toEqual(['direct_edit_of_sale', 'direct_edit_of_protected_field', 'direct_insert_of_sale', 'direct_insert_of_sale_line'])
   })
 
   it('shows every list somewhere other than "Everything"', () => {
@@ -85,6 +114,8 @@ describe('recordFromParams and recordFilters', () => {
     expect(recordFromParams(null)).toBeNull()
   })
 
+  // The database files a sale's lines, later changes to a line and refused
+  // attempts on one all under the sale's id, so this one pair finds them.
   it('asks for one record by table and pk; a sale brings its lines', () => {
     expect(recordFilters({ table: 'products', pk: 'p1' })).toEqual([{ table: 'products', pk: 'p1' }])
     expect(recordFilters({ table: 'orders', pk: 'o1' })).toEqual([{ table: 'orders', pk: 'o1' }, { table: 'order_items', pk: 'o1' }])
@@ -112,11 +143,25 @@ describe('buildFilters', () => {
     expect(buildFilters({ view: findView('everything'), range, search: '  guinness ' })).toEqual([{ from: dates.from, to: dates.to, q: 'guinness' }])
   })
 
-  it('keeps a view’s own text and applies the search box on the till instead', () => {
-    const filters = buildFilters({ view: findView('tabs'), range, search: 'mo member' })
-    expect(filters[0]).toMatchObject({ tables: expect.arrayContaining(['tab_adjustments']), q: 'mo member' })
-    expect(filters[0].local_q).toBeUndefined()
-    expect(filters[1]).toMatchObject({ tables: ['members'], q: 'tab_balance', local_q: 'mo member' })
+  it('sends the search box to the database on every filter of every view: none needs it applied on the till', () => {
+    for (const view of QUICK_VIEWS) {
+      for (const filter of buildFilters({ view, range, search: 'mo member' })) {
+        expect(filter.q, view.id).toBe('mo member')
+        expect(filter.local_q, view.id).toBeUndefined()
+      }
+    }
+    const tabs = buildFilters({ view: findView('tabs'), range, search: 'mo member' })
+    expect(tabs[1]).toMatchObject({ tables: ['members'], changed: 'tab_balance', q: 'mo member' })
+  })
+
+  it('applies the search box on the till only for a filter that carries text of its own', () => {
+    const view = { id: 'custom', filters: [{ kinds: ['row'], q: 'refund' }, { kinds: ['event'], flag: 'voided' }] }
+    const filters = buildFilters({ view, range, search: 'guinness' })
+    expect(filters[0]).toMatchObject({ q: 'refund', local_q: 'guinness' })
+    expect(filters[1]).toMatchObject({ flag: 'voided', q: 'guinness' })
+    expect(filters[1].local_q).toBeUndefined()
+    // with nothing typed there is nothing to apply
+    expect(buildFilters({ view, range })[0].local_q).toBeUndefined()
   })
 
   it('filters by flag and by who made the change in the database, so the search box still goes there', () => {
@@ -126,7 +171,6 @@ describe('buildFilters', () => {
 
     const outside = buildFilters({ view: findView('outside'), range })
     expect(outside[0].actors).toEqual(['database', 'service', 'member', 'anon'])
-    expect(outside.map(f => f.flag).filter(Boolean)).toEqual(['direct_edit_of_sale', 'direct_edit_of_protected_field'])
   })
 
   it('opens the whole history of one record, ignoring the view and the dates', () => {

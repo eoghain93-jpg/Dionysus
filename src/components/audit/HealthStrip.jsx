@@ -1,6 +1,7 @@
 import { AlertTriangle, CheckCircle, RefreshCw, ShieldCheck } from 'lucide-react'
 import { describeProblem } from '../../lib/audit/describe'
-import { healthFacts, healthIssues } from './health'
+import DisputedSeals from './DisputedSeals'
+import { checkPassedText, disputedSealLines, healthFacts, healthIssues } from './health'
 
 const number = n => Number(n ?? 0).toLocaleString('en-GB')
 
@@ -10,7 +11,7 @@ const number = n => Number(n ?? 0).toLocaleString('en-GB')
  *
  * Quiet when all is well (one grey line of facts); a red or amber panel
  * that cannot be missed when something is wrong. "Check now" re-checks the
- * whole log on the spot.
+ * log on the spot and says how much of it was re-read.
  *
  * Props:
  *   health      audit_health() result, or null while loading / on error
@@ -19,21 +20,24 @@ const number = n => Number(n ?? 0).toLocaleString('en-GB')
  *   onRetry     reload health
  *   now         current time (ms) — passed in so the strip stays pure
  *   remembered  the newest seal this till has itself been shown, or null
- *   check       { running, result, error } for "Check now"
+ *   disputed    seals this till once held that the database later no longer
+ *               had (disputedSeals()); listed for as long as the till keeps them
+ *   check       { running, result, error, timedOut } for "Check now"
  *   onCheck     run the check
  *   onShowAlerts  jump to the alerts that need a look
  */
-export default function HealthStrip({ health, loading, error, onRetry, now, remembered, check, onCheck, onShowAlerts }) {
+export default function HealthStrip({ health, loading, error, onRetry, now, remembered, disputed, check, onCheck, onShowAlerts }) {
   const issues = healthIssues(health, { now, remembered })
   const facts = healthFacts(health, { now })
   const bad = issues.filter(i => i.level === 'bad')
   const warn = issues.filter(i => i.level === 'warn')
+  const evidence = disputedSealLines(disputed) // drawn by <DisputedSeals>; here only for the strip's tone
   const checkFailed = check?.result && check.result.ok === false
   const alerts = Number(health?.unchecked_alerts ?? 0)
 
   const tone = bad.length || checkFailed
     ? 'border-red-500 bg-red-950/50'
-    : warn.length
+    : warn.length || evidence.length
       ? 'border-amber-500/70 bg-amber-950/30'
       : 'border-slate-700 bg-[#0F172A]'
 
@@ -88,7 +92,9 @@ export default function HealthStrip({ health, loading, error, onRetry, now, reme
           {health && issues.length === 0 && (
             <p className="flex items-center gap-2 text-slate-300 text-sm">
               <ShieldCheck size={16} aria-hidden="true" className="text-emerald-400 shrink-0" />
-              Everything is being recorded, and nothing is wrong with the log itself.
+              {evidence.length === 0
+                ? 'Everything is being recorded, and nothing is wrong with the log itself.'
+                : 'Everything is being recorded now — but see what this till remembers, below.'}
             </p>
           )}
         </div>
@@ -113,17 +119,20 @@ export default function HealthStrip({ health, loading, error, onRetry, now, reme
         </div>
       </div>
 
+      {/* Kept on show for as long as the till keeps them: this till is the
+          only place that still knows the database once held these seals. */}
+      <DisputedSeals disputed={disputed} />
+
       {check?.error && (
-        <p role="alert" className="text-amber-300 text-sm">Could not run the check: {check.error}</p>
+        <p role="alert" className="text-amber-300 text-sm">
+          {check.timedOut ? check.error : `Could not run the check: ${check.error}`}
+        </p>
       )}
 
       {check?.result && check.result.ok === true && (
         <p role="status" className="flex items-start gap-2 text-emerald-300 text-sm">
           <CheckCircle size={16} aria-hidden="true" className="shrink-0 mt-0.5" />
-          <span>
-            Checked just now: all {number(check.result.rows_checked)} {Number(check.result.rows_checked) === 1 ? 'entry is' : 'entries are'} intact
-            and nothing has been altered{check.result.head?.code ? `. Newest seal ${check.result.head.code}` : ''}.
-          </span>
+          <span>{checkPassedText(check.result)}</span>
         </p>
       )}
 
@@ -141,6 +150,11 @@ export default function HealthStrip({ health, loading, error, onRetry, now, reme
               <li key={i} className="text-red-100 text-sm break-words">{describeProblem(p)}</li>
             ))}
           </ul>
+          {check.result.scope === 'recent' && (
+            <p className="text-red-100 text-sm">
+              This check re-read only recent entries; the nightly check covers the rest of the log.
+            </p>
+          )}
           <p className="text-red-200/80 text-xs">Do not ignore this. Note the time and tell whoever looks after the system.</p>
         </div>
       )}

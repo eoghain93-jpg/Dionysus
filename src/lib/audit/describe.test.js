@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest'
 import {
-  combineSaleEntries, coverageLabel, describeEntry, describeProblem, describeVia, describeWho, duration,
-  entryFlags, entrySeverity, fieldLabel, flagLabel, formatBytes, formatValue, happenedAt, money,
-  salesIndex, tableNoun, tillLabel, uncheckedSeqs,
+  combineSaleEntries, coverageLabel, coverageLines, describeCheck, describeEntry, describeProblem, describeVia,
+  describeWho, duration, entryFlags, entrySeverity, fieldLabel, flagLabel, formatBytes, formatValue, happenedAt,
+  money, salesIndex, tableNoun, tillLabel, uncheckedSeqs, viaGraphql,
 } from './describe'
 
 // Entries below are modelled on what supabase/tests/audit.test.sql produces
@@ -161,6 +161,21 @@ describe('money and other formatting', () => {
   })
 })
 
+describe('formatValue — the newer details', () => {
+  it('words rules, check scopes, coverage lists and who sent a sale', () => {
+    expect(formatValue('rule', 'protected_fields')).toBe('only the app’s own PIN-checked steps may change these')
+    expect(formatValue('rule', 'no_delete')).toBe('may never be deleted from a till')
+    expect(formatValue('scope', 'recent')).toBe('every seal, and the entries of recent weeks')
+    expect(formatValue('scope', 'everything')).toBe('the whole log')
+    expect(formatValue('repointed', ['products:truncate', 'orders:guard'])).toBe('products being wiped all at once, the guard on sales')
+    expect(formatValue('missing', [])).toBe('nothing')
+    expect(formatValue('sent_by', SAM, { names })).toBe('Sam Staff')
+    expect(formatValue('sent_by_trust', 'pin')).toBe('PIN checked')
+    expect(fieldLabel('sent_by')).toBe('signed in when it was sent')
+    expect(fieldLabel('seals_rehashed')).not.toMatch(/hash/i)
+  })
+})
+
 describe('describeEntry — changes to the books (kind: row)', () => {
   describe('products', () => {
     it('describes the incident: a standard price changed', () => {
@@ -260,28 +275,120 @@ describe('describeEntry — changes to the books (kind: row)', () => {
       expect(lines(entry)).toContain('2 × Guinness bought as a drink for Kim Newstarter')
     })
 
+    // A sale is filed under WHO RANG IT (as the sale itself claims); who was
+    // signed in when it reached the server travels alongside as sent_by.
     it('describes an offline sale that arrived late under someone else’s sign-in', () => {
       const entry = row('orders', 'insert', {
-        pk: ORDER2, via: 'POST /rpc/create_order_with_items',
+        pk: ORDER2, via: 'POST /rpc/create_order_with_items', severity: 1,
+        staff_id: KIM, staff_name: 'Kim Newstarter', staff_trust: 'claimed',
         new: { id: ORDER2, staff_id: KIM, payment_method: 'cash', total_amount: 7.4, till_id: 'till-2', created_at: '2026-11-21T11:02:00.000Z' },
-        detail: { late_by_seconds: 10800, rung_by_trust: 'claimed', flags: ['arrived_late', 'till_claim_mismatch', 'staff_unverified'] },
+        detail: {
+          late_by_seconds: 10800, rung_by_trust: 'claimed', sent_by: SAM, sent_by_trust: 'pin',
+          flags: ['arrived_late', 'till_claim_mismatch', 'staff_unverified'],
+        },
       })
       const d = describeEntry(entry, { names })
       expect(d.title).toBe('Sale of £7.40 by cash')
       expect(d.lines).toEqual([
-        'The sale itself names Kim Newstarter as who rang it — said to be',
+        'Sent to the server under Sam Staff’s sign-in (PIN checked) — the sale itself names Kim Newstarter as who rang it',
+        'Reached the server 3 hours after it was rung — usually a sale taken while the till was offline',
         'The sale says Till 2 but it was sent by Till 1',
       ])
       expect(d.tags).toEqual(['Arrived 3 hours late', 'Till name does not match the till that sent it', 'Staff member not confirmed'])
+      expect(describeWho(entry, { names })).toEqual({ name: 'Kim Newstarter', tag: 'said to be', trust: 'claimed' })
+      expectPlain(d)
+      // ...and with no names to hand it still never shows an id
+      expectPlain(describeEntry(entry, {}))
+      expect(lines(entry, {})[0]).toBe('Sent to the server under someone else’s sign-in (PIN checked) — the sale itself names Kim Newstarter as who rang it')
     })
 
     it('says when a replayed sale was matched to a sign-in', () => {
       const entry = row('orders', 'insert', {
-        pk: 'c0000000-0000-0000-0000-000000000004', staff_id: KIM, staff_name: 'Kim Newstarter',
-        new: { staff_id: SAM, payment_method: 'cash', total_amount: 7.4, till_id: 'till-1', created_at: '2026-11-21T14:01:30.000Z' },
-        detail: { rung_by_trust: 'session_record' },
+        pk: 'c0000000-0000-0000-0000-000000000004', staff_id: SAM, staff_name: 'Sam Staff', staff_trust: 'session_record',
+        new: { staff_id: SAM, payment_method: 'cash', total_amount: 7.4, till_id: 'till-1', created_at: '2026-11-21T11:01:30.000Z' },
+        detail: { late_by_seconds: 10830, rung_by_trust: 'session_record', sent_by: KIM, sent_by_trust: 'pin', flags: ['arrived_late'] },
       })
-      expect(lines(entry)).toEqual(['The sale itself names Sam Staff as who rang it — matched a sign-in'])
+      expect(describeWho(entry, { names })).toEqual({ name: 'Sam Staff', tag: 'matched a sign-in', trust: 'session_record' })
+      expect(lines(entry)[0]).toBe('Sent to the server under Kim Newstarter’s sign-in (PIN checked) — the sale itself names Sam Staff as who rang it')
+    })
+
+    it('says nothing extra about an ordinary live sale: who rang it is who was signed in', () => {
+      const entry = saleEntry()
+      expect(describeWho(entry, { names })).toEqual({ name: 'Sam Staff', tag: 'PIN checked', trust: 'pin' })
+      expect(lines(entry)).toEqual(['Put on Mo Member’s tab'])
+    })
+
+    it('flags a live sale that names someone other than the person signed in', () => {
+      const entry = row('orders', 'insert', {
+        pk: ORDER2, via: 'POST /rpc/create_order_with_items', severity: 2,
+        staff_id: KIM, staff_name: 'Kim Newstarter', staff_trust: 'claimed',
+        new: { id: ORDER2, staff_id: KIM, payment_method: 'cash', total_amount: 7.4, till_id: 'till-1', created_at: '2026-11-21T14:02:00.000Z' },
+        detail: { rung_by_trust: 'claimed', sent_by: SAM, sent_by_trust: 'pin', flags: ['staff_mismatch'] },
+      })
+      const d = describeEntry(entry, { names })
+      expect(d.lines).toEqual(['Sam Staff was the person signed in (PIN checked), but the till put Kim Newstarter on the sale as who rang it'])
+      expect(d.tags).toEqual(['Sale names someone other than the person signed in'])
+      expect(describeWho(entry, { names }).tag).toBe('said to be')
+    })
+
+    it('does not credit a sale that names nobody to whoever happened to send it', () => {
+      // live: the signed-in person stays the headline, and the line says why
+      const live = row('orders', 'insert', {
+        pk: ORDER3, new: { id: ORDER3, payment_method: 'card', total_amount: 1 },
+        detail: { sent_by: SAM, sent_by_trust: 'pin', flags: ['no_staff_on_sale'] },
+      })
+      expect(describeWho(live, { names })).toEqual({ name: 'Sam Staff', tag: 'PIN checked', trust: 'pin' })
+      expect(lines(live)).toEqual(['The sale itself does not say who rang it. Sam Staff was signed in when it was sent (PIN checked)'])
+
+      // sent in later: nobody is headlined
+      const late = row('orders', 'insert', {
+        ...nobody, pk: ORDER3, severity: 1, new: { id: ORDER3, payment_method: 'card', total_amount: 1, created_at: '2026-11-21T11:02:00.000Z' },
+        detail: { late_by_seconds: 10800, sent_by: SAM, sent_by_trust: 'pin', flags: ['arrived_late', 'no_staff_on_sale'] },
+      })
+      expect(describeWho(late, { names })).toEqual({ name: 'Nobody named on the sale', tag: null, trust: 'none' })
+      expect(lines(late)).toEqual([
+        'The sale itself does not say who rang it. Sam Staff was signed in when it was sent (PIN checked)',
+        'Reached the server 3 hours after it was rung — usually a sale taken while the till was offline',
+      ])
+    })
+
+    it('says when a sale is dated ahead of the server’s clock', () => {
+      const entry = row('orders', 'insert', {
+        pk: ORDER3, new: { id: ORDER3, staff_id: SAM, payment_method: 'card', total_amount: 1 },
+        detail: { late_by_seconds: -7200, rung_by_trust: 'pin', flags: ['arrived_late'] },
+      })
+      expect(lines(entry)).toEqual(['Dated 2 hours ahead of when it reached the server — the till’s clock may be wrong'])
+    })
+
+    it('reads sales filed the earlier way (under whoever sent them) the same', () => {
+      // the entry's staff member is who was signed in; the sale names who rang it
+      const entry = row('orders', 'insert', {
+        pk: ORDER2, via: 'POST /rpc/create_order_with_items',
+        new: { id: ORDER2, staff_id: KIM, payment_method: 'cash', total_amount: 7.4, till_id: 'till-1', created_at: '2026-11-21T11:02:00.000Z' },
+        detail: { late_by_seconds: 10800, rung_by_trust: 'session_record', flags: ['arrived_late'] },
+      })
+      expect(describeWho(entry, { names })).toEqual({ name: 'Kim Newstarter', tag: 'matched a sign-in', trust: 'session_record' })
+      expect(describeWho(entry).name).toBe('A staff member')
+      expect(lines(entry)[0]).toBe('Sent to the server under Sam Staff’s sign-in (PIN checked) — the sale itself names Kim Newstarter as who rang it')
+
+      const noName = row('orders', 'insert', {
+        pk: ORDER3, new: { id: ORDER3, payment_method: 'card', total_amount: 1 }, detail: { late_by_seconds: 10800, flags: ['arrived_late', 'no_staff_on_sale'] },
+      })
+      expect(describeWho(noName, { names }).name).toBe('Nobody named on the sale')
+      expect(lines(noName)[0]).toBe('The sale itself does not say who rang it. Sam Staff was signed in when it was sent (PIN checked)')
+    })
+
+    it('says when a sale or a line was written straight into the books', () => {
+      const direct = row('orders', 'insert', {
+        pk: ORDER3, via: 'POST /orders', severity: 2, new: { id: ORDER3, staff_id: SAM, payment_method: 'cash', total_amount: 1 },
+        detail: { rung_by_trust: 'pin', flags: ['direct_insert_of_sale'] },
+      })
+      const line = row('order_items', 'insert', {
+        pk: ORDER3, via: 'POST /order_items', severity: 3, new: [{ id: LINE1, product_id: GUINNESS, quantity: 1, unit_price: 0.01 }],
+        detail: { lines: { [LINE1]: { product: 'Guinness', list_standard: 7.4, list_member: 6.4, below_list_price: true } }, rows: 1, flags: ['below_list_price', 'direct_insert_of_sale_line'] },
+      })
+      expect(tags(direct)).toEqual(['Sale written straight into the books, not by the till app'])
+      expect(tags(line)).toEqual(['Sold below list price', 'Sale line written straight into the books, not by the till app'])
     })
 
     it('describes a sale with no staff member on it', () => {
@@ -290,6 +397,20 @@ describe('describeEntry — changes to the books (kind: row)', () => {
       })
       expect(title(entry)).toBe('Sale of £1.00 by card')
       expect(tags(entry)).toEqual(['No staff member on the sale'])
+      expect(describeWho(entry, { names })).toEqual({ name: 'Nobody named on the sale', tag: null, trust: 'none' })
+    })
+
+    it('calls a tab payment a payment when saying who took it', () => {
+      const entry = row('orders', 'insert', {
+        ...nobody, pk: 'x', via: 'POST /rpc/settle_tab', severity: 1,
+        new: { member_id: MO, payment_method: 'cash', total_amount: 3.8, is_tab_settlement: true, status: 'paid' },
+        detail: { late_by_seconds: 600, sent_by: SAM, sent_by_trust: 'pin', flags: ['arrived_late', 'no_staff_on_sale'] },
+      })
+      expect(describeWho(entry, { names }).name).toBe('Nobody named on the payment')
+      expect(lines(entry)).toEqual([
+        'The payment itself does not say who rang it. Sam Staff was signed in when it was sent (PIN checked)',
+        'Reached the server 10 minutes after it was rung — usually a payment taken while the till was offline',
+      ])
     })
 
     it('describes a tab payment (a settlement is stored as a sale)', () => {
@@ -342,6 +463,11 @@ describe('describeEntry — changes to the books (kind: row)', () => {
       })
       expect(title(entry)).toBe('Changed the total of a sale from £7.40 to £0.10')
       expect(tags(entry)).toEqual(['Sale edited directly'])
+      expect(lines(entry)).toEqual([])
+      // the same edit made through a route the till app never takes
+      const d = describeEntry({ ...entry, via: 'POST /rpc/graphql' }, { names })
+      expect(d.lines).toEqual(['Made through the database’s GraphQL door, not the till app'])
+      expectPlain(d)
     })
 
     it('describes a sale and a sale line deleted with the service key', () => {
@@ -354,6 +480,20 @@ describe('describeEntry — changes to the books (kind: row)', () => {
       })
       expect(title(sale)).toBe('Deleted a sale of £1.00 by card')
       expect(title(line)).toBe('Deleted a sale line: 1 × Crisps at £1.00 each')
+    })
+
+    it('ties a later change to a sale’s line back to the sale it is filed under', () => {
+      const sales = salesIndex([saleEntry()])
+      const deleted = row('order_items', 'delete', {
+        ...nobody, actor: 'service', severity: 2, pk: ORDER1, old: { id: LINE2, order_id: ORDER1, product_id: CRISPS, quantity: 1, unit_price: 0.5 },
+      })
+      const edited = row('order_items', 'update', {
+        ...fromDatabase, severity: 2, pk: ORDER1, changed: ['unit_price'], old: { unit_price: 6.4 }, new: { unit_price: 0.01 },
+      })
+      expect(lines(deleted, { names, sales })).toEqual(['Part of the sale of £13.80 on tab'])
+      expect(lines(edited, { names, sales })).toEqual(['Part of the sale of £13.80 on tab'])
+      expect(title(edited)).toBe('Changed a sale line: price each from £6.40 to £0.01')
+      expect(lines(deleted)).toEqual([])
     })
 
     it('describes banked staff drinks', () => {
@@ -428,6 +568,15 @@ describe('describeEntry — changes to the books (kind: row)', () => {
       const d = describeEntry(entry, { names })
       expect(d.title).toBe('Mo Member’s tab went from £0.00 to £13.80')
       expect(d.category).toBe('tabs')
+    })
+
+    it('marks a balance moved by hand rather than by a sale or a payment', () => {
+      const entry = row('members', 'update', {
+        pk: MO, subject: 'Mo Member', via: 'POST /rpc/adjust_tab_balance', severity: 1, changed: ['tab_balance'],
+        old: { tab_balance: 12 }, new: { tab_balance: 2 }, detail: { flags: ['tab_balance_adjusted'] },
+      })
+      expect(title(entry)).toBe('Mo Member’s tab went from £12.00 to £2.00')
+      expect(tags(entry)).toEqual(['Tab changed without a sale or a payment'])
     })
 
     it('keeps the tab balance as the headline when a payment also stamps its time', () => {
@@ -650,6 +799,9 @@ describe('describeEntry — sign-ins and PINs (kind: auth)', () => {
     ['staff.sign_out', auth('staff.sign_out', SAM, 'Sam Staff', { reason: 'sign_out' }), 'Sam Staff signed out'],
     ['staff.sign_out (switch user)', auth('staff.sign_out', SAM, 'Sam Staff', { reason: 'switch_user' }), 'Sam Staff signed out (switched to someone else)'],
     ['staff.sign_out (idle lock)', auth('staff.sign_out', SAM, 'Sam Staff', { reason: 'idle_lock' }), 'Sam Staff was signed out when the till locked itself'],
+    ['staff.sign_out (manual lock)', auth('staff.sign_out', SAM, 'Sam Staff', { reason: 'manual_lock' }), 'Sam Staff was signed out when the till was locked with the Lock button'],
+    ['staff.sign_out (PIN accepted too late)', auth('staff.sign_out', SAM, 'Sam Staff', { reason: 'unused_unlock' }), 'Sam Staff was signed out again straight away — their PIN was accepted too late to unlock the till'],
+    ['staff.sign_out (a reason it has never heard of)', auth('staff.sign_out', SAM, 'Sam Staff', { reason: 'fire_drill' }), 'Sam Staff signed out (fire drill)'],
     ['staff.sign_out (close day)', auth('staff.sign_out', SAM, 'Sam Staff', { reason: 'close_day' }), 'Sam Staff was signed out when the day was closed'],
     ['staff.sign_out (replaced)', auth('staff.sign_out', SAM, 'Sam Staff', { reason: 'replaced' }), 'Sam Staff was signed out because someone else signed in on that till'],
     ['pin.wrong_pin', auth('pin.wrong_pin', SAM, 'Sam Staff', { purpose: 'sign_in', attempts_remaining: 3 }, { ...nobody, severity: 1 }), 'Wrong PIN for Sam Staff — 3 tries left'],
@@ -697,6 +849,18 @@ describe('describeEntry — sign-ins and PINs (kind: auth)', () => {
     const confirmed = auth('pin.confirmed', KIM, 'Kim Newstarter', { purpose: 'price_change', for_signed_in_person: false })
     expect(lines(firstSet)).toEqual(['Sam Staff was signed in when it was set'])
     expect(lines(confirmed)).toEqual(['Sam Staff was the person signed in at the time'])
+  })
+
+  it('explains that a lock ends the sign-in', () => {
+    const line = 'A lock ends the sign-in. Unlocking with a PIN is a fresh sign-in.'
+    expect(lines(auth('staff.sign_out', SAM, 'Sam Staff', { reason: 'idle_lock' }))).toEqual([line])
+    expect(lines(auth('staff.sign_out', SAM, 'Sam Staff', { reason: 'manual_lock' }))).toEqual([line])
+    expect(lines(auth('staff.sign_out', SAM, 'Sam Staff', { reason: 'sign_out' }))).toEqual([])
+  })
+
+  it('says what a locked PIN was being asked for', () => {
+    const entry = auth('pin.locked', SAM, 'Sam Staff', { purpose: 'unlock', for_signed_in_person: true }, { severity: 2 })
+    expect(lines(entry)).toEqual(['The PIN was being asked for unlocking the till'])
   })
 
   it('falls back when the person’s name is not known', () => {
@@ -758,6 +922,85 @@ describe('describeEntry — blocked attempts to rewrite history (kind: guard)', 
   })
 })
 
+describe('describeEntry — refused writes to a member’s protected details (kind: guard)', () => {
+  const protectedGuard = (action, changed, old, next, extra = {}) => guard(action, 'members', {
+    pk: SAM, subject: 'Sam Staff', via: 'PATCH /members', changed, old, new: next,
+    detail: { rule: 'protected_fields', flags: ['direct_edit_of_protected_field'] }, ...extra,
+  })
+
+  it('reads as refused, never as if it happened', () => {
+    const entry = protectedGuard('blocked.update', ['pin_hash'], { pin_hash: '[redacted]' }, { pin_hash: '[redacted]' })
+    const d = describeEntry(entry, { names })
+    expect(d.title).toBe('Tried to change Sam Staff’s PIN directly — refused')
+    expect(d.lines).toEqual([
+      'Tried to replace the PIN — whoever sets someone’s PIN can sign in as them',
+      'Refused: it was put back as it was. The till app only changes this through its own steps, so it is worth asking who tried.',
+    ])
+    // the same flag on a refused attempt must not read as if the edit happened
+    expect(d.tags).toEqual(['Direct edit of a protected figure refused'])
+    expect(d.category).toBe('blocked')
+    expect(JSON.stringify(d)).not.toMatch(/redacted/)
+    for (const text of [d.title, ...d.lines]) expect(text).not.toMatch(/\b(PIN changed|PIN set for|changed for)\b/)
+    expectPlain(d)
+  })
+
+  it('names every field that was tried, with the figures', () => {
+    const entry = protectedGuard('blocked.update', ['auth_user_id', 'last_settled_at', 'pin_hash', 'tab_balance'],
+      { auth_user_id: KIM, last_settled_at: '2026-11-20T10:00:00.000Z', pin_hash: null, tab_balance: 42.5 },
+      { auth_user_id: null, last_settled_at: '2026-11-21T10:00:00.000Z', pin_hash: '[redacted]', tab_balance: 0 },
+      { pk: MO, subject: 'Mo Member' })
+    const d = describeEntry(entry, { names })
+    expect(d.title).toBe('Tried to change Mo Member’s app login, last tab payment time, PIN and tab balance directly — refused')
+    expect(d.lines.slice(0, 4)).toEqual([
+      'Tried to remove the app login',
+      'Tried to change the time of the last tab payment',
+      'Tried to set a PIN — whoever sets someone’s PIN can sign in as them',
+      'Tried to change the tab balance from £42.50 to £0.00',
+    ])
+    expectPlain(d)
+    expectPlain(describeEntry({ ...entry, subject: null }, {}))
+    expect(title({ ...entry, subject: null }, {})).toMatch(/^Tried to change a member’s app login/)
+  })
+
+  it('says so plainly when watch-only mode let it through', () => {
+    const entry = protectedGuard('would_block.update', ['tab_balance'], { tab_balance: 42.5 }, { tab_balance: 0 }, { pk: MO, subject: 'Mo Member' })
+    const d = describeEntry(entry, { names })
+    expect(d.title).toBe('Allowed, but should not happen: Mo Member’s tab balance was changed directly')
+    expect(d.lines).toEqual([
+      'The tab balance went from £42.50 to £0.00',
+      'Protection of past records was in watch-only mode, so this went through.',
+    ])
+    expect(d.tags).toEqual(['Protected figure edited directly'])
+  })
+
+  it('says when an attempt came through the GraphQL door', () => {
+    const pin = protectedGuard('blocked.update', ['pin_hash'], { pin_hash: '[redacted]' }, { pin_hash: '[redacted]' }, { via: 'POST /rpc/graphql' })
+    expect(lines(pin)[1]).toBe('It came through the database’s GraphQL door, which the till app does not use.')
+    const sale = guard('blocked.delete', 'orders', {
+      pk: ORDER2, via: 'POST /rpc/graphql', old: { id: ORDER2, payment_method: 'cash', total_amount: 7.4, status: 'paid' },
+      detail: { rule: 'no_delete', flags: ['history_rewrite_attempt'] },
+    })
+    expect(lines(sale)).toEqual([
+      'It came through the database’s GraphQL door, which the till app does not use.',
+      'Nothing was changed. The till app never does this, so it is worth asking who did.',
+    ])
+  })
+
+  it('ties a refused attempt on a sale line back to its sale', () => {
+    // filed under the order (pk), like the lines themselves
+    const entry = guard('blocked.update', 'order_items', {
+      pk: ORDER1, via: 'PATCH /order_items',
+      old: { id: LINE1, order_id: ORDER1, product_id: GUINNESS, quantity: 2, unit_price: 6.4 },
+      new: { id: LINE1, order_id: ORDER1, product_id: GUINNESS, quantity: 2, unit_price: 0.01 },
+    })
+    expect(lines(entry, { names, sales: salesIndex([saleEntry()]) })).toEqual([
+      'Tried to change price each from £6.40 to £0.01',
+      'Part of the sale of £13.80 on tab',
+      'Nothing was changed. The till app never does this, so it is worth asking who did.',
+    ])
+  })
+})
+
 describe('describeEntry — the log’s own housekeeping (kind: system)', () => {
   const cron = { ...nobody, actor: 'database', till_id: null, via: 'cron:audit-nightly' }
   const cases = [
@@ -802,8 +1045,51 @@ describe('describeEntry — the log’s own housekeeping (kind: system)', () => 
     const entry = system('coverage.gap', { missing: ['order_items:insert', 'tabs'], disabled: ['orders', 'auditlog.log:append_only'] }, { severity: 3 })
     expect(lines(entry)).toEqual([
       'Not being recorded: new sale lines, tabs',
-      'Switched off: sales, the lock on the log itself',
+      'Recording has been switched off for: sales',
+      'Protection has been switched off: the lock on the log itself',
     ])
+  })
+
+  it('says when a protection is gone or has been pointed at other code', () => {
+    const entry = system('coverage.gap', {
+      tables: 22, missing: ['orders:guard'], disabled: ['members:protected_fields'], repointed: ['products:truncate', 'auditlog.log:append_only'], note: 'x',
+    }, { severity: 3 })
+    const d = describeEntry(entry, { names })
+    expect(d.title).toBe('Part of the recording is missing, switched off or redirected')
+    expect(d.lines).toEqual([
+      'Protection is missing: the guard on sales',
+      'Protection has been switched off: the guard on PINs, tab balances and app logins',
+      'Redirected away from the log’s own code: products being wiped all at once, the lock on the log itself',
+    ])
+    expectPlain(d)
+  })
+
+  it('says how much of the log a check covered', () => {
+    const recent = system('integrity.checked', { ok: true, scope: 'recent', since: '2026-10-22T12:00:00.000Z', seals_checked: 9000, seals_rehashed: 800, rows_checked: 31000, problems: [] })
+    expect(title(recent)).toBe('Check run by hand: passed — every seal checked, and all 31000 entries since Thu 22 Oct intact')
+    expect(lines(recent)).toEqual(['Older entries were not re-read this time; the nightly check covers them.'])
+    const whole = system('integrity.ok', { ok: true, scope: 'everything', since: null, seals_checked: 12, seals_rehashed: 12, rows_checked: 1234, problems: [] })
+    expect(title(whole)).toBe('Nightly check passed: all 1234 entries intact')
+    expect(lines(whole)).toEqual([])
+    const failed = system('integrity.FAILED', { ok: false, scope: 'recent', since: '2026-10-22T12:00:00.000Z', problems: [{ problem: 'erased_without_record', rows: 2, seq: 40 }] }, { severity: 3 })
+    expect(lines(failed)).toEqual([
+      '2 entries have been blanked as if for a privacy request, but no such request was recorded (the first is entry number 40).',
+      'Older entries were not re-read this time; the nightly check covers them.',
+    ])
+  })
+
+  it('explains the two entries about the log’s own code', () => {
+    const changed = describeEntry(system('coverage.changed', { note: 'The audit layer\'s own code no longer matches the accepted version.' }, { severity: 3 }), { names })
+    expect(changed.title).toBe('The log’s own recording code has been changed since it was last accepted')
+    expect(changed.lines).toHaveLength(1)
+    expect(changed.category).toBe('system')
+    expectPlain(changed)
+
+    const accepted = describeEntry(system('manifest.accepted', { digest: 'd41d8cd98f00b204e9800998ecf8427e', reason: 'audit log: review fixes', note: 'x' }, { ...fromDatabase, severity: 2 }), { names })
+    expect(accepted.title).toBe('The log’s recording code was accepted as genuine')
+    expect(accepted.lines[0]).toBe('Reason given: audit log: review fixes')
+    expect(accepted.lines).toHaveLength(2)
+    expectPlain(accepted)
   })
 
   it('says which of the log’s own settings changed', () => {
@@ -839,6 +1125,7 @@ describe('describeProblem and coverageLabel', () => {
     expect(describeProblem({ problem: 'seal_missing', rows: 12 })).toBe('12 entries point to a seal that no longer exists.')
     expect(describeProblem({ problem: 'seal_missing', rows: 1 })).toBe('1 entry points to a seal that no longer exists.')
     expect(describeProblem({ problem: 'unsealed_row_content_changed', seq: 999 })).toBe('Entry number 999 (recent, not yet sealed) has been altered since it was recorded.')
+    expect(describeProblem({ problem: 'erased_without_record', rows: 1, seq: 12 })).toBe('1 entry has been blanked as if for a privacy request, but no such request was recorded (the first is entry number 12).')
     expect(describeProblem({ problem: 'something_new', seq: 4 })).toBe('Something new (entry number 4).')
     expect(describeProblem(null)).toBe('Unknown problem.')
   })
@@ -849,6 +1136,27 @@ describe('describeProblem and coverageLabel', () => {
     expect(coverageLabel('auditlog.log:append_only')).toBe('the lock on the log itself')
     expect(coverageLabel('auditlog.seals:append_only')).toBe('the lock on the seals')
     expect(coverageLabel('brand_new_table')).toBe('brand new table')
+    expect(coverageLabel('products:truncate')).toBe('products being wiped all at once')
+    expect(coverageLabel('orders:guard')).toBe('the guard on sales')
+    expect(coverageLabel('members:protected_fields')).toBe('the guard on PINs, tab balances and app logins')
+    expect(coverageLabel('auditlog.log:append_only_truncate')).toBe('the lock against wiping the log itself')
+    expect(coverageLabel('auditlog.log:log_before_insert')).toBe('the tamper stamp on new entries in the log itself')
+    expect(coverageLabel('auditlog.manifests:append_only')).toBe('the lock on the record of accepted recording code')
+  })
+
+  it('sorts a coverage report into what is not recorded and what is not protected', () => {
+    expect(coverageLines({ missing: [], disabled: [], repointed: [] })).toEqual([])
+    expect(coverageLines(null)).toEqual([])
+    // a database from before "repointed" existed simply has nothing to say about it
+    expect(coverageLines({ tables: 22, missing: ['order_items:insert'], disabled: ['orders'] })).toEqual([
+      'Not being recorded: new sale lines',
+      'Recording has been switched off for: sales',
+    ])
+    expect(coverageLines({ missing: ['orders:guard', 'zz_new_thing'], disabled: 'oops', repointed: ['stock_movements:insert'] })).toEqual([
+      'Not being recorded: zz new thing',
+      'Protection is missing: the guard on sales',
+      'Redirected away from the log’s own code: new stock records',
+    ])
   })
 })
 
@@ -869,7 +1177,11 @@ describe('describeEntry — what the till app reported (kind: event)', () => {
     ['till.unlocked', event('till.unlocked'), 'Till unlocked with a PIN', 'signin'],
     ['till.unlocked (by sign-in)', event('till.unlocked', { via: 'sign_in' }), 'Till unlocked by someone signing in', 'signin'],
     ['till.unlocked_unverified', event('till.unlocked_unverified', {}, { severity: 2 }), 'Till unlocked WITHOUT a PIN check', 'signin'],
+    ['till.unlocked_unverified (server unreachable)', event('till.unlocked_unverified', { reason: 'unreachable' }, { severity: 2 }), 'Till unlocked WITHOUT a PIN check', 'signin'],
+    ['till.unlocked_unverified (PIN locked out)', event('till.unlocked_unverified', { reason: 'pin_locked' }, { severity: 2 }), 'Till unlocked WITHOUT a PIN check, after five wrong PINs had locked that PIN', 'signin'],
     ['till.lock_skipped_offline', event('till.lock_skipped_offline', {}, { severity: 1 }), 'Till stayed unlocked while idle because it was offline', 'signin'],
+    ['till.lock_skipped_offline (offline)', event('till.lock_skipped_offline', { reason: 'offline' }, { severity: 1 }), 'Till stayed unlocked while idle because it was offline', 'signin'],
+    ['till.lock_skipped_offline (unreachable)', event('till.lock_skipped_offline', { reason: 'unreachable' }, { severity: 1 }), 'Till stayed unlocked while idle because it could not reach the server', 'signin'],
     ['pin_gate.cancelled', event('pin_gate.cancelled', { purpose: 'z_report' }), 'Backed out of the PIN check for the Z report', 'signin'],
     ['sync.replayed', event('sync.replayed', { orders: 3, stock_movements: 1 }, { severity: 1 }), 'Sent 3 saved-up sales and 1 stock record after being offline', 'till'],
     ['sync.failed', event('sync.failed', { what: 'order', message: 'boom', count: 2, order_id: ORDER1 }, { severity: 1 }), 'Could not send 2 saved-up sales: boom', 'till'],
@@ -913,6 +1225,7 @@ describe('describeEntry — what the till app reported (kind: event)', () => {
     ['member.profile_viewed', event('member.profile_viewed', { member_id: MO }), 'Opened Mo Member’s profile', 'till'],
     ['guests.viewed', event('guests.viewed', { date: '2026-11-21', guests: 4 }), 'Looked at the guest list for Sat 21 Nov (4 guests)', 'till'],
     ['integrity.seal_mismatch_seen', event('integrity.seal_mismatch_seen', { remembered: 'S42-4F2A-91BC' }, { severity: 2 }), 'This till noticed its remembered seal (S42-4F2A-91BC) is no longer in the database', 'system'],
+    ['integrity.seal_mismatch_seen (number only)', event('integrity.seal_mismatch_seen', { remembered: null, remembered_seal: 42 }, { severity: 2 }), 'This till noticed its remembered seal (seal number 42) is no longer in the database', 'system'],
     ['an event it has never heard of', event('cart.coupon_applied', { code: 'X' }), 'Till reported: cart coupon applied', 'sales'],
   ]
 
@@ -960,6 +1273,27 @@ describe('describeEntry — what the till app reported (kind: event)', () => {
     expect(d.lines).toEqual([
       'Till 1: float £150.00, expected £255.00, counted £257.00 — £2.00 over',
       'Till 2: float £150.00, expected £255.00, counted £253.00 — £2.00 short',
+    ])
+  })
+
+  it('says why a till was unlocked without a PIN, and what that means for what followed', () => {
+    const said = 'What they did next is recorded as “said to be” them, not “PIN checked”'
+    expect(lines(event('till.unlocked_unverified', { reason: 'unreachable' }))).toEqual([
+      'The PIN could not be checked (the server could not be reached), and someone chose to carry on', said,
+    ])
+    expect(lines(event('till.unlocked_unverified', { reason: 'pin_locked' }))).toEqual([
+      'Someone chose “carry on without checking the PIN” while the PIN was locked out', said,
+    ])
+    // an older till app gave no reason
+    expect(lines(event('till.unlocked_unverified'))).toEqual([
+      'The PIN could not be checked (usually no connection), and someone chose to carry on', said,
+    ])
+  })
+
+  it('says the till keeps its own copy of a seal the database lost', () => {
+    expect(lines(event('integrity.seal_mismatch_seen', { remembered: 'S42-4F2A-91BC', remembered_seal: 42 }))).toEqual([
+      'History may have been rewritten, or the database was restored from a backup.',
+      'The till has kept its own copy of that seal as evidence; it is listed at the top of the Log on that till.',
     ])
   })
 
@@ -1023,6 +1357,16 @@ describe('the sentences as a whole', () => {
     guard('blocked.delete', 'order_items', { pk: LINE1, old: { id: LINE1, order_id: ORDER1, product_id: GUINNESS, quantity: 1, unit_price: 2 } }),
     system('alert.checked', { note: 'n' }, { pk: '12' }),
     system('integrity.witness_mismatch', { seal: 5, remembered_hash: 'abc' }),
+    system('coverage.gap', { missing: ['orders:guard'], disabled: ['auditlog.log:log_before_insert'], repointed: ['members:protected_fields', 'products:truncate'] }),
+    system('coverage.changed', { note: 'n' }),
+    system('manifest.accepted', { digest: 'abc', reason: 'r' }),
+    system('integrity.checked', { ok: true, scope: 'recent', since: '2026-10-22T12:00:00.000Z', seals_rehashed: 3, rows_checked: 9, problems: [] }),
+    row('orders', 'insert', { pk: ORDER2, staff_id: KIM, staff_name: 'Kim Newstarter', staff_trust: 'claimed', new: { id: ORDER2, staff_id: KIM, total_amount: 1 }, detail: { sent_by: SAM, sent_by_trust: 'pin', rung_by_trust: 'claimed', flags: ['staff_mismatch'] } }),
+    row('orders', 'insert', { ...nobody, pk: ORDER3, new: { id: ORDER3, total_amount: 1 }, detail: { sent_by: SAM, sent_by_trust: 'pin', late_by_seconds: 900, flags: ['arrived_late', 'no_staff_on_sale'] } }),
+    guard('blocked.update', 'members', { pk: KIM, subject: null, changed: ['auth_user_id', 'pin_hash'], old: { auth_user_id: SAM, pin_hash: '[redacted]' }, new: { auth_user_id: MO, pin_hash: '[redacted]' }, detail: { rule: 'protected_fields', flags: ['direct_edit_of_protected_field'] } }),
+    guard('would_block.update', 'members', { pk: KIM, subject: null, via: 'POST /rpc/graphql', changed: ['auth_user_id'], old: { auth_user_id: SAM }, new: { auth_user_id: MO }, detail: { rule: 'protected_fields', flags: ['direct_edit_of_protected_field'] } }),
+    event('till.unlocked_unverified', { reason: 'pin_locked' }),
+    event('integrity.seal_mismatch_seen', { remembered: 'S42-4F2A-91BC', remembered_seal: 42 }),
     event('tab.order_removed', { order_id: ORDER1, member_id: MO, value: 1 }),
     event('sale.completed', { order_id: ORDER1, total: 1, method: 'cash', saved: 'failed', member_id: MO, items: [{ product_id: GUINNESS, quantity: 1, unit_price: 1 }] }),
     event('sync.failed', { what: 'order', count: 1, order_id: ORDER1, message: 'm' }),
@@ -1099,6 +1443,42 @@ describe('entrySeverity and uncheckedSeqs', () => {
     expect(uncheckedSeqs({ seq: 5, severity: 2, checked: true })).toEqual([])
     expect(uncheckedSeqs({ seq: 5, severity: 1, checked: false })).toEqual([])
   })
+
+  it('shows carrying on past a locked-out PIN as serious, whatever the till was allowed to call it', () => {
+    expect(entrySeverity(event('till.unlocked_unverified', { reason: 'pin_locked' }, { severity: 2 }))).toBe(3)
+    expect(entrySeverity(event('till.unlocked_unverified', { reason: 'unreachable' }, { severity: 2 }))).toBe(2)
+    expect(entrySeverity(event('till.unlocked_unverified', {}, { severity: 2 }))).toBe(2)
+  })
+})
+
+describe('describeCheck', () => {
+  const alert = (extra = {}) => ({ ...base(), kind: 'event', action: 'drawer.opened_no_sale', severity: 2, ...extra })
+
+  it('is null until the alert has been checked', () => {
+    expect(describeCheck(alert())).toBeNull()
+    expect(describeCheck(null)).toBeNull()
+  })
+
+  it('says who checked it, when, and what they wrote', () => {
+    const entry = alert({ checked: true, checked_at: '2026-11-21T15:00:00.000Z', checked_by: 'Kim Newstarter', checked_by_self: false, check_note: ' looked into it ' })
+    expect(describeCheck(entry)).toEqual({ by: 'Kim Newstarter', at: '2026-11-21T15:00:00.000Z', note: 'looked into it', bySelf: false })
+  })
+
+  it('says when the person who checked it is the person it is about', () => {
+    const entry = alert({ checked: true, checked_at: '2026-11-21T15:00:00.000Z', checked_by: 'Sam Staff', checked_by_self: true, check_note: null })
+    expect(describeCheck(entry)).toMatchObject({ by: 'Sam Staff', bySelf: true, note: null })
+  })
+
+  it('copes with a database that only says THAT it was checked', () => {
+    expect(describeCheck(alert({ checked: true }))).toEqual({ by: null, at: null, note: null, bySelf: false })
+    expect(describeCheck(alert({ checked: true, checked_at: 'not a date', checked_by: null }))).toEqual({ by: null, at: null, note: null, bySelf: false })
+  })
+
+  it('reads the check from either half of a sale shown as one entry', () => {
+    const sale = { ...saleEntry(), severity: 2, checked: true, checked_at: null, checked_by: null }
+    const saleLines = { ...saleLinesEntry(), severity: 3, checked: true, checked_at: '2026-11-21T15:00:00.000Z', checked_by: 'Sam Staff', checked_by_self: true, check_note: 'mine' }
+    expect(describeCheck({ ...sale, sale_lines: saleLines })).toEqual({ by: 'Sam Staff', at: '2026-11-21T15:00:00.000Z', note: 'mine', bySelf: true })
+  })
 })
 
 describe('describeWho', () => {
@@ -1136,6 +1516,12 @@ describe('describeVia', () => {
     expect(describeVia('migration:20261123120000_audit_log')).toBe('Database update (20261123120000_audit_log)')
     expect(describeVia('fn:verify-pin POST /pin_attempts')).toBe('Server function “verify-pin” — straight to the wrong-PIN counts list (adding to)')
     expect(describeVia(null)).toBe('Not recorded')
+    expect(describeVia('POST /rpc/graphql')).toBe('Through the database’s GraphQL door, not the till app')
+    expect(describeVia('fn:some-function POST /rpc/graphql')).toBe('Server function “some-function” — through the database’s GraphQL door, not the till app')
+    expect(describeVia('POST /rpc/graphql_report')).toBe('Through the app’s routine “graphql_report”')
+    expect(viaGraphql('POST /rpc/graphql')).toBe(true)
+    expect(viaGraphql('POST /rpc/create_order_with_items')).toBe(false)
+    expect(viaGraphql(null)).toBe(false)
     for (const via of ['POST /rpc/x', 'PATCH /products', 'sql:postgres', 'fn:verify-pin POST /rpc/y']) {
       expect(describeVia(via)).not.toMatch(/\brpc\b/i)
     }

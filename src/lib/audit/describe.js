@@ -250,6 +250,29 @@ const FIELD_LABELS = {
   value_removed: 'value removed',
   member_name: 'member',
   order: 'sale',
+  sent_by: 'signed in when it was sent',
+  sent_by_trust: 'how sure the log is of them',
+  remembered: 'remembered seal',
+  remembered_seal: 'remembered seal number',
+  seals_rehashed: 'seals whose entries were re-read',
+  scope: 'what was checked',
+  since: 'entries re-read since',
+  missing: 'missing',
+  disabled: 'switched off',
+  repointed: 'redirected',
+  digest: 'fingerprint',
+  enrich_error: 'could not work out',
+}
+
+const RULE_WORDS = {
+  immutable: 'may never be edited or deleted from a till',
+  no_delete: 'may never be deleted from a till',
+  protected_fields: 'only the app’s own PIN-checked steps may change these',
+}
+
+const SCOPE_WORDS = {
+  everything: 'the whole log',
+  recent: 'every seal, and the entries of recent weeks',
 }
 
 /** A column or detail key as words: standard_price -> "standard price". */
@@ -287,13 +310,18 @@ export function formatValue(key, value, ctx) {
   if (key === 'late_by_seconds') return duration(value)
   if (key === 'problems' && Array.isArray(value)) return value.map(describeProblem).join(' ') || 'none'
   if (key === 'capture_enabled' || key === 'guards_enforced') return value ? 'on' : 'OFF'
+  if ((key === 'missing' || key === 'disabled' || key === 'repointed') && Array.isArray(value)) {
+    return value.map(coverageLabel).join(', ') || 'nothing'
+  }
   if (MONEY_FIELDS.has(key) && Number.isFinite(Number(value))) return money(value)
   if (typeof value === 'boolean') return value ? 'yes' : 'no'
   if (typeof value === 'number') return num(value)
   if (typeof value === 'string') {
     if (key === 'till_id' || key === 'till') return tillLabel(value)
     if (key === 'payment_method' || key === 'old_method' || key === 'new_method' || key === 'method') return PAYMENT_NAMES[value] ?? value
-    if (key === 'rung_by_trust' || key === 'trust' || key === 'staff_trust') return TRUST_LABELS[value] ?? prettify(value)
+    if (key === 'rung_by_trust' || key === 'sent_by_trust' || key === 'trust' || key === 'staff_trust') return TRUST_LABELS[value] ?? prettify(value)
+    if (key === 'rule') return RULE_WORDS[value] ?? prettify(value)
+    if (key === 'scope') return SCOPE_WORDS[value] ?? prettify(value)
     if (UUID.test(value)) return nameOf(ctx, value) ?? value
     if (ISO_TIME.test(value)) return formatDateTime(value)
     // A code word such as "idle_lock" or "no_delete" reads better spaced out.
@@ -323,8 +351,12 @@ const FLAG_LABELS = {
   till_claim_mismatch: 'Till name does not match the till that sent it',
   no_staff_on_sale: 'No staff member on the sale',
   staff_unverified: 'Staff member not confirmed',
+  staff_mismatch: 'Sale names someone other than the person signed in',
   voided: 'Voided',
   direct_edit_of_sale: 'Sale edited directly',
+  direct_insert_of_sale: 'Sale written straight into the books, not by the till app',
+  direct_insert_of_sale_line: 'Sale line written straight into the books, not by the till app',
+  tab_balance_adjusted: 'Tab changed without a sale or a payment',
   tier_changed: 'Staff status changed',
   pin_changed: 'PIN changed',
   direct_edit_of_protected_field: 'Protected figure edited directly',
@@ -353,14 +385,25 @@ function flagTags(entry) {
       const late = Number(detail.late_by_seconds)
       return late < 0 ? `Dated ${duration(late)} in the future` : `Arrived ${duration(late)} late`
     }
+    // On a refused attempt the same flag marks something that did NOT happen.
+    if (flag === 'direct_edit_of_protected_field' && entry.kind === 'guard' && String(entry.action ?? '').startsWith('blocked')) {
+      return 'Direct edit of a protected figure refused'
+    }
     return flagLabel(flag)
   })
 }
 
 /** Highest severity of the entry and anything folded into it. */
 export function entrySeverity(entry) {
-  const own = Number(asObj(entry).severity) || 0
-  const lines = Number(asObj(asObj(entry).sale_lines).severity) || 0
+  const e = asObj(entry)
+  let own = Number(e.severity) || 0
+  // The database never lets a till call its own report worse than "needs a
+  // look". Carrying on past a PIN that five wrong tries had locked is
+  // serious all the same, so it is shown as such.
+  if (e.kind === 'event' && e.action === 'till.unlocked_unverified' && asObj(e.detail).reason === 'pin_locked') {
+    own = Math.max(own, 3)
+  }
+  const lines = Number(asObj(e.sale_lines).severity) || 0
   return Math.max(0, Math.min(3, Math.max(own, lines)))
 }
 
@@ -369,6 +412,27 @@ export function uncheckedSeqs(entry) {
   return [entry, asObj(entry).sale_lines]
     .filter(e => e && Number(e.severity) >= 2 && !e.checked && e.seq !== null && e.seq !== undefined)
     .map(e => e.seq)
+}
+
+/**
+ * Who marked an alert as checked, when, and what they wrote.
+ * -> { by, at, note, bySelf } or null when it has not been checked.
+ *    by / at / note are null when the database did not say (an older
+ *    database only says THAT it was checked). bySelf: the person who
+ *    checked it is the person the alert is about.
+ * A sale shown together with its lines is two entries, so two checks.
+ */
+export function describeCheck(entry) {
+  const halves = [asObj(entry), asObj(asObj(entry).sale_lines)].filter(h => h.checked)
+  if (halves.length === 0) return null
+  const told = halves.find(h => h.checked_by || h.checked_at) ?? halves[0]
+  const note = halves.map(h => h.check_note).find(n => typeof n === 'string' && n.trim() !== '')
+  return {
+    by: told.checked_by ? String(told.checked_by) : null,
+    at: validDate(told.checked_at) ? told.checked_at : null,
+    note: note ? note.trim() : null,
+    bySelf: halves.some(h => h.checked_by_self === true),
+  }
 }
 
 // ── Who, and how sure ────────────────────────────────────────────────────
@@ -380,17 +444,42 @@ export const TRUST_LABELS = {
   none: 'nobody signed in',
 }
 
+const trustTag = trust => (trust === 'none' ? 'not confirmed' : TRUST_LABELS[trust])
+
+// A tab payment is stored as a sale; call it what the owner would.
+const saleNoun = entry => (asObj(asObj(entry).new).is_tab_settlement ? 'payment' : 'sale')
+
 /**
  * Who the log attributes an entry to, and how sure it is.
  * -> { name, tag, trust }  (name is null when nobody can be named)
+ *
+ * A sale is about WHO RANG IT, which is not always who was signed in when
+ * it reached the server (see saleAttribution). `ctx.names` is only needed
+ * to name that person on entries from before the database filed sales
+ * that way.
  */
-export function describeWho(entry) {
+export function describeWho(entry, ctx) {
   const e = asObj(entry)
+  if (isSaleInsert(e)) {
+    const { rung, sentBy } = saleAttribution(e, ctx)
+    if (rung) {
+      return {
+        name: rung.name ?? (rung.id === e.staff_id ? 'A staff member no longer on the list' : 'A staff member'),
+        tag: trustTag(rung.trust),
+        trust: rung.trust,
+      }
+    }
+    // Sent in later under someone's sign-in, naming nobody: being signed in
+    // when a saved-up sale goes out is not the same as having rung it.
+    if ((sentBy && entryFlags(e).includes('arrived_late')) || (!e.staff_id && !e.staff_name && (e.actor ?? 'till') === 'till')) {
+      return { name: `Nobody named on the ${saleNoun(e)}`, tag: null, trust: 'none' }
+    }
+  }
   const trust = TRUST_LABELS[e.staff_trust] ? e.staff_trust : 'none'
   if (e.staff_id || e.staff_name) {
     return {
       name: e.staff_name || 'A staff member no longer on the list',
-      tag: trust === 'none' ? 'not confirmed' : TRUST_LABELS[trust],
+      tag: trustTag(trust),
       trust,
     }
   }
@@ -413,6 +502,16 @@ export function describeWho(entry) {
 
 const HTTP_VERB = { POST: 'adding to', PATCH: 'editing', PUT: 'editing', DELETE: 'deleting from', GET: 'reading' }
 
+// Supabase's GraphQL endpoint arrives looking like one of the app's own
+// routines ("/rpc/graphql") but is a way straight to the tables that the
+// till app never uses.
+const GRAPHQL_VIA = /(^|\s)[A-Z]+\s+\/rpc\/graphql(?![\w-])/
+
+/** Did this come through the database's GraphQL door? */
+export function viaGraphql(via) {
+  return GRAPHQL_VIA.test(String(via ?? ''))
+}
+
 /** How an entry reached the database, in words. */
 export function describeVia(via) {
   if (!via) return 'Not recorded'
@@ -432,6 +531,7 @@ export function describeVia(via) {
   const m = /^([A-Z]+)\s+\/(.*)$/.exec(text)
   if (m) {
     const path = m[2]
+    if (viaGraphql(text)) return 'Through the database’s GraphQL door, not the till app'
     if (path.startsWith('rpc/')) return `Through the app’s routine ${quote(path.slice(4))}`
     const table = path.split(/[/?]/)[0]
     return `Straight to the ${tableNoun(table, true)} list (${HTTP_VERB[m[1]] ?? m[1].toLowerCase()})`
@@ -465,6 +565,82 @@ export function happenedAt(entry) {
 
 const isSaleInsert = e => e && e.kind === 'row' && e.table === 'orders' && e.action === 'insert'
 const isLinesInsert = e => e && e.kind === 'row' && e.table === 'order_items' && e.action === 'insert'
+
+/**
+ * Who rang a sale, and who was signed in when it reached the server.
+ * -> { rung, sentBy }, each { id, name, trust } or null. sentBy is only
+ *    given when it is someone other than who rang it, or the sale names
+ *    nobody.
+ *
+ * The database has filed sales two ways, and both are read here:
+ *   now     the entry's staff member IS who rang it (as the sale itself
+ *           claims); detail.sent_by / sent_by_trust say who was signed in on
+ *           the request that sent it, when that differs or the sale named
+ *           nobody
+ *   before  the entry's staff member was whoever was signed in when it was
+ *           sent; the sale's own staff_id, with detail.rung_by_trust, said
+ *           who rang it
+ */
+function saleAttribution(entry, ctx) {
+  const e = asObj(entry)
+  const detail = asObj(e.detail)
+  const claimed = asObj(e.new).staff_id || null
+  const person = (id, trust) => ({
+    id,
+    name: (id === e.staff_id && e.staff_name) || nameOf(ctx, id) || null,
+    trust: TRUST_LABELS[trust] ? trust : 'none',
+  })
+
+  let rung = null
+  let sentBy = null
+  if (detail.sent_by) {
+    if (claimed) rung = person(claimed, claimed === e.staff_id ? e.staff_trust : detail.rung_by_trust)
+    sentBy = person(detail.sent_by, detail.sent_by_trust ?? (detail.sent_by === e.staff_id ? e.staff_trust : null))
+  } else if (claimed && e.staff_id && claimed !== e.staff_id) {
+    rung = person(claimed, detail.rung_by_trust ?? 'claimed')
+    sentBy = person(e.staff_id, e.staff_trust)
+  } else if (claimed) {
+    rung = person(claimed, claimed === e.staff_id ? e.staff_trust : (detail.rung_by_trust ?? 'claimed'))
+  } else if (e.staff_id && entryFlags(e).includes('arrived_late')) {
+    sentBy = person(e.staff_id, e.staff_trust)
+  }
+  if (rung && sentBy && rung.id === sentBy.id) sentBy = null
+  return { rung, sentBy }
+}
+
+/** The plain lines under a sale about who sent it and how late it arrived. */
+function saleDeliveryLines(entry, ctx) {
+  const detail = asObj(entry.detail)
+  const flags = entryFlags(entry)
+  const { rung, sentBy } = saleAttribution(entry, ctx)
+  const noun = saleNoun(entry)
+  const lines = []
+  if (sentBy) {
+    const sender = sentBy.name ?? 'someone else'
+    const sure = sentBy.trust === 'none' ? '' : ` (${TRUST_LABELS[sentBy.trust]})`
+    const ringer = rung ? (rung.name ?? 'someone else') : null
+    if (!ringer) {
+      lines.push(`The ${noun} itself does not say who rang it. ${upperFirst(sender)} was signed in when it was sent${sure}`)
+    } else if (flags.includes('staff_mismatch')) {
+      lines.push(`${upperFirst(sender)} was the person signed in${sure}, but the till put ${ringer} on the ${noun} as who rang it`)
+    } else {
+      lines.push(`Sent to the server under ${possessive(sender)} sign-in${sure} — the ${noun} itself names ${ringer} as who rang it`)
+    }
+  }
+  const late = Number(detail.late_by_seconds)
+  if (flags.includes('arrived_late') && Number.isFinite(late)) {
+    lines.push(late < 0
+      ? `Dated ${duration(late)} ahead of when it reached the server — the till’s clock may be wrong`
+      : `Reached the server ${duration(late)} after it was rung — usually a ${noun} taken while the till was offline`)
+  }
+  return lines
+}
+
+/** "Part of the sale of £13.80 on tab", when that sale is on the page. */
+function parentSaleLines(entry, ctx) {
+  const known = entry.pk ? asObj(asObj(ctx).sales)[entry.pk] : null
+  return isObj(known) ? [`Part of the ${saleSummary(known, ctx)}`] : []
+}
 
 /**
  * A sale is recorded as two entries: the sale itself and its lines. Where
@@ -683,7 +859,6 @@ function priceChangeRow(entry, ctx) {
 function orderRow(entry, ctx) {
   const before = asObj(entry.old)
   const after = asObj(entry.new)
-  const detail = asObj(entry.detail)
   const via = String(entry.via ?? '')
 
   if (entry.action === 'insert') {
@@ -699,12 +874,7 @@ function orderRow(entry, ctx) {
     }
     if (after.status && after.status !== 'paid') lines.push(`Recorded as ${after.status}`)
 
-    const rungBy = after.staff_id
-    const rungTrust = detail.rung_by_trust
-    if (rungBy && (rungBy !== entry.staff_id || (rungTrust && rungTrust !== entry.staff_trust))) {
-      const who = nameOf(ctx, rungBy) ?? 'a staff member'
-      lines.push(`The sale itself names ${who} as who rang it${rungTrust ? ` — ${TRUST_LABELS[rungTrust] ?? prettify(rungTrust)}` : ''}`)
-    }
+    lines.push(...saleDeliveryLines(entry, ctx))
     if (entryFlags(entry).includes('till_claim_mismatch') && after.till_id && entry.till_id) {
       lines.push(`The sale says ${tillLabel(after.till_id)} but it was sent by ${tillLabel(entry.till_id)}`)
     }
@@ -761,12 +931,16 @@ function orderItemsRow(entry, ctx) {
     const old = asObj(entry.old)
     const product = nameOf(ctx, old.product_id)
     const what = product ? `: ${has(old, 'quantity') ? `${num(old.quantity)} × ` : ''}${product}` : ''
-    return { title: `Deleted a sale line${what}${has(old, 'unit_price') ? ` at ${money(old.unit_price)} each` : ''}` }
+    return {
+      title: `Deleted a sale line${what}${has(old, 'unit_price') ? ` at ${money(old.unit_price)} each` : ''}`,
+      lines: parentSaleLines(entry, ctx),
+    }
   }
   if (entry.action === 'update') {
     const keys = changedKeys(entry)
     return {
       title: `Changed a sale line${keys.length ? `: ${keys.map(k => changeText(k, entry, ctx)).join('; ')}` : ''}`,
+      lines: parentSaleLines(entry, ctx),
     }
   }
   return null
@@ -1083,7 +1257,9 @@ function describeRow(entry, ctx) {
   }
   const specific = ROW_DESCRIBERS[entry.table]?.(entry, ctx)
   const result = specific ?? genericRow(entry, ctx)
-  return { category, ...result }
+  // A change that went through, made by a route the till app never takes.
+  const door = viaGraphql(entry.via) ? ['Made through the database’s GraphQL door, not the till app'] : []
+  return { category, ...result, lines: [...asList(result.lines), ...door] }
 }
 
 /** A record as a short phrase: "a sale of £7.40 by cash". Used for blocked attempts. */
@@ -1129,8 +1305,73 @@ function recordPhrase(table, row, ctx) {
 
 // ── Guards: attempts to rewrite history ──────────────────────────────────
 
+const GRAPHQL_LINE = 'It came through the database’s GraphQL door, which the till app does not use.'
+
+function listText(words) {
+  if (words.length <= 1) return words.join('')
+  return `${words.slice(0, -1).join(', ')} and ${words[words.length - 1]}`
+}
+
+const PROTECTED_WORDS = {
+  pin_hash: 'PIN',
+  tab_balance: 'tab balance',
+  auth_user_id: 'app login',
+  last_settled_at: 'last tab payment time',
+}
+
+/** One protected field: what was tried (refused) or what was done (watch-only). */
+function protectedFieldText(key, before, after, refused) {
+  const gone = v => v === null || v === undefined
+  switch (key) {
+    case 'pin_hash': {
+      const what = gone(before[key]) ? ['set a PIN', 'A PIN was set'] : gone(after[key]) ? ['clear the PIN', 'The PIN was cleared'] : ['replace the PIN', 'The PIN was replaced']
+      return `${refused ? `Tried to ${what[0]}` : what[1]} — whoever sets someone’s PIN can sign in as them`
+    }
+    case 'tab_balance':
+      return refused
+        ? `Tried to change the tab balance from ${money(before[key])} to ${money(after[key])}`
+        : `The tab balance went from ${money(before[key])} to ${money(after[key])}`
+    case 'auth_user_id':
+      if (gone(after[key])) return refused ? 'Tried to remove the app login' : 'The app login was removed'
+      return refused ? 'Tried to link a different app login' : 'A different app login was linked'
+    case 'last_settled_at':
+      return refused ? 'Tried to change the time of the last tab payment' : 'The time of the last tab payment was changed'
+    default:
+      return refused ? `Tried to change the ${fieldLabel(key)}` : `The ${fieldLabel(key)} was changed`
+  }
+}
+
+// A till writing a member's PIN, tab balance, login link or settlement time
+// straight into their record (detail.rule 'protected_fields'). old / new
+// hold just those fields; the PIN's value is never stored.
+function describeProtectedFields(entry, ctx, mode, door) {
+  const before = asObj(entry.old)
+  const after = asObj(entry.new)
+  const name = entry.subject || nameOf(ctx, entry.pk)
+  const whose = name && name !== '[erased]' ? possessive(name) : 'a member’s'
+  const keys = changedKeys(entry)
+  const what = listText(keys.map(k => PROTECTED_WORDS[k] ?? fieldLabel(k))) || 'protected details'
+  const refused = mode !== 'would_block'
+  const lines = keys.map(k => protectedFieldText(k, before, after, refused))
+  if (refused) {
+    return {
+      title: `Tried to change ${whose} ${what} directly — refused`,
+      lines: [...lines, ...door, 'Refused: it was put back as it was. The till app only changes this through its own steps, so it is worth asking who tried.'],
+      category: 'blocked',
+    }
+  }
+  return {
+    title: `Allowed, but should not happen: ${whose} ${what} ${keys.length > 1 ? 'were' : 'was'} changed directly`,
+    lines: [...lines, ...door, 'Protection of past records was in watch-only mode, so this went through.'],
+    category: 'blocked',
+  }
+}
+
 function describeGuard(entry, ctx) {
   const [mode, op] = String(entry.action ?? '').split('.')
+  const door = viaGraphql(entry.via) ? [GRAPHQL_LINE] : []
+  if (asObj(entry.detail).rule === 'protected_fields') return describeProtectedFields(entry, ctx, mode, door)
+
   const what = recordPhrase(entry.table, entry.old, ctx)
   const subject = entry.subject && !what.includes(entry.subject) ? ` (${entry.subject})` : ''
   const lines = []
@@ -1143,6 +1384,9 @@ function describeGuard(entry, ctx) {
       }
     }
   }
+  // A refused attempt on a sale line is filed under its sale.
+  if (entry.table === 'order_items') lines.push(...parentSaleLines(entry, ctx))
+  lines.push(...door)
   const verb = op === 'delete' ? 'delete' : op === 'update' ? 'edit' : prettify(op || 'change')
   if (mode === 'blocked') {
     return {
@@ -1180,6 +1424,8 @@ const SIGN_OUT_WORDS = {
   sign_out: 'signed out',
   switch_user: 'signed out (switched to someone else)',
   idle_lock: 'was signed out when the till locked itself',
+  manual_lock: 'was signed out when the till was locked with the Lock button',
+  unused_unlock: 'was signed out again straight away — their PIN was accepted too late to unlock the till',
   close_day: 'was signed out when the day was closed',
   replaced: 'was signed out because someone else signed in on that till',
 }
@@ -1200,6 +1446,9 @@ function describeAuth(entry, ctx) {
       }
       return { title: `${upperFirst(who)} signed in`, lines, category: 'signin' }
     case 'staff.sign_out':
+      if (detail.reason === 'idle_lock' || detail.reason === 'manual_lock') {
+        lines.push('A lock ends the sign-in. Unlocking with a PIN is a fresh sign-in.')
+      }
       return {
         title: `${upperFirst(who)} ${SIGN_OUT_WORDS[detail.reason] ?? `signed out${detail.reason ? ` (${prettify(detail.reason)})` : ''}`}`,
         lines,
@@ -1214,9 +1463,9 @@ function describeAuth(entry, ctx) {
       return { title: `Wrong PIN for ${who}${tries}`, lines: askedFor ? [askedFor, ...lines] : lines, category: 'signin' }
     }
     case 'pin.locked_now':
-      return { title: `Too many wrong PINs for ${who} — locked for 15 minutes`, lines, category: 'signin' }
+      return { title: `Too many wrong PINs for ${who} — locked for 15 minutes`, lines: askedFor ? [askedFor, ...lines] : lines, category: 'signin' }
     case 'pin.locked':
-      return { title: `PIN tried for ${who} while it was locked`, lines, category: 'signin' }
+      return { title: `PIN tried for ${who} while it was locked`, lines: askedFor ? [askedFor, ...lines] : lines, category: 'signin' }
     case 'pin.no_pin':
       return { title: `PIN tried for ${who}, who has no PIN yet`, lines, category: 'signin' }
     case 'pin.not_staff':
@@ -1269,22 +1518,72 @@ export function describeProblem(problem) {
       return `${upperFirst(count(p.rows, 'entry points', 'entries point'))} to a seal that no longer exists.`
     case 'unsealed_row_content_changed':
       return `Entry number ${p.seq ?? '?'} (recent, not yet sealed) has been altered since it was recorded.`
+    case 'erased_without_record':
+      return `${upperFirst(count(p.rows, 'entry has', 'entries have'))} been blanked as if for a privacy request, but no such request was recorded${p.seq ? ` (the first is entry number ${p.seq})` : ''}.`
     default:
       return `${upperFirst(prettify(p.problem ?? 'unknown problem'))}${p.seq ? ` (entry number ${p.seq})` : ''}.`
   }
 }
 
-/** A name from the coverage report as words: "order_items:insert" -> "new sale lines". */
+const LOG_PARTS = {
+  log: 'the log itself',
+  seals: 'the seals',
+  acks: 'the “checked” marks',
+  origins: 'the record of network addresses',
+  device_ips: 'the record of till addresses',
+  staff_sessions: 'the record of sign-ins',
+  manifests: 'the record of accepted recording code',
+}
+
+const isProtectionLabel = label => label.startsWith('auditlog.') || /:(guard|protected_fields)$/.test(label)
+
+/**
+ * A name from the coverage report as words. The database names each thing
+ * it checks:
+ *   orders                    changes to sales being recorded
+ *   order_items:insert        new sale lines being recorded
+ *   products:truncate         a wipe of the whole products list being recorded
+ *   orders:guard              direct edits / deletes of past sales being refused
+ *   members:protected_fields  direct writes to PINs and balances being refused
+ *   auditlog.log:append_only  the log's own rows being locked
+ */
 export function coverageLabel(name) {
   const text = String(name ?? '')
   if (text.startsWith('auditlog.')) {
-    const [table] = text.slice(9).split(':')
-    const what = { log: 'the log itself', seals: 'the seals', acks: 'the “checked” marks', origins: 'the record of network addresses', device_ips: 'the record of till addresses', staff_sessions: 'the record of sign-ins' }[table]
-    return `the lock on ${what ?? `the log’s ${prettify(table)}`}`
+    const [table, part] = text.slice(9).split(':')
+    const what = LOG_PARTS[table] ?? `the log’s ${prettify(table)}`
+    if (part === 'log_before_insert') return `the tamper stamp on new entries in ${what}`
+    if (part === 'append_only_truncate') return `the lock against wiping ${what}`
+    return `the lock on ${what}`
   }
   const [table, part] = text.split(':')
   if (part === 'insert') return `new ${tableNoun(table, true)}`
+  if (part === 'truncate') return `${tableNoun(table, true)} being wiped all at once`
+  if (part === 'guard') return `the guard on ${tableNoun(table, true)}`
+  if (part === 'protected_fields') {
+    return table === 'members' ? 'the guard on PINs, tab balances and app logins' : `the guard on protected ${tableNoun(table)} details`
+  }
   return tableNoun(table, true)
+}
+
+/**
+ * The coverage report ({ missing, disabled, repointed }) as sentences
+ * without their full stop: what is not being recorded, and which
+ * protections are gone, off, or no longer running the log's own code.
+ */
+export function coverageLines(coverage) {
+  const c = asObj(coverage)
+  const labels = key => (Array.isArray(c[key]) ? c[key] : []).filter(x => typeof x === 'string' && x !== '')
+  const lines = []
+  const add = (lead, list) => {
+    if (list.length) lines.push(`${lead}: ${list.map(coverageLabel).join(', ')}`)
+  }
+  add('Not being recorded', labels('missing').filter(l => !isProtectionLabel(l)))
+  add('Protection is missing', labels('missing').filter(isProtectionLabel))
+  add('Recording has been switched off for', labels('disabled').filter(l => !isProtectionLabel(l)))
+  add('Protection has been switched off', labels('disabled').filter(isProtectionLabel))
+  add('Redirected away from the log’s own code', labels('repointed'))
+  return lines
 }
 
 function settingsChanges(entry) {
@@ -1301,6 +1600,8 @@ function settingsChanges(entry) {
   return out
 }
 
+const RECENT_ONLY_LINE = 'Older entries were not re-read this time; the nightly check covers them.'
+
 function describeSystem(entry, ctx) {
   const detail = asObj(entry.detail)
   switch (entry.action) {
@@ -1314,20 +1615,27 @@ function describeSystem(entry, ctx) {
         category: 'system',
       }
     case 'integrity.ok':
+    case 'integrity.checked': {
+      const lead = entry.action === 'integrity.ok' ? 'Nightly check passed' : 'Check run by hand: passed'
+      const join = entry.action === 'integrity.ok' ? ': ' : ' — '
+      if (detail.scope === 'recent') {
+        const since = validDate(detail.since) ? ` since ${formatDay(detail.since)}` : ' of recent weeks'
+        return {
+          title: `${lead}${join}every seal checked${has(detail, 'rows_checked') ? `, and all ${count(detail.rows_checked, 'entry', 'entries')}${since} intact` : ''}`,
+          lines: [RECENT_ONLY_LINE],
+          category: 'system',
+        }
+      }
       return {
-        title: `Nightly check passed${has(detail, 'rows_checked') ? `: all ${count(detail.rows_checked, 'entry', 'entries')} intact` : ''}`,
+        title: `${lead}${has(detail, 'rows_checked') ? `${join}all ${count(detail.rows_checked, 'entry', 'entries')} intact` : ''}`,
         category: 'system',
       }
-    case 'integrity.checked':
-      return {
-        title: `Check run by hand: passed${has(detail, 'rows_checked') ? ` — all ${count(detail.rows_checked, 'entry', 'entries')} intact` : ''}`,
-        category: 'system',
-      }
+    }
     case 'integrity.FAILED': {
       const problems = asList(detail.problems)
       return {
         title: `CHECK FAILED: the log has been tampered with or damaged${problems.length ? ` (${count(problems.length, 'problem')})` : ''}`,
-        lines: problems.map(describeProblem),
+        lines: [...problems.map(describeProblem), ...(detail.scope === 'recent' ? [RECENT_ONLY_LINE] : [])],
         category: 'system',
       }
     }
@@ -1337,14 +1645,29 @@ function describeSystem(entry, ctx) {
         lines: ['History may have been rewritten, or the database was restored from a backup.'],
         category: 'system',
       }
-    case 'coverage.gap': {
-      const missing = asList(detail.missing).map(coverageLabel)
-      const disabled = asList(detail.disabled).map(coverageLabel)
-      const lines = []
-      if (missing.length) lines.push(`Not being recorded: ${missing.join(', ')}`)
-      if (disabled.length) lines.push(`Switched off: ${disabled.join(', ')}`)
-      return { title: 'Part of the recording is missing or has been switched off', lines, category: 'system' }
-    }
+    case 'coverage.gap':
+      return {
+        title: Array.isArray(detail.repointed) && detail.repointed.length
+          ? 'Part of the recording is missing, switched off or redirected'
+          : 'Part of the recording is missing or has been switched off',
+        lines: coverageLines(detail),
+        category: 'system',
+      }
+    case 'coverage.changed':
+      return {
+        title: 'The log’s own recording code has been changed since it was last accepted',
+        lines: ['Expected only straight after a database update or upgrade. Otherwise someone may have altered how things are recorded — tell whoever looks after the system.'],
+        category: 'system',
+      }
+    case 'manifest.accepted':
+      return {
+        title: 'The log’s recording code was accepted as genuine',
+        lines: [
+          ...(detail.reason ? [`Reason given: ${detail.reason}`] : []),
+          'Expected after a database update that changes how things are recorded. Otherwise it is worth asking who did this.',
+        ],
+        category: 'system',
+      }
     case 'capture.failures':
       return {
         title: `${upperFirst(count(detail.last_24h ?? '?', 'change', 'changes'))} could not be recorded in the last 24 hours`,
@@ -1381,7 +1704,7 @@ function describeSystem(entry, ctx) {
     default:
       return {
         title: `Log housekeeping: ${prettify(entry.action)}`,
-        lines: detail.note ? [String(detail.note)] : [],
+        lines: typeof detail.note === 'string' && detail.note ? [detail.note] : [],
         category: 'system',
       }
   }
@@ -1487,10 +1810,25 @@ function describeEvent(entry, ctx) {
     }
     case 'till.unlocked':
       return out(d.via === 'sign_in' ? 'Till unlocked by someone signing in' : 'Till unlocked with a PIN')
-    case 'till.unlocked_unverified':
-      return out('Till unlocked WITHOUT a PIN check', ['The PIN could not be checked (usually no connection), and someone chose to carry on'])
+    case 'till.unlocked_unverified': {
+      const after = 'What they did next is recorded as “said to be” them, not “PIN checked”'
+      if (d.reason === 'pin_locked') {
+        return out('Till unlocked WITHOUT a PIN check, after five wrong PINs had locked that PIN', [
+          'Someone chose “carry on without checking the PIN” while the PIN was locked out',
+          after,
+        ])
+      }
+      return out('Till unlocked WITHOUT a PIN check', [
+        d.reason === 'unreachable'
+          ? 'The PIN could not be checked (the server could not be reached), and someone chose to carry on'
+          : 'The PIN could not be checked (usually no connection), and someone chose to carry on',
+        after,
+      ])
+    }
     case 'till.lock_skipped_offline':
-      return out('Till stayed unlocked while idle because it was offline')
+      return out(d.reason === 'unreachable'
+        ? 'Till stayed unlocked while idle because it could not reach the server'
+        : 'Till stayed unlocked while idle because it was offline', ['A PIN cannot be checked then, so locking would only have stopped trade'])
     case 'pin_gate.cancelled':
       return out(`Backed out of the PIN check for ${purposeText(d.purpose ?? 'confirm')}`)
 
@@ -1644,8 +1982,13 @@ function describeEvent(entry, ctx) {
     case 'guests.viewed':
       return out(`Looked at the guest list${d.date ? ` for ${dateOnly(d.date)}` : ''}${has(d, 'guests') ? ` (${count(d.guests, 'guest')})` : ''}`)
 
-    case 'integrity.seal_mismatch_seen':
-      return out(`This till noticed its remembered seal${d.remembered ? ` (${d.remembered})` : ''} is no longer in the database`, ['History may have been rewritten, or the database was restored from a backup.'])
+    case 'integrity.seal_mismatch_seen': {
+      const which = d.remembered ? ` (${d.remembered})` : has(d, 'remembered_seal') && d.remembered_seal !== null ? ` (seal number ${num(d.remembered_seal)})` : ''
+      return out(`This till noticed its remembered seal${which} is no longer in the database`, [
+        'History may have been rewritten, or the database was restored from a backup.',
+        'The till has kept its own copy of that seal as evidence; it is listed at the top of the Log on that till.',
+      ])
+    }
 
     default:
       return out(`Till reported: ${prettify(entry.action) || 'something'}`)

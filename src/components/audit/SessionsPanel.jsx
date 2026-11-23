@@ -5,6 +5,8 @@ const END_WORDS = {
   sign_out: 'signed out',
   switch_user: 'switched to someone else',
   idle_lock: 'till locked itself',
+  manual_lock: 'till was locked',
+  unused_unlock: 'PIN accepted too late to unlock the till',
   close_day: 'day was closed',
   replaced: 'someone else signed in',
 }
