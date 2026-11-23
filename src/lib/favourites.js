@@ -7,7 +7,9 @@ import { useSyncStore } from '../stores/syncStore'
 const POPULAR_CACHE_KEY = 'till-popular-products'
 const POPULAR_WINDOW_DAYS = 7
 const POPULAR_MAX_AGE_MS = 6 * 60 * 60 * 1000
-const POPULAR_LIMIT = 14
+// More than any till shows at once: the Popular tab trims this to what fits
+// its screen without scrolling.
+const POPULAR_LIMIT = 30
 
 /**
  * Product ids ranked by units sold, best seller first.

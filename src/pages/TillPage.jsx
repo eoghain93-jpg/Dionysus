@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { ShoppingCart, Beer, GlassWater, Trash2, Banknote, Trophy, UserPlus, RotateCcw } from 'lucide-react'
 import { fetchProducts } from '../lib/products'
 import { fetchActivePromotions } from '../lib/promotions'
@@ -15,7 +15,7 @@ import { useSyncStore } from '../stores/syncStore'
 import { useSessionStore } from '../stores/sessionStore'
 import PinLoginScreen from '../components/till/PinLoginScreen'
 import CategoryFilter from '../components/till/CategoryFilter'
-import ProductGrid from '../components/till/ProductGrid'
+import ProductGrid, { TILE_MIN_HEIGHT, TILE_GAP } from '../components/till/ProductGrid'
 import OrderPanel from '../components/till/OrderPanel'
 import MemberLookup from '../components/till/MemberLookup'
 import WastageModal from '../components/till/WastageModal'
@@ -32,6 +32,8 @@ import { BOTTLE_BUNDLE_PROMO_NAME } from '../lib/bottleBundle'
 
 // How long the Undo prompt stays up after a tile tap.
 const UNDO_MS = 5000
+// The grid area's bottom padding (pb-3), left out when counting rows.
+const GRID_BOTTOM_PADDING = 12
 
 export default function TillPage() {
   const [products, setProducts] = useState([])
@@ -42,6 +44,10 @@ export default function TillPage() {
   const [usual, setUsual] = useState([])
   // The last tile tapped ({ id, name }), offered back as an Undo prompt.
   const [undo, setUndo] = useState(null)
+  // How many tiles the grid area can show without scrolling on THIS screen.
+  // The Popular tab is trimmed to it, so the till's main screen never scrolls.
+  const gridAreaRef = useRef(null)
+  const [gridCapacity, setGridCapacity] = useState(null)
   const [loading, setLoading] = useState(true)
   const [showWastage, setShowWastage] = useState(false)
   const [showStaffDrink, setShowStaffDrink] = useState(false)
@@ -75,6 +81,24 @@ export default function TillPage() {
     loadPromos(fetchActivePromotions)
     fetchPopularProductIds().then(setPopularIds)
   }, [])
+
+  useEffect(() => {
+    const area = gridAreaRef.current
+    if (!area || typeof ResizeObserver === 'undefined') return
+    const measure = () => {
+      // Columns match ProductGrid's breakpoints (grid-cols-2 / sm:3 / lg:4 / 2xl:5).
+      const width = window.innerWidth
+      const columns = width >= 1536 ? 5 : width >= 1024 ? 4 : width >= 640 ? 3 : 2
+      const height = area.clientHeight - GRID_BOTTOM_PADDING
+      const rows = Math.max(1, Math.floor((height + TILE_GAP) / (TILE_MIN_HEIGHT + TILE_GAP)))
+      setGridCapacity(rows * columns)
+    }
+    measure()
+    const observer = new ResizeObserver(measure)
+    observer.observe(area)
+    return () => observer.disconnect()
+    // activeStaff: the grid area only exists once someone is signed in.
+  }, [activeStaff?.id])
 
   // The Undo prompt clears itself a few seconds after the last tap.
   useEffect(() => {
@@ -193,10 +217,14 @@ export default function TillPage() {
   // Popular needs sales history; without any, the till opens on All instead.
   const showPopular = sorted.some(p => popularIds.includes(p.id))
   const activeCategory = category === 'popular' && !showPopular ? 'all' : category
+  // Deals take the first tiles; the best sellers fill what is left of one screen.
+  const dealCount = 1 + (bottleBundleEnabled ? 1 : 0)
+  const onSale = popularIds.filter(id => sorted.some(p => p.id === id))
+  const popularFit = gridCapacity ? onSale.slice(0, Math.max(1, gridCapacity - dealCount)) : onSale
   const filtered = activeCategory === 'all'
     ? sorted
     : activeCategory === 'popular'
-      ? sorted.filter(p => popularIds.includes(p.id))
+      ? sorted.filter(p => popularFit.includes(p.id))
       : sorted.filter(p => p.category === activeCategory)
 
   // Bundle deals sit in the grid as tiles, ahead of the products.
@@ -259,6 +287,10 @@ export default function TillPage() {
     onAddUsual: handleAddUsual,
     onSameAgain: handleSameAgain,
     onFixPayment: () => setShowRecentSales(true),
+    // On tablet and up the Undo prompt lives in the order panel, so it never
+    // covers a tile; phones (no side panel) get a floating one instead.
+    undo,
+    onUndo: handleUndo,
   }
 
   return (
@@ -277,7 +309,7 @@ export default function TillPage() {
         <div className="px-4 md:px-6 pb-3">
           <CategoryFilter active={activeCategory} onChange={setCategory} showPopular={showPopular} />
         </div>
-        <div className="flex-1 min-h-0 overflow-auto px-4 md:px-6 pb-3">
+        <div ref={gridAreaRef} className="flex-1 min-h-0 overflow-auto scrollbar-hide px-4 md:px-6 pb-3">
           {loading ? (
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-5 gap-2.5">
               {Array.from({ length: 12 }).map((_, i) => (
@@ -301,7 +333,7 @@ export default function TillPage() {
         {undo && (
           <div
             role="status"
-            className="absolute left-1/2 -translate-x-1/2 bottom-[152px] md:bottom-[92px] z-20 flex items-center gap-3
+            className="md:hidden absolute left-1/2 -translate-x-1/2 bottom-[152px] z-20 flex items-center gap-3
               pl-5 pr-1.5 py-1.5 rounded-2xl bg-slate-100 text-[#121314] shadow-2xl whitespace-nowrap"
           >
             <span className="text-base font-bold">Added {undo.name}</span>

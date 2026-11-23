@@ -19,9 +19,11 @@ function initials(name) {
  * @param {function} [onAddUsual]
  * @param {function} [onSameAgain] - repeat the last completed sale
  * @param {function} [onFixPayment] - open the recent-sales screen
+ * @param {object}   [undo]        - the last tile tapped ({ name }), offered back
+ * @param {function} [onUndo]
  */
 export default function OrderPanel({
-  onCheckout, onClose, products = [], usual = [], onAddUsual, onSameAgain, onFixPayment,
+  onCheckout, onClose, products = [], usual = [], onAddUsual, onSameAgain, onFixPayment, undo, onUndo,
 }) {
   const {
     orderItems, activeMember, activeMemberTab, clearMember, updateQuantity, getTotal, clearOrder,
@@ -268,6 +270,18 @@ export default function OrderPanel({
       </div>
 
       <div className="border-t border-slate-800 px-4 pt-3.5 pb-4 flex flex-col gap-2.5">
+        {undo && onUndo && (
+          <div role="status" className="hidden md:flex items-center gap-3 rounded-2xl bg-slate-100 text-[#121314] pl-4 pr-1.5 py-1.5">
+            <span className="flex-1 min-w-0 truncate text-base font-bold">Added {undo.name}</span>
+            <button
+              onClick={onUndo}
+              className="min-h-[44px] px-5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-base
+                font-extrabold cursor-pointer transition-colors"
+            >
+              Undo
+            </button>
+          </div>
+        )}
         {hasItems && saving > 0.001 && (
           <div className="flex justify-between text-emerald-300 text-[15px] font-bold">
             <span>Member saving</span>
