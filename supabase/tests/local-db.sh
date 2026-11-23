@@ -113,8 +113,10 @@ alter database dionysus_test set search_path = public, extensions;
 SQL
     fail=0
     for f in "$ROOT"/supabase/migrations/*.sql; do
+      # -1: each file in ONE transaction, as the real migration runner does
+      # (so SET LOCAL, LOCK TABLE and all-or-nothing behave as in production).
       if ! grep -viE '^\s*create extension if not exists (pg_net|pg_cron)' "$f" \
-           | "${PSQL[@]}" -q -d "$DB" -f - >"$PGDIR/last.out" 2>&1; then
+           | "${PSQL[@]}" -q -1 -d "$DB" -f - >"$PGDIR/last.out" 2>&1; then
         echo "MIGRATION FAILED: $(basename "$f")"; cat "$PGDIR/last.out"; fail=1; break
       fi
     done

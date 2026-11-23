@@ -982,13 +982,24 @@ update auditlog.settings set capture_enabled = true;
 
 select auditlog.seal();
 select auditlog.erase_member_data(:'mo', 'erasure request') as erased \gset
-select t.ok(:erased >= 3, 'member entries erased');
+select t.ok(:erased >= 2, 'member entries holding personal details are erased');
 select t.ok(not exists (select 1 from auditlog.log l where l.table_name = 'members' and l.row_pk = :'mo'
                           and (l.new_data::text like '%07700%' or l.old_data::text like '%07700%' or l.new_data::text like '%mo@example%')),
   'personal details are gone from the log');
 select t.ok(exists (select 1 from auditlog.log l where l.table_name = 'members' and l.row_pk = :'mo' and l.changed = array['tab_balance']
                       and l.new_data ? 'tab_balance'), 'non-personal history (tab balance) is kept');
 select t.ok((auditlog.verify() ->> 'ok')::boolean, 'the log still verifies after an erasure');
+select t.ok(exists (select 1 from auditlog.log l where l.table_name = 'members' and l.row_pk = :'mo' and l.changed = array['tab_balance']
+                      and l.erased_at is null), 'entries with no personal details are left exactly as sealed');
+select t.ok((select jsonb_object_agg(k, 1) is not null from jsonb_object_keys(t.entry('system', 'privacy.erased_rows') -> 'detail' -> 'rows') k),
+  'what each erased entry now says is recorded, so it can still be checked');
+begin;
+alter table auditlog.log disable trigger append_only;
+update auditlog.log set new_data = jsonb_set(new_data, '{membership_tier}', '"staff"')
+ where seq = (select min(seq) from auditlog.log where erased_at is not null and new_data ? 'membership_tier');
+select t.ok(exists (select 1 from jsonb_array_elements(auditlog.verify() -> 'problems') p where p ->> 'problem' = 'erased_row_content_changed'),
+  'changing an erased entry afterwards is detected');
+rollback;
 select t.ok((t.entry('system', 'privacy.erased') -> 'detail' ->> 'reason') = 'erasure request', 'the erasure is itself recorded');
 select t.ok(t.n('system', 'audit.installed') = 1, 'the first entry marks where recording began');
 
@@ -1143,6 +1154,83 @@ select t.ok(auditlog.attach_all() = 1, 'attach picks up just the new table');
 insert into public.zz_new_thing (note) values ('hello');
 select t.ok(t.n('row', 'insert', 'zz_new_thing') = 1 and auditlog.coverage() -> 'missing' = '[]'::jsonb, 'and it is then recorded');
 drop table public.zz_new_thing;
+
+-- ── Fixes from the re-test ───────────────────────────────────────────────
+
+-- A new member cannot arrive from a till with a PIN, a balance or a login link already set.
+begin;
+select t.req('till1', 'POST', '/members', :'kim_token');
+insert into members (id, name, membership_number, membership_tier, pin_hash, tab_balance)
+values ('5a000000-0000-0000-0000-0000000000f1', 'Fake Staff', 'S999', 'staff', extensions.crypt('1111', extensions.gen_salt('bf', 4)), 50);
+commit;
+select t.ok((select pin_hash is null and tab_balance = 0 from members where id = '5a000000-0000-0000-0000-0000000000f1'),
+  'protected fields are blanked on a member inserted from a till');
+select t.ok((t.entry('guard', 'blocked.insert', 'members') -> 'changed') = '["pin_hash", "tab_balance"]'::jsonb
+            and (t.entry('guard', 'blocked.insert', 'members') -> 'new_data' ->> 'pin_hash') = '[redacted]', 'and the attempt is recorded');
+select t.ok(t.has_flag(t.entry('row', 'insert', 'members'), 'staff_created')
+            and (t.entry('row', 'insert', 'members') ->> 'severity')::int = 2, 'a staff member created directly is an alert');
+-- The app's own member form (no protected fields) is untouched.
+begin;
+select t.req('till1', 'POST', '/members', :'kim_token');
+insert into members (name, membership_number, membership_tier, phone, active) values ('New Member', 'M777', 'member', '07700 900777', true);
+commit;
+select t.ok(t.n('guard', 'blocked.insert', 'members') = 1 and exists (select 1 from members where membership_number = 'M777'),
+  'an ordinary new member from the till is not interfered with');
+
+-- The lines of a replayed sale carry the same "who" as the sale.
+begin;
+select t.req('till1', 'POST', '/rpc/create_order_with_items', :'kim_token');
+select create_order_with_items(
+  jsonb_build_object('id', 'c0000000-0000-0000-0000-0000000000e1', 'payment_method', 'cash', 'total_amount', 1.10,
+    'till_id', 'till-1', 'created_at', now() - interval '2 hours'),
+  jsonb_build_array(jsonb_build_object('product_id', :'crisps', 'quantity', 1, 'unit_price', 1.10)));
+commit;
+select t.ok((t.entry('row', 'insert', 'orders') ->> 'staff_trust') = 'none' and (t.entry('row', 'insert', 'orders') ->> 'staff_id') is null
+            and (t.entry('row', 'insert', 'order_items') ->> 'staff_trust') = 'none' and (t.entry('row', 'insert', 'order_items') ->> 'staff_id') is null,
+  'an old queued sale and its lines are not credited to whoever happened to send them');
+
+-- Price log pass-through: each row of a multi-row insert keeps its own value; an upsert keeps it too.
+begin;
+select t.req('till1', 'POST', '/products');
+insert into products (id, name, category, standard_price, member_price, changed_by) values
+  ('b0000000-0000-0000-0000-0000000000b1', 'Multi One', 'food', 1, 1, '5a000000-0000-0000-0000-000000000002'),
+  ('b0000000-0000-0000-0000-0000000000b2', 'Multi Two', 'food', 2, 2, '5a000000-0000-0000-0000-000000000001'),
+  ('b0000000-0000-0000-0000-0000000000b3', 'Multi Three', 'food', 3, 3, null);
+commit;
+select t.ok((select staff_id from product_price_changes where product_id = 'b0000000-0000-0000-0000-0000000000b1') = :'kim'
+            and (select staff_id from product_price_changes where product_id = 'b0000000-0000-0000-0000-0000000000b2') = :'sam'
+            and (select staff_id from product_price_changes where product_id = 'b0000000-0000-0000-0000-0000000000b3') is null,
+  'a multi-row insert keeps each product''s own changed-by');
+begin;
+select t.req('till1', 'POST', '/products');
+insert into products (id, name, category, standard_price, member_price, changed_by)
+values ('b0000000-0000-0000-0000-0000000000b1', 'Multi One', 'food', 1.50, 1, '5a000000-0000-0000-0000-000000000001')
+on conflict (id) do update set standard_price = excluded.standard_price;
+commit;
+select t.ok((select staff_id from product_price_changes where product_id = 'b0000000-0000-0000-0000-0000000000b1' and old_standard_price = 1) = :'sam',
+  'an upsert keeps its changed-by');
+select t.ok(not exists (select 1 from products where changed_by is not null), 'the pass-through column never persists');
+
+-- Adding a table the documented way does not change the code fingerprint.
+create table public.zz_guide_table (id uuid primary key default gen_random_uuid(), note text);
+select auditlog.attach_all();
+select t.ok(auditlog.manifest() = (select digest from auditlog.manifests order by id desc limit 1),
+  'attaching to a new table leaves the fingerprint unchanged');
+drop table public.zz_guide_table;
+select t.ok(auditlog.manifest() = (select digest from auditlog.manifests order by id desc limit 1), 'so does dropping a table');
+begin;
+drop trigger aa_audit_guard on public.orders;
+create trigger aa_audit_guard before delete on public.orders for each row when (false) execute function auditlog.guard_ledger('no_delete', 'id');
+select t.ok(auditlog.manifest() <> (select digest from auditlog.manifests order by id desc limit 1), 'a guard quietly weakened with WHEN (false) does change it');
+rollback;
+
+-- The settings row cannot be swapped out, and protection being off is reported nightly.
+select t.ok(t.refused($$delete from auditlog.settings$$) and t.refused($$truncate auditlog.settings$$), 'the settings row cannot be removed');
+begin;
+update auditlog.settings set guards_enforced = false;
+select auditlog.nightly();
+select t.ok((t.entry('system', 'settings.protection_off') ->> 'severity')::int = 3, 'guards left switched off are reported every night');
+rollback;
 
 -- ── Done ─────────────────────────────────────────────────────────────────
 
