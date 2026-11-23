@@ -1,7 +1,7 @@
 // Price change log.
 //
 // Rows are written ONLY by the products_log_price_change database trigger
-// (migration 20261122120000) — every change to a product's standard or
+// (migration 20261123110000) — every change to a product's standard or
 // member price lands here whatever made it, so there is nothing to call
 // from the client when saving a product. This module just reads the log.
 import { supabase } from './supabase'

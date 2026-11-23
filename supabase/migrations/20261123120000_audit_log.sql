@@ -1,7 +1,7 @@
 -- Fort Knox: a tamper-evident audit log of everything.
 --
 -- Background: a price was changed by an unknown person and nothing recorded
--- who, when, or what it used to be. 20261122120000 fixed that one case
+-- who, when, or what it used to be. 20261123110000 fixed that one case
 -- (price change log, staff on orders). This migration closes the general
 -- problem: EVERY change to EVERY table, every staff sign-in and PIN attempt,
 -- and every sensitive action at the till that writes no row (a line removed
@@ -586,7 +586,7 @@ as $$
     when p_table = 'members' and p_row ? 'pin_hash' then
       jsonb_set(p_row, '{pin_hash}',
         case when p_row -> 'pin_hash' = 'null'::jsonb then 'null'::jsonb else '"[redacted]"'::jsonb end)
-    -- changed_by is a write-only pass-through (see 20261122120000), never state.
+    -- changed_by is a write-only pass-through (see 20261123110000), never state.
     when p_table = 'products' then p_row - 'changed_by'
     else p_row
   end
@@ -2560,7 +2560,7 @@ begin
   end if;
 end $$;
 
--- The price change log (20261122120000), reworked:
+-- The price change log (20261123110000), reworked:
 --
 --   * Its staff member now comes from the PIN session on the request when
 --     there is one (server-verified), and only falls back to the id the
