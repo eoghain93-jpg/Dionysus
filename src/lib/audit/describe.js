@@ -1914,6 +1914,8 @@ function describeEvent(entry, ctx) {
       if (who) extra.push(`Member on the order: ${who}`)
       return out(`Cleared a whole order before payment: ${count(d.lines ?? items.length, 'line')}${has(d, 'value') ? ` worth ${money(d.value)}` : ''}`, extra)
     }
+    case 'cart.item_undone':
+      return out(`Undid the last tap: took 1 × ${d.product ?? 'an item'} back off the order`)
     case 'cart.order_parked':
     case 'cart.order_resumed': {
       const items = asList(d.items).filter(isObj)

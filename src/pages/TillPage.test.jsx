@@ -34,7 +34,9 @@ vi.mock('../lib/members', () => ({ findMemberByNumber: vi.fn().mockResolvedValue
 // down); every child is a stub with just enough buttons to drive them.
 vi.mock('../components/till/PinLoginScreen', () => ({ default: () => <div data-testid="pin-login" /> }))
 vi.mock('../components/till/CategoryFilter', () => ({ default: () => null }))
-vi.mock('../components/till/ProductGrid', () => ({ default: () => null }))
+vi.mock('../components/till/ProductGrid', () => ({
+  default: ({ onAdded }) => <button onClick={() => onAdded({ id: 'p1', name: 'Guinness' })}>Tap Guinness tile</button>,
+}))
 vi.mock('../components/till/MemberLookup', () => ({ default: () => null }))
 vi.mock('../components/till/MembersOnlyToggle', () => ({ default: () => null }))
 vi.mock('../components/till/WastageModal', () => ({ default: () => null }))
@@ -48,8 +50,9 @@ vi.mock('../components/till/RecentSalesModal', () => ({
   default: () => <div data-testid="recent-sales" />,
 }))
 vi.mock('../components/till/OrderPanel', () => ({
-  default: ({ onCheckout }) => (
+  default: ({ onCheckout, undo, onUndo }) => (
     <div>
+      {undo && <button onClick={onUndo}>Undo {undo.name}</button>}
       <button onClick={() => onCheckout('card')}>Pay Card</button>
       <button onClick={() => onCheckout('cash')}>Pay Cash</button>
       <button onClick={() => onCheckout('tab')}>Pay Tab</button>
@@ -221,6 +224,20 @@ describe('TillPage — blocked tab', () => {
     logEvent.mockClear()
     await pay('Card')
     expect(eventsOfType('tab.sale_refused_blocked')).toEqual([])
+  })
+})
+
+describe('TillPage — undo', () => {
+  it('logs the drink taken back off the order by Undo', async () => {
+    renderTill()
+    const tile = (await screen.findAllByRole('button', { name: 'Tap Guinness tile' }))[0]
+    logEvent.mockClear()
+    fireEvent.click(tile)
+    expect(logEvent).not.toHaveBeenCalled() // adding is not an event; the sale records it
+    fireEvent.click(screen.getAllByRole('button', { name: 'Undo Guinness' })[0])
+    expect(logEvent.mock.calls).toEqual([
+      ['cart.item_undone', { product: 'Guinness', product_id: 'p1' }],
+    ])
   })
 })
 

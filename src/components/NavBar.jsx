@@ -169,14 +169,14 @@ export default function NavBar() {
   return (
     <>
       {/* Sidebar — tablet/desktop (shows all links) */}
-      <nav className="hidden md:flex flex-col items-center w-[88px] bg-slate-950 px-2 pt-4 pb-3 gap-1 shrink-0 overflow-y-auto">
+      <nav className="hidden md:flex flex-col items-center w-[88px] bg-slate-950 px-2 pt-3 pb-3 gap-1 shrink-0 overflow-y-auto overflow-x-hidden scrollbar-hide">
         {allLinks.map(({ to, label, Icon }) => (
           <NavLink
             key={to}
             to={to}
             end={to === '/'}
             className={({ isActive }) =>
-              `w-[72px] min-h-[62px] [@media(max-height:860px)]:min-h-[54px] shrink-0 flex flex-col items-center justify-center gap-1 rounded-2xl text-[13px]
+              `w-[72px] flex-1 min-h-[48px] max-h-[62px] flex flex-col items-center justify-center gap-0.5 rounded-2xl text-[13px]
                transition-colors duration-200 cursor-pointer
                ${isActive
                  ? 'bg-blue-600 text-white font-bold'
@@ -193,10 +193,10 @@ export default function NavBar() {
         {activeStaff && (
           // Pinned to the bottom of the rail: on a short screen the links
           // above scroll, but Lock and Sign out can never be out of reach.
-          <div className="mt-auto sticky bottom-0 -mb-3 pt-3 pb-3 bg-slate-950 flex flex-col items-center gap-1">
+          <div className="mt-auto sticky bottom-0 -mb-3 pt-2 pb-3 bg-slate-950 flex flex-col items-center gap-1 shrink-0">
             <button
               onClick={openDavey}
-              className="w-[72px] min-h-[56px] [@media(max-height:860px)]:min-h-[48px] flex flex-col items-center justify-center gap-1 rounded-2xl text-[13px] font-semibold
+              className="w-[72px] min-h-[48px] flex flex-col items-center justify-center gap-0.5 rounded-2xl text-[13px] font-semibold
                 text-slate-400 hover:bg-slate-800 hover:text-white transition-colors duration-200 cursor-pointer
                 focus:outline-none focus:ring-2 focus:ring-blue-500"
               aria-label="Davey mode"
@@ -206,7 +206,7 @@ export default function NavBar() {
             </button>
             <button
               onClick={() => setShowSwitch(true)}
-              className="w-[72px] min-h-[68px] [@media(max-height:860px)]:min-h-[60px] flex flex-col items-center justify-center gap-1 rounded-2xl text-[13px] font-semibold
+              className="w-[72px] min-h-[60px] flex flex-col items-center justify-center gap-0.5 rounded-2xl text-[13px] font-semibold
                 border border-slate-700 text-slate-100 hover:bg-slate-800 transition-colors duration-200 cursor-pointer
                 focus:outline-none focus:ring-2 focus:ring-blue-500"
               aria-label="Switch user"
@@ -221,7 +221,7 @@ export default function NavBar() {
               <button
                 onClick={handleLock}
                 title="Lock"
-                className="flex-1 min-h-[52px] flex items-center justify-center rounded-2xl
+                className="flex-1 min-h-[48px] flex items-center justify-center rounded-2xl
                   border border-slate-700 text-slate-100 hover:bg-slate-800 transition-colors duration-200 cursor-pointer
                   focus:outline-none focus:ring-2 focus:ring-blue-500"
                 aria-label="Lock till"
@@ -232,7 +232,7 @@ export default function NavBar() {
                 onClick={handleSignOut}
                 disabled={signingOut}
                 title="Sign out"
-                className="flex-1 min-h-[52px] flex items-center justify-center rounded-2xl
+                className="flex-1 min-h-[48px] flex items-center justify-center rounded-2xl
                   border border-slate-700 text-slate-100 hover:bg-slate-800 transition-colors duration-200 cursor-pointer
                   focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
                 aria-label="Sign out"
