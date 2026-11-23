@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { auditFetch, probeAuditHeaders, setAuditHeadersEnabled, auditHeadersEnabled } from './fetch'
 import { setStaffSession, clearStaffSession } from './staffSession'
+import { markReached, markUnreachable, serverUnreachable, answersSeen } from './reachability'
 
 const REST = 'https://proj.supabase.co/rest/v1/orders?select=*'
 const RPC = 'https://proj.supabase.co/rest/v1/rpc/create_order_with_items'
@@ -68,6 +69,72 @@ describe('auditFetch', () => {
     setAuditHeadersEnabled(true)
     await auditFetch({ not: 'a url' }, undefined)
     expect(fetch).toHaveBeenCalledTimes(1)
+  })
+})
+
+// How the till learns the server is back after an outage (./reachability.js).
+describe('auditFetch — noting that the server answered', () => {
+  beforeEach(() => markUnreachable())
+  afterEach(() => markReached())
+
+  it('notes an answer to a database write or function call', async () => {
+    await auditFetch(RPC, { method: 'POST', headers: { apikey: 'k' } })
+    expect(serverUnreachable()).toBe(false)
+  })
+
+  it('notes it whether or not the audit headers are switched on', async () => {
+    setAuditHeadersEnabled(true)
+    await auditFetch(REST, { method: 'PATCH' })
+    expect(serverUnreachable()).toBe(false)
+  })
+
+  it('any HTTP answer counts, even an error from a database that lacks the function', async () => {
+    fetch.mockResolvedValueOnce(new Response('{}', { status: 404 }))
+    await auditFetch(RPC, { method: 'POST' })
+    expect(serverUnreachable()).toBe(false)
+  })
+
+  it('does not count a read: the service worker can answer a GET from its cache on a dead line', async () => {
+    await auditFetch(REST, { method: 'GET' })
+    await auditFetch(REST, {})
+    await auditFetch(REST)
+    expect(serverUnreachable()).toBe(true)
+  })
+
+  it('does not count edge function or auth requests', async () => {
+    await auditFetch(FN, { method: 'POST' })
+    await auditFetch(AUTH, { method: 'POST' })
+    expect(serverUnreachable()).toBe(true)
+  })
+
+  it('hands the caller the very promise fetch returned, with the same request', async () => {
+    const init = { method: 'POST', headers: { apikey: 'k' } }
+    const response = new Response('{}')
+    const promise = Promise.resolve(response)
+    fetch.mockReturnValueOnce(promise)
+
+    const returned = auditFetch(RPC, init)
+
+    expect(returned).toBe(promise)
+    expect(await returned).toBe(response)
+    expect(fetch).toHaveBeenCalledWith(RPC, init)
+  })
+
+  it('a request that fails still rejects for the caller with the same error, and nothing is noted', async () => {
+    const failure = new TypeError('Failed to fetch')
+    fetch.mockRejectedValueOnce(failure)
+    const before = answersSeen()
+
+    await expect(auditFetch(RPC, { method: 'POST' })).rejects.toBe(failure)
+
+    expect(serverUnreachable()).toBe(true)
+    expect(answersSeen()).toBe(before)
+  })
+
+  it('never throws because of the note-taking', () => {
+    fetch.mockReturnValueOnce(undefined) // not even a promise
+    expect(auditFetch(RPC, { method: 'POST' })).toBeUndefined()
+    expect(serverUnreachable()).toBe(true)
   })
 })
 

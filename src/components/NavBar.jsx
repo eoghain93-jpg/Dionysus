@@ -5,6 +5,7 @@ import { useSessionStore } from '../stores/sessionStore'
 import { useToastStore } from '../hooks/useToast'
 import { lockTill } from '../hooks/useIdleLock'
 import { logEvent } from '../lib/audit/log'
+import { serverUnreachable, markUnreachable, answersSeen } from '../lib/audit/reachability'
 import SwitchUserModal from './till/SwitchUserModal'
 import DaveyMode from './ui/DaveyMode'
 
@@ -39,11 +40,25 @@ function StripesIcon({ size }) {
   )
 }
 
-// Signing out tells the server first (it ends the session whose token is on
-// the request), so the token must still be attached when that request leaves.
-// But a slow connection must not hold the till: after this long the till
-// signs out regardless and the server session is left to expire.
+// Signing out tells the server first, and only goes ahead once the server has
+// answered: a signed-out till needs the server to sign anyone back in, so
+// signing out into a dead connection would leave a login nobody can pass.
+// A slow connection must not hold the till either: after this long with no
+// answer the sign-out is called off and the person is told to use Lock.
 const SIGN_OUT_WAIT_MS = 3000
+
+const NO_SERVER_TOAST = 'Can’t reach the server — nobody could sign back in. Use Lock instead.'
+
+// Ask the database anything. The answer itself is not used: the fetch wrapper
+// notes that the server answered (lib/audit/reachability.js), and a database
+// that has no audit_ping yet still answers. Loaded on demand so the nav bar
+// never drags the Supabase client into a module that has no need of it.
+async function askServer() {
+  try {
+    const { supabase } = await import('../lib/supabase')
+    await supabase.rpc('audit_ping')
+  } catch { /* no answer */ }
+}
 
 export default function NavBar() {
   const { activeStaff } = useSessionStore()
@@ -58,7 +73,8 @@ export default function NavBar() {
     setShowDavey(true)
   }
 
-  // Lock: the till keeps the person and the open order; a PIN carries on.
+  // Lock: the till keeps the open order and shows whose it is; their PIN
+  // carries on. It ends their server session (see useIdleLock.lockTill).
   function handleLock() {
     setShowMore(false)
     lockTill('manual')
@@ -67,28 +83,44 @@ export default function NavBar() {
   async function handleSignOut() {
     if (signingOut) return
     setShowMore(false)
-    // Nobody can sign back in without a connection (a PIN cannot be checked
-    // offline), so signing out now would leave the till unusable. Lock
-    // still works offline.
+    // Nobody can sign back in without the server (a PIN cannot be checked),
+    // so signing out now would leave the till unusable. Lock still works:
+    // its screen lets the same person carry on, on the record.
     if (navigator.onLine === false) {
       useToastStore.getState().addToast('Offline — nobody could sign back in. Use Lock instead.', 'error')
       return
     }
+    if (serverUnreachable()) {
+      useToastStore.getState().addToast(NO_SERVER_TOAST, 'error')
+      askServer() // if it is back after all, the next tap goes through
+      return
+    }
     setSigningOut(true)
+    const before = answersSeen()
     try {
-      // Loaded on demand (as log.js loads the client) so the nav bar itself
-      // never drags the Supabase client into a module that has no need of it.
-      const { signOutStaff } = await import('../lib/audit/staff')
       await Promise.race([
-        signOutStaff('sign_out'), // never rejects; the server records the sign-out
+        (async () => {
+          const { signOutStaff } = await import('../lib/audit/staff')
+          await signOutStaff('sign_out') // never rejects; the server records the sign-out
+          // No answer to that — or nothing was asked, because no server
+          // session was open (after an unchecked carry-on): ask outright.
+          if (answersSeen() === before) await askServer()
+        })(),
         new Promise(resolve => setTimeout(resolve, SIGN_OUT_WAIT_MS)),
       ])
     } catch {
-      // signing out on this till must happen whatever went wrong above
-    } finally {
-      setSigningOut(false)
-      useSessionStore.getState().clearSession()
+      // treated below as no answer
     }
+    setSigningOut(false)
+    if (answersSeen() === before) {
+      // The browser says online but the server did not answer (the usual
+      // outage: broadband down, Wi-Fi up). Stay signed in. Remembered, so
+      // the till also stops auto-locking until the server is back.
+      markUnreachable()
+      useToastStore.getState().addToast(NO_SERVER_TOAST, 'error')
+      return
+    }
+    useSessionStore.getState().clearSession()
   }
 
   const moreIsActive = moreLinks.some(l => location.pathname === l.to)
@@ -274,7 +306,7 @@ export default function NavBar() {
         </button>
       )}
 
-      {/* Covers the till for the moment it takes the server to end the session */}
+      {/* Covers the till for the moment it takes the server to answer */}
       {signingOut && (
         <div
           role="status"

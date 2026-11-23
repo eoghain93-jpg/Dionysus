@@ -82,7 +82,9 @@ describe('sessionStore', () => {
     expect(useSessionStore.getState().activeStaff).toEqual({ id: 'staff-1', name: 'Alice' })
   })
 
-  it('lock does not touch the server session token', () => {
+  // The store's lock() only flips the flag. Ending the server session is
+  // lockTill's job (hooks/useIdleLock.js), which is how the app locks.
+  it('lock() itself leaves the server session token to lockTill', () => {
     setStaffSession({ id: 'sess-1', token: 'tok-1', staffId: 'staff-1', trust: 'pin' })
     useSessionStore.getState().setActiveStaff({ id: 'staff-1', name: 'Alice' })
     useSessionStore.getState().lock()

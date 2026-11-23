@@ -1,11 +1,17 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { renderHook, fireEvent } from '@testing-library/react'
 
-vi.mock('../lib/audit/log', () => ({ logEvent: vi.fn() }))
+const { mockSignOut, mockRpc } = vi.hoisted(() => ({ mockSignOut: vi.fn(), mockRpc: vi.fn() }))
 
-import { useIdleLock, lockTill, idleLockMinutes, IDLE_LOCK_KEY } from './useIdleLock'
+vi.mock('../lib/audit/log', () => ({ logEvent: vi.fn() }))
+vi.mock('../lib/audit/staff', () => ({ signOutStaff: mockSignOut }))
+vi.mock('../lib/supabase', () => ({ supabase: { rpc: mockRpc } }))
+
+import { useIdleLock, lockTill, idleLockMinutes, IDLE_LOCK_KEY, __forgetOwedSignOut } from './useIdleLock'
 import { useSessionStore } from '../stores/sessionStore'
 import { logEvent } from '../lib/audit/log'
+import { setStaffSession, getStaffSession, getStaffToken } from '../lib/audit/staffSession'
+import { markReached, markUnreachable } from '../lib/audit/reachability'
 
 const MIN = 60_000
 const ALICE = { id: 'staff-1', name: 'Alice' }
@@ -16,18 +22,33 @@ function setNavigatorOnline(value) {
 
 const isLocked = () => useSessionStore.getState().locked
 const eventsOfType = type => logEvent.mock.calls.filter(c => c[0] === type)
+const signIn = (id = 'sess-1') => setStaffSession({ id, token: `tok-${id}`, staffId: 'staff-1', trust: 'pin' })
+
+// In the app the fetch wrapper notes every answer the server gives to a
+// database write (lib/audit/reachability.js). Here the server is the mocks,
+// so they do the noting.
+const answers = async () => { markReached() }
+const noAnswer = async () => {}
+const lateSignOuts = () => mockRpc.mock.calls.filter(c => c[0] === 'staff_sign_out')
 
 beforeEach(() => {
   vi.useFakeTimers()
   vi.clearAllMocks()
+  mockSignOut.mockReset().mockImplementation(answers)
+  mockRpc.mockReset().mockImplementation(answers)
+  __forgetOwedSignOut()
   localStorage.clear()
   setNavigatorOnline(true)
+  markReached()
+  setStaffSession(null)
   useSessionStore.setState({ activeStaff: ALICE, locked: false })
 })
 
 afterEach(() => {
   vi.useRealTimers()
   setNavigatorOnline(true)
+  markReached()
+  setStaffSession(null)
   useSessionStore.setState({ activeStaff: null, locked: false })
 })
 
@@ -72,6 +93,125 @@ describe('lockTill', () => {
     expect(lockTill('idle')).toBe(false)
     expect(isLocked()).toBe(false)
     expect(logEvent).not.toHaveBeenCalled()
+  })
+
+  // ── A lock ends the server session ─────────────────────────────────────────
+  it.each([
+    ['idle', 'idle_lock'],
+    ['manual', 'manual_lock'],
+  ])('a lock (%s) ends the server session, told as "%s", and forgets its token', async (reason, told) => {
+    signIn()
+    let tokenWhenServerWasTold
+    mockSignOut.mockImplementation(async () => { tokenWhenServerWasTold = getStaffToken(); markReached() })
+
+    expect(lockTill(reason)).toBe(true)
+    expect(isLocked()).toBe(true) // at once: nothing below can hold the lock up
+
+    await vi.waitFor(() => expect(mockSignOut).toHaveBeenCalledTimes(1))
+    expect(mockSignOut).toHaveBeenCalledWith(told)
+    expect(tokenWhenServerWasTold).toBe('tok-sess-1') // still in hand for the server call
+    expect(getStaffSession()).toBeNull()
+    expect(getStaffToken()).toBeNull()
+    // whose till it is stays on show
+    expect(useSessionStore.getState().activeStaff).toEqual(ALICE)
+  })
+
+  it('forgets the token without waiting for the server to answer', async () => {
+    signIn()
+    mockSignOut.mockReturnValue(new Promise(() => {})) // the server never answers
+    lockTill('idle')
+    await vi.waitFor(() => expect(getStaffToken()).toBeNull())
+  })
+
+  it('forgets the token even if telling the server blows up', async () => {
+    signIn()
+    mockSignOut.mockImplementation(() => { throw new Error('boom') })
+    expect(lockTill('manual')).toBe(true)
+    await vi.waitFor(() => expect(getStaffToken()).toBeNull())
+    expect(isLocked()).toBe(true)
+  })
+
+  it('never forgets a session opened since the lock', async () => {
+    signIn('sess-1')
+    mockSignOut.mockImplementation(async () => { signIn('sess-2') }) // someone signed in meanwhile
+    lockTill('idle')
+    await vi.waitFor(() => expect(mockSignOut).toHaveBeenCalled())
+    expect(getStaffSession()?.id).toBe('sess-2')
+  })
+
+  it('has nothing to tell the server when no session was open', async () => {
+    expect(lockTill('idle')).toBe(true)
+    await vi.advanceTimersByTimeAsync(100)
+    expect(mockSignOut).not.toHaveBeenCalled()
+  })
+
+  it('does not end the session when it did not lock', async () => {
+    signIn()
+    useSessionStore.setState({ locked: true })
+    expect(lockTill('manual')).toBe(false)
+    await vi.advanceTimersByTimeAsync(100)
+    expect(mockSignOut).not.toHaveBeenCalled()
+    expect(getStaffToken()).toBe('tok-sess-1')
+  })
+})
+
+// The server still counts a session as open until it is told otherwise, and
+// would go on matching that person's work to it after an unchecked carry-on.
+describe('a lock the server did not hear about', () => {
+  // The till locks with the server not answering, and someone carries on
+  // without the PIN: unlocked again, no session, "unreachable" remembered.
+  async function lockUnheardThenCarryOn() {
+    signIn()
+    mockSignOut.mockImplementation(noAnswer)
+    renderHook(() => useIdleLock(true))
+    lockTill('idle')
+    await vi.waitFor(() => expect(getStaffToken()).toBeNull())
+    markUnreachable() // the lock screen's PIN check got no answer either
+    useSessionStore.getState().unlock()
+  }
+
+  it('is told to the server as soon as it answers again, with the ended session\'s own token', async () => {
+    await lockUnheardThenCarryOn()
+    await vi.advanceTimersByTimeAsync(2 * MIN)
+    expect(lateSignOuts()).toHaveLength(0) // not while the server is known to be away
+
+    markReached() // any database write got an answer
+    await vi.advanceTimersByTimeAsync(30_000) // the next look
+    await vi.waitFor(() => expect(lateSignOuts()).toHaveLength(1))
+    expect(mockRpc).toHaveBeenCalledWith('staff_sign_out', { p_reason: 'idle_lock', p_token: 'tok-sess-1' })
+    expect(getStaffToken()).toBeNull() // told in the request body only: nothing is signed back in
+
+    await vi.advanceTimersByTimeAsync(2 * MIN)
+    expect(lateSignOuts()).toHaveLength(1) // once heard, never again
+  })
+
+  it('keeps trying while there is still no answer', async () => {
+    await lockUnheardThenCarryOn()
+    mockRpc.mockImplementation(noAnswer)
+    markReached()
+    await vi.advanceTimersByTimeAsync(30_000)
+    await vi.waitFor(() => expect(lateSignOuts()).toHaveLength(1))
+    await vi.advanceTimersByTimeAsync(30_000)
+    await vi.waitFor(() => expect(lateSignOuts()).toHaveLength(2))
+  })
+
+  it('is dropped once someone has signed in on the till (that sign-in ended it on the server)', async () => {
+    await lockUnheardThenCarryOn()
+    signIn('sess-2')
+    markReached()
+    await vi.advanceTimersByTimeAsync(2 * MIN)
+    expect(lateSignOuts()).toHaveLength(0)
+    expect(getStaffSession()?.id).toBe('sess-2')
+  })
+
+  it('is not owed when the server answered the lock', async () => {
+    signIn()
+    renderHook(() => useIdleLock(true))
+    lockTill('manual')
+    await vi.waitFor(() => expect(mockSignOut).toHaveBeenCalledWith('manual_lock'))
+    useSessionStore.getState().unlock()
+    await vi.advanceTimersByTimeAsync(2 * MIN)
+    expect(lateSignOuts()).toHaveLength(0)
   })
 })
 
@@ -173,7 +313,7 @@ describe('useIdleLock', () => {
     vi.advanceTimersByTime(5 * MIN)
     expect(isLocked()).toBe(false)
     expect(logEvent).toHaveBeenCalledTimes(1)
-    expect(logEvent).toHaveBeenCalledWith('till.lock_skipped_offline', {}, { severity: 1 })
+    expect(logEvent).toHaveBeenCalledWith('till.lock_skipped_offline', { reason: 'offline' }, { severity: 1 })
 
     // still offline and idle an hour later: no lock, no second note
     vi.advanceTimersByTime(60 * MIN)
@@ -241,6 +381,84 @@ describe('useIdleLock', () => {
     fireEvent.pointerDown(document.body) // before the timer has looked again
 
     expect(isLocked()).toBe(true)
+  })
+
+  // ── Broadband down, Wi-Fi up: the browser says online, the server is not there ──
+  it('does not lock while the server is known to be unreachable, and says so once', () => {
+    signIn()
+    renderHook(() => useIdleLock(true))
+    markUnreachable() // a PIN check or sign-out got no answer
+
+    vi.advanceTimersByTime(5 * MIN)
+    expect(isLocked()).toBe(false)
+    expect(logEvent).toHaveBeenCalledTimes(1)
+    expect(logEvent).toHaveBeenCalledWith('till.lock_skipped_offline', { reason: 'unreachable' }, { severity: 1 })
+
+    vi.advanceTimersByTime(60 * MIN)
+    fireEvent.pointerDown(document.body)
+    vi.advanceTimersByTime(20 * MIN)
+    expect(isLocked()).toBe(false)
+    expect(eventsOfType('till.lock_skipped_offline')).toHaveLength(1)
+    expect(eventsOfType('till.locked')).toHaveLength(0)
+    // not locked, so the person's session carries on
+    expect(mockSignOut).not.toHaveBeenCalled()
+    expect(getStaffToken()).toBe('tok-sess-1')
+  })
+
+  it('locks by itself once the server answers again, if the till is still idle', () => {
+    renderHook(() => useIdleLock(true))
+    markUnreachable()
+    vi.advanceTimersByTime(10 * MIN)
+    expect(isLocked()).toBe(false)
+
+    markReached() // any database write got an answer
+    vi.advanceTimersByTime(30_000) // the next look at the clock
+    expect(isLocked()).toBe(true)
+    expect(logEvent).toHaveBeenLastCalledWith('till.locked', { reason: 'idle', minutes: 5 }, { severity: 0 })
+  })
+
+  it('does not lock when the server comes back if the till was in use meanwhile', () => {
+    renderHook(() => useIdleLock(true))
+    markUnreachable()
+    vi.advanceTimersByTime(10 * MIN)
+    fireEvent.pointerDown(document.body) // serving through the outage
+
+    markReached()
+    vi.advanceTimersByTime(4 * MIN)
+    expect(isLocked()).toBe(false)
+    vi.advanceTimersByTime(MIN)
+    expect(isLocked()).toBe(true)
+  })
+
+  it('notes a skipped lock again in a NEW spell without the server, with the reason for each', () => {
+    renderHook(() => useIdleLock(true))
+    markUnreachable()
+    vi.advanceTimersByTime(6 * MIN)
+
+    fireEvent.pointerDown(document.body)
+    markReached()
+    vi.advanceTimersByTime(MIN)
+    fireEvent.pointerDown(document.body)
+
+    setNavigatorOnline(false)
+    vi.advanceTimersByTime(6 * MIN)
+    expect(isLocked()).toBe(false)
+    expect(eventsOfType('till.lock_skipped_offline').map(c => c[1])).toEqual([
+      { reason: 'unreachable' },
+      { reason: 'offline' },
+    ])
+  })
+
+  it('the touch that wakes a till while the server is unreachable counts as activity, not a lock', () => {
+    renderHook(() => useIdleLock(true))
+    vi.advanceTimersByTime(MIN)
+    markUnreachable()
+    vi.setSystemTime(Date.now() + 20 * MIN)
+
+    fireEvent.pointerDown(document.body)
+
+    expect(isLocked()).toBe(false)
+    expect(eventsOfType('till.lock_skipped_offline')).toHaveLength(1)
   })
 
   // ── The setting can change without a reload ────────────────────────────────

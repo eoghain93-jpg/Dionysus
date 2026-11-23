@@ -2,9 +2,10 @@ import { useState } from 'react'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, fireEvent, waitFor, act, cleanup } from '@testing-library/react'
 
-const { mockVerify, mockSignIn, mockFrom } = vi.hoisted(() => ({
+const { mockVerify, mockSignIn, mockSignOut, mockFrom } = vi.hoisted(() => ({
   mockVerify: vi.fn(),
   mockSignIn: vi.fn(),
+  mockSignOut: vi.fn(),
   mockFrom: vi.fn(),
 }))
 
@@ -14,6 +15,7 @@ vi.mock('../lib/supabase', () => ({
 vi.mock('../lib/audit/staff', () => ({
   verifyStaffPin: mockVerify,
   signInStaff: mockSignIn,
+  signOutStaff: mockSignOut,
   setStaffPin: vi.fn(),
 }))
 vi.mock('../lib/audit/log', () => ({ logEvent: vi.fn() }))
@@ -21,7 +23,10 @@ vi.mock('../lib/audit/log', () => ({ logEvent: vi.fn() }))
 import StaffGate from './StaffGate'
 import { useSessionStore } from '../stores/sessionStore'
 import { useTillStore } from '../stores/tillStore'
+import { lockTill, __forgetOwedSignOut } from '../hooks/useIdleLock'
 import { logEvent } from '../lib/audit/log'
+import { setStaffSession, getStaffSession } from '../lib/audit/staffSession'
+import { markReached, markUnreachable } from '../lib/audit/reachability'
 
 const ALICE = { id: 'staff-1', name: 'Alice' }
 const STAFF = [
@@ -55,7 +60,12 @@ const session = () => useSessionStore.getState()
 
 beforeEach(() => {
   vi.clearAllMocks()
+  mockSignIn.mockReset()
+  mockSignOut.mockReset().mockImplementation(async () => { markReached() }) // the server hears a lock
+  __forgetOwedSignOut()
   localStorage.clear()
+  markReached()
+  setStaffSession(null)
   useSessionStore.setState({ activeStaff: null, locked: false })
   useTillStore.setState({ membersOnlyMode: false })
   mockFrom.mockReturnValue({
@@ -68,6 +78,8 @@ beforeEach(() => {
 afterEach(() => {
   cleanup() // unmount before the store is reset
   vi.useRealTimers()
+  markReached()
+  setStaffSession(null)
   useSessionStore.setState({ activeStaff: null, locked: false })
 })
 
@@ -179,7 +191,7 @@ describe('StaffGate — signed in', () => {
   })
 
   it('keeps the signed-in person, and whatever was half-done on the page, through a lock', async () => {
-    mockVerify.mockResolvedValue({ valid: true })
+    mockSignIn.mockResolvedValue({ valid: true, member: ALICE })
     renderGate()
     fireEvent.click(screen.getByRole('button', { name: 'Counted 0' }))
     fireEvent.click(screen.getByRole('button', { name: 'Counted 1' }))
@@ -190,14 +202,52 @@ describe('StaffGate — signed in', () => {
     enterPin('4821')
 
     await waitFor(() => expect(screen.queryByRole('dialog', { name: /till locked/i })).not.toBeInTheDocument())
-    expect(mockVerify).toHaveBeenCalledWith('staff-1', '4821', 'unlock')
+    expect(mockSignIn).toHaveBeenCalledWith('staff-1', '4821') // a full sign-in, not a bare re-check
+    expect(mockVerify).not.toHaveBeenCalled()
     expect(screen.getByRole('button', { name: 'Counted 2' })).toBeVisible()
     expect(screen.getByLabelText('Notes')).toHaveValue('three kegs short')
     expect(session()).toMatchObject({ activeStaff: ALICE, locked: false })
   })
 
+  // The lock is real, not a curtain: the server session ends with it.
+  it('a lock ends the server session; the PIN that unlocks opens a fresh one', async () => {
+    setStaffSession({ id: 'sess-1', token: 'tok-1', staffId: 'staff-1', trust: 'pin' })
+    mockSignIn.mockImplementation(async (memberId) => {
+      setStaffSession({ id: 'sess-2', token: 'tok-2', staffId: memberId, trust: 'pin' })
+      return { valid: true, member: ALICE }
+    })
+    renderGate()
+
+    act(() => { lockTill('manual') })
+    expect(screen.getByRole('dialog', { name: /till locked/i })).toBeInTheDocument()
+    await waitFor(() => expect(mockSignOut).toHaveBeenCalledWith('manual_lock'))
+    expect(getStaffSession()).toBeNull() // nothing at a locked till can be recorded as Alice
+    expect(session().activeStaff).toEqual(ALICE) // the lock screen still says whose till it is
+
+    enterPin('4821')
+    await waitFor(() => expect(session().locked).toBe(false))
+    expect(getStaffSession()).toMatchObject({ id: 'sess-2', staffId: 'staff-1' })
+  })
+
+  it('carrying on past a locked-out PIN opens the till with no server session, page state intact', async () => {
+    setStaffSession({ id: 'sess-1', token: 'tok-1', staffId: 'staff-1', trust: 'pin' })
+    mockSignIn.mockResolvedValue({ valid: false, reason: 'locked', retryAfterSeconds: 900 })
+    renderGate()
+    fireEvent.click(screen.getByRole('button', { name: 'Counted 0' }))
+
+    act(() => { lockTill('idle') })
+    enterPin('4821')
+    fireEvent.click(await screen.findByRole('button', { name: /carry on without checking the pin/i }))
+
+    expect(screen.queryByRole('dialog', { name: /till locked/i })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Counted 1' })).toBeVisible()
+    expect(session()).toMatchObject({ activeStaff: ALICE, locked: false })
+    expect(getStaffSession()).toBeNull()
+    expect(logEvent).toHaveBeenCalledWith('till.unlocked_unverified', { reason: 'pin_locked' }, { severity: 3 })
+  })
+
   it('stays locked on a wrong PIN', async () => {
-    mockVerify.mockResolvedValue({ valid: false, attemptsRemaining: 2 })
+    mockSignIn.mockResolvedValue({ valid: false, attemptsRemaining: 2 })
     renderGate()
     act(() => session().lock())
     enterPin('0000')
@@ -265,8 +315,20 @@ describe('StaffGate — idle lock', () => {
     expect(logEvent).not.toHaveBeenCalled()
   })
 
+  it('does not lock while the server is known to be unreachable, and locks again once it answers', () => {
+    renderGate()
+    markUnreachable()
+    act(() => { vi.advanceTimersByTime(30 * 60_000) })
+    expect(session().locked).toBe(false)
+    expect(screen.getByText('Stock page')).toBeVisible()
+
+    markReached()
+    act(() => { vi.advanceTimersByTime(30_000) })
+    expect(screen.getByRole('dialog', { name: /till locked/i })).toBeInTheDocument()
+  })
+
   it('after unlocking, the idle clock starts again from zero', async () => {
-    mockVerify.mockResolvedValue({ valid: true })
+    mockSignIn.mockResolvedValue({ valid: true, member: ALICE })
     renderGate()
     act(() => { vi.advanceTimersByTime(5 * 60_000) })
     expect(session().locked).toBe(true)

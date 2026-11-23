@@ -16,9 +16,15 @@
 //    one real request carrying both headers and got an HTTP answer back.
 //    Until then, and if the probe never succeeds, requests go out exactly
 //    as they always have and the log falls back to weaker attribution.
+//
+// It also notes when the server ANSWERS a database write (./reachability.js):
+// that is how the till learns the server is back after an outage. Only an
+// answer is noted, and only on a branch of its own — the caller gets the
+// very promise fetch returned, rejection and all.
 
 import { APP_BUILD } from './build'
 import { getStaffToken } from './staffSession'
+import { markReached } from './reachability'
 
 let headersEnabled = false
 
@@ -40,20 +46,43 @@ function isDatabaseRequest(input) {
   }
 }
 
+// Would an answer to this request prove the server was reached? Not for a
+// GET: the service worker keeps a copy of those (vite.config.js, the
+// 'supabase-cache' NetworkFirst rule) and hands it back when the network
+// fails, so a read can "succeed" on a dead line. Writes and function calls
+// (POST, PATCH, DELETE) are never answered from that cache.
+function answerProvesReach(input, init) {
+  const method = init?.method ?? (typeof input === 'object' ? input?.method : undefined) ?? 'GET'
+  return String(method).toUpperCase() !== 'GET'
+}
+
 export function auditFetch(input, init) {
   let nextInit = init
+  let noteAnswer = false
   try {
-    if (headersEnabled && isDatabaseRequest(input)) {
-      const headers = new Headers(init?.headers ?? (typeof input === 'object' ? input?.headers : undefined) ?? undefined)
-      headers.set('x-app-build', APP_BUILD)
-      const token = getStaffToken()
-      if (token) headers.set('x-staff-session', token)
-      nextInit = { ...(init ?? {}), headers }
+    if (isDatabaseRequest(input)) {
+      noteAnswer = answerProvesReach(input, init)
+      if (headersEnabled) {
+        const headers = new Headers(init?.headers ?? (typeof input === 'object' ? input?.headers : undefined) ?? undefined)
+        headers.set('x-app-build', APP_BUILD)
+        const token = getStaffToken()
+        if (token) headers.set('x-staff-session', token)
+        nextInit = { ...(init ?? {}), headers }
+      }
     }
   } catch {
     nextInit = init // header plumbing must never be why a request fails
   }
-  return fetch(input, nextInit)
+  const response = fetch(input, nextInit)
+  if (noteAnswer) {
+    try {
+      // A second branch off the same promise. Its empty rejection handler
+      // only keeps THIS branch from being reported as an unhandled
+      // rejection; `response` itself still rejects for the caller.
+      response.then(markReached, () => {})
+    } catch { /* not a promise: nothing to note */ }
+  }
+  return response
 }
 
 /**

@@ -15,7 +15,10 @@ import LockScreen from './LockScreen'
  *   signed in, locked -> the lock screen. The page stays mounted underneath
  *                        (hidden and inert) so the open order and anything
  *                        half-entered survive; nothing can be seen or done
- *                        until a PIN is entered.
+ *                        until the lock screen lets someone through. The
+ *                        person's server session ended when the till locked
+ *                        (useIdleLock.lockTill), so nothing that happens
+ *                        meanwhile can be recorded as them.
  *   signed in         -> the app, with the idle timer running.
  *
  * Sits INSIDE Layout's effects (connectivity listener, offline replay) so

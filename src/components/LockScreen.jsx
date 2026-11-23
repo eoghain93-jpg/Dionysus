@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { Delete, X, Lock, Clock, Users, WifiOff } from 'lucide-react'
-import { verifyStaffPin } from '../lib/audit/staff'
+import { signInStaff, signOutStaff } from '../lib/audit/staff'
+import { getStaffSession, clearStaffSession } from '../lib/audit/staffSession'
+import { markReached, markUnreachable, serverUnreachable } from '../lib/audit/reachability'
 import { logEvent } from '../lib/audit/log'
 import { useSessionStore } from '../stores/sessionStore'
 import { useLockoutCountdown } from '../hooks/useLockoutCountdown'
@@ -22,21 +24,47 @@ function withTimeout(promise, ms) {
   return Promise.race([promise, timeout]).finally(() => clearTimeout(timer))
 }
 
+// Said next to every offer to carry on without a PIN: staff must know it is
+// not a quiet shortcut.
+const CARRY_ON_WARNING = 'This is recorded and shown to the owner.'
+
+// A sign-in whose answer comes when it can no longer open the till (the lock
+// screen has gone, or moved on to another try) has still opened a server
+// session for that person and put its token in memory. It may stay only if
+// that person is the one now using the till and got in with a checked PIN;
+// otherwise it is ended, so nothing is recorded under a PIN that did not
+// open the till.
+function settleUnusedSignIn(memberId, carriedOn) {
+  if (getStaffSession()?.staffId !== memberId) return
+  const { activeStaff, locked } = useSessionStore.getState()
+  if (!carriedOn && !locked && activeStaff?.id === memberId) return
+  signOutStaff('unused_unlock') // never rejects; ends it on the server and forgets the token
+}
+
 /**
  * LockScreen — shown by StaffGate while the till is locked (idle timeout or
  * the Lock button). The page underneath stays mounted but hidden and inert,
  * so the open order and anything half-entered are exactly as they were left.
  *
- * Two ways back in:
- *   - the signed-in person enters their PIN (checked by the database,
- *     recorded with purpose 'unlock') and carries on;
+ * Locking ended the person's server session (useIdleLock.lockTill), so a
+ * locked till holds no sign-in at all. Ways back in:
+ *   - the person whose till it is enters their PIN. That is a full sign-in
+ *     (signInStaff): the database checks the PIN and opens a fresh session;
  *   - "Someone else" — the normal staff sign-in. The open order stays, as
- *     it does on Switch User.
+ *     it does on Switch User;
+ *   - "Carry on without checking the PIN", for the same person only, and
+ *     offered only when their PIN cannot do the job:
+ *       · the check could not reach the server (it REJECTED or never
+ *         answered — or the till already knows the server is unreachable), or
+ *       · the server answered that the PIN is locked out (five wrong tries
+ *         anywhere lock it for 15 minutes, and a sole bartender must still
+ *         be able to serve).
+ *     Never after a plain wrong PIN. It is recorded for the owner, and it
+ *     opens NO server session: what follows is logged as "said to be" that
+ *     person, not "PIN checked", until a PIN is next accepted.
  *
- * Never strands a working till: if the PIN check cannot reach the server at
- * all (it REJECTS or never answers, as opposed to answering "wrong PIN"),
- * the same person may carry on without it. That is recorded as needing a
- * look.
+ * So the lock can never leave a till nobody can use, and getting past it
+ * without a PIN is always on the record.
  */
 export default function LockScreen() {
   const activeStaff = useSessionStore(s => s.activeStaff)
@@ -46,8 +74,12 @@ export default function LockScreen() {
   const [digits, setDigits] = useState('')
   const [verifying, setVerifying] = useState(false)
   const [error, setError] = useState(null)
-  // True only after a PIN check could not reach the server.
-  const [unreachable, setUnreachable] = useState(false)
+  // True when the PIN cannot be checked: a check on this screen got no
+  // answer, or the till already knew it when the screen opened — staff are
+  // not made to wait out the same dead connection at every lock.
+  const [unreachable, setUnreachable] = useState(
+    () => serverUnreachable() || globalThis.navigator?.onLine === false
+  )
   const { isLocked, remainingLabel, lock } = useLockoutCountdown()
   const rootRef = useRef(null)
 
@@ -77,13 +109,26 @@ export default function LockScreen() {
     return () => { shownRef.current = false }
   }, [])
 
+  // Only the latest PIN try can open the till. Bumped by each try, and by
+  // anything that abandons one (Someone else, carrying on unchecked).
+  const tryRef = useRef(0)
+  const carriedOnRef = useRef(false)
+
   const handleVerify = useCallback(async (memberId, pin) => {
-    setVerifying(true)
-    setError(null)
-    try {
-      const data = await withTimeout(verifyStaffPin(memberId, pin, 'unlock'), UNLOCK_CHECK_TIMEOUT_MS)
-      if (!shownRef.current) return
-      // The server answered, so the PIN decides — no carrying on without it.
+    const thisTry = ++tryRef.current
+    const stillWanted = () => {
+      const now = useSessionStore.getState()
+      return shownRef.current && tryRef.current === thisTry && now.locked && now.activeStaff?.id === memberId
+    }
+
+    // What the server said, whenever it says it.
+    function onAnswer(data) {
+      markReached() // a PIN can be checked again (the fallback check is not a database request)
+      if (!stillWanted()) {
+        if (data?.valid) settleUnusedSignIn(memberId, carriedOnRef.current)
+        return
+      }
+      // The server answered, so its answer decides.
       setUnreachable(false)
       if (data?.valid) {
         logEvent('till.unlocked', {}, { severity: 0 })
@@ -98,22 +143,33 @@ export default function LockScreen() {
         setError('Incorrect PIN. Please try again.')
         setDigits('')
       }
-    } catch {
-      // Neither the database nor the fallback could be reached (or neither
-      // answered in time).
-      setUnreachable(true)
-      setDigits('')
-    } finally {
-      setVerifying(false)
     }
-  }, [unlock, lock])
 
-  // Auto-submit when 4 digits entered
-  useEffect(() => {
-    if (mode === 'pin' && digits.length === 4 && activeStaff) {
-      handleVerify(activeStaff.id, digits)
+    setVerifying(true)
+    setError(null)
+    // A sign-in, not a bare PIN check: the lock ended the server session,
+    // and a correct PIN opens a new one.
+    const check = (async () => signInStaff(memberId, pin))()
+    let answer
+    let answered = false
+    try {
+      answer = await withTimeout(check, UNLOCK_CHECK_TIMEOUT_MS)
+      answered = true
+    } catch {
+      // Neither the database nor the fallback could be reached, or neither
+      // answered in time. Remember it: the till stops auto-locking and the
+      // next lock screen offers to carry on straight away.
+      markUnreachable()
+      if (stillWanted()) {
+        setUnreachable(true)
+        setDigits('')
+      }
+      // If it was only slow, the answer still counts when it comes.
+      check.then(onAnswer, () => {})
     }
-  }, [mode, digits, activeStaff, handleVerify])
+    if (shownRef.current) setVerifying(false)
+    if (answered) onAnswer(answer)
+  }, [unlock, lock])
 
   function handleKey(key) {
     if (verifying || isLocked) return
@@ -122,17 +178,48 @@ export default function LockScreen() {
       setDigits(d => d.slice(0, -1))
     } else if (key === 'clear') {
       setDigits('')
-    } else {
-      setDigits(d => d.length < 4 ? d + key : d)
+    } else if (digits.length < 4) {
+      const next = digits + key
+      setDigits(next)
+      // The fourth digit submits.
+      if (next.length === 4 && activeStaff) handleVerify(activeStaff.id, next)
     }
   }
 
   function carryOnUnverified() {
-    logEvent('till.unlocked_unverified', {}, { severity: 2 })
+    const pinLocked = isLocked
+    tryRef.current += 1 // an answer still on its way opens nothing now
+    carriedOnRef.current = true
+    // Nobody's PIN was accepted, so no server session may carry on. (The
+    // lock already ended it; this makes sure.) Cleared BEFORE the event is
+    // written so that the event, too, is only "said to be" this person.
+    clearStaffSession()
+    logEvent(
+      'till.unlocked_unverified',
+      { reason: pinLocked ? 'pin_locked' : 'unreachable' },
+      { severity: pinLocked ? 3 : 2 }
+    )
     unlock()
   }
 
+  function chooseSomeoneElse() {
+    tryRef.current += 1
+    setMode('someone_else')
+    setDigits('')
+    setError(null)
+  }
+
   if (!activeStaff) return null
+
+  const carryOnButton = (
+    <button
+      onClick={carryOnUnverified}
+      className="w-full bg-amber-600 hover:bg-amber-500 text-white font-semibold py-3 rounded-xl
+        transition-colors cursor-pointer min-h-[44px]"
+    >
+      Carry on without checking the PIN
+    </button>
+  )
 
   return (
     <div
@@ -178,13 +265,18 @@ export default function LockScreen() {
           {isLocked && (
             <div
               role="status"
-              className="text-amber-300 text-sm text-center bg-amber-400/10 px-4 py-3 rounded-xl space-y-1"
+              className="text-amber-300 text-sm text-center bg-amber-400/10 px-4 py-3 rounded-xl space-y-3"
             >
               <p className="flex items-center justify-center gap-1.5 font-semibold">
                 <Clock size={14} aria-hidden="true" />
                 PIN locked after too many attempts
               </p>
-              <p>Try again in {remainingLabel}. Another staff member can log in meanwhile.</p>
+              <p>Try again in {remainingLabel}, or someone else can sign in.</p>
+              <p>
+                Need to serve now? You can carry on as {activeStaff.name} without the PIN.
+                {' '}{CARRY_ON_WARNING}
+              </p>
+              {carryOnButton}
             </div>
           )}
 
@@ -194,23 +286,20 @@ export default function LockScreen() {
             </p>
           )}
 
-          {unreachable && (
+          {!isLocked && unreachable && (
             <div
               role="alert"
               className="text-amber-300 text-sm text-center bg-amber-400/10 px-4 py-3 rounded-xl space-y-3"
             >
               <p className="flex items-center justify-center gap-1.5 font-semibold">
                 <WifiOff size={14} aria-hidden="true" />
-                Could not check the PIN — no connection
+                Can’t check the PIN — the till can’t reach the server
               </p>
-              <p>Try again, or carry on as {activeStaff.name}. Carrying on without a PIN is recorded.</p>
-              <button
-                onClick={carryOnUnverified}
-                className="w-full bg-amber-600 hover:bg-amber-500 text-white font-semibold py-3 rounded-xl
-                  transition-colors cursor-pointer min-h-[44px]"
-              >
-                Carry on without checking the PIN
-              </button>
+              <p>
+                Try the PIN again, or carry on as {activeStaff.name} without it.
+                {' '}{CARRY_ON_WARNING}
+              </p>
+              {carryOnButton}
             </div>
           )}
 
@@ -231,7 +320,7 @@ export default function LockScreen() {
           </div>
 
           <button
-            onClick={() => { setMode('someone_else'); setDigits(''); setError(null) }}
+            onClick={chooseSomeoneElse}
             disabled={verifying}
             className="w-full flex items-center justify-center gap-2 min-h-[48px] rounded-xl border border-slate-700
               text-slate-300 hover:bg-slate-800 hover:text-white transition-colors cursor-pointer text-sm font-medium

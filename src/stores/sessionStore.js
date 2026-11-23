@@ -6,9 +6,12 @@ import { clearStaffSession } from '../lib/audit/staffSession'
 export const useSessionStore = create((set) => ({
   activeStaff: null,
 
-  // The till is locked (idle timeout or the Lock button): the person stays
-  // signed in and the open order is kept, but StaffGate shows only the lock
-  // screen until a PIN is entered.
+  // The till is locked (idle timeout or the Lock button): StaffGate shows
+  // only the lock screen. activeStaff is kept so the lock screen can say
+  // whose till it is, and the open order is kept — but the person is NOT
+  // signed in as far as the server is concerned: locking through
+  // useIdleLock.lockTill (the only way the app locks) ends their server
+  // session and forgets its token, and unlocking with a PIN opens a new one.
   locked: false,
 
   // Only store the minimum fields — never persist pin_hash or other sensitive data.
@@ -19,6 +22,9 @@ export const useSessionStore = create((set) => ({
   },
 
   // Nothing to lock when nobody is signed in — the PIN login already shows.
+  // These two only flip the flag. Use lockTill() to lock; the lock screen
+  // decides what unlocking means for the server session (a fresh one after
+  // a PIN, none at all after "carry on without checking").
   lock: () => set(state => (state.activeStaff ? { locked: true } : {})),
   unlock: () => set({ locked: false }),
 
