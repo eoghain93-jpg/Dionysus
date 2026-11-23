@@ -473,3 +473,113 @@ describe('tillStore', () => {
     })
   })
 })
+
+describe('undo, park and same again', () => {
+  const guinness = { id: 'g1', name: 'Guinness', standard_price: 5.5, member_price: 4.8 }
+  const peroni = { id: 'p1', name: 'Peroni', standard_price: 4.2, member_price: 3.7 }
+  const alice = { id: 'm1', name: 'Alice Smith', tab_balance: 10 }
+
+  beforeEach(() => {
+    useTillStore.setState({
+      orderItems: [], activeMember: null, activeMemberTab: null, activePromos: [],
+      membersOnlyMode: false, parkedOrders: [], parkSeq: 1, lastSale: null,
+    })
+  })
+
+  it('removeOne takes a single unit off the plain line and drops it at zero', () => {
+    const { addItem, removeOne } = useTillStore.getState()
+    addItem(guinness)
+    addItem(guinness)
+    removeOne('g1')
+    expect(useTillStore.getState().orderItems).toMatchObject([{ product_id: 'g1', quantity: 1, subtotal: 5.5 }])
+    removeOne('g1')
+    expect(useTillStore.getState().orderItems).toEqual([])
+  })
+
+  it('removeOne leaves bundle lines for the same product alone', () => {
+    const { addItem, addBundleItems, removeOne } = useTillStore.getState()
+    addBundleItems([guinness, guinness], 8)
+    addItem(guinness)
+    removeOne('g1')
+    expect(useTillStore.getState().orderItems).toMatchObject([
+      { product_id: 'g1', quantity: 2, bundle_price_applied: true },
+    ])
+  })
+
+  it('parkOrder sets the order and member aside and clears the till', () => {
+    useTillStore.getState().setActiveMember(alice)
+    useTillStore.getState().addItem(guinness)
+    useTillStore.getState().parkOrder()
+    const state = useTillStore.getState()
+    expect(state.orderItems).toEqual([])
+    expect(state.activeMember).toBeNull()
+    expect(state.parkedOrders).toMatchObject([{ label: 'Alice', member: alice }])
+    expect(state.parkedOrders[0].items).toMatchObject([{ product_id: 'g1', unit_price: 4.8 }])
+  })
+
+  it('numbers parked orders that have no member', () => {
+    const { addItem, parkOrder } = useTillStore.getState()
+    addItem(guinness)
+    parkOrder()
+    addItem(peroni)
+    useTillStore.getState().parkOrder()
+    expect(useTillStore.getState().parkedOrders.map(p => p.label)).toEqual(['Order 1', 'Order 2'])
+  })
+
+  it('parkOrder does nothing with an empty order', () => {
+    useTillStore.getState().parkOrder()
+    expect(useTillStore.getState().parkedOrders).toEqual([])
+  })
+
+  it('resumeOrder brings an order back and parks whatever was on the till', () => {
+    useTillStore.getState().setActiveMember(alice)
+    useTillStore.getState().addItem(guinness)
+    useTillStore.getState().parkOrder()
+    useTillStore.getState().addItem(peroni)
+
+    const [parked] = useTillStore.getState().parkedOrders
+    useTillStore.getState().resumeOrder(parked.id)
+
+    const state = useTillStore.getState()
+    expect(state.orderItems).toMatchObject([{ product_id: 'g1' }])
+    expect(state.activeMember).toEqual(alice)
+    expect(state.parkedOrders).toHaveLength(1)
+    expect(state.parkedOrders[0].items).toMatchObject([{ product_id: 'p1' }])
+  })
+
+  it('repeatLastSale rebuilds the last sale with its member, at current prices', () => {
+    useTillStore.setState({
+      lastSale: {
+        member: alice, total: 13.3, paymentMethod: 'card',
+        // unit_price deliberately stale: the repeat must re-price, not copy.
+        items: [
+          { product_id: 'g1', name: 'Guinness', quantity: 2, unit_price: 1, subtotal: 2 },
+          { product_id: 'p1', name: 'Peroni', quantity: 1, unit_price: 1, subtotal: 1 },
+        ],
+      },
+    })
+    useTillStore.getState().repeatLastSale([guinness, peroni])
+    const state = useTillStore.getState()
+    expect(state.activeMember).toEqual(alice)
+    expect(state.orderItems).toMatchObject([
+      { product_id: 'g1', quantity: 2, unit_price: 4.8, member_price_applied: true },
+      { product_id: 'p1', quantity: 1, unit_price: 3.7 },
+    ])
+  })
+
+  it('repeatLastSale skips drinks bought for staff and products no longer on sale', () => {
+    useTillStore.setState({
+      lastSale: {
+        member: null, total: 0, paymentMethod: 'cash',
+        items: [
+          { product_id: 'g1', name: 'Guinness', quantity: 1, unit_price: 5.5, subtotal: 5.5 },
+          { line_id: 'credit:s1:g1', product_id: 'g1', name: 'Guinness', quantity: 1, unit_price: 5.5, subtotal: 5.5, staff_credit_for: 's1' },
+          { product_id: 'gone', name: 'Old Ale', quantity: 1, unit_price: 4, subtotal: 4 },
+        ],
+      },
+    })
+    useTillStore.getState().repeatLastSale([guinness])
+    expect(useTillStore.getState().orderItems).toMatchObject([{ product_id: 'g1', quantity: 1 }])
+    expect(useTillStore.getState().orderItems).toHaveLength(1)
+  })
+})

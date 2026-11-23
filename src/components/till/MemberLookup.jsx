@@ -170,28 +170,28 @@ export default function MemberLookup() {
   if (activeMember) return null
 
   return (
-    <form onSubmit={handleSearch} className="space-y-1">
+    <form onSubmit={handleSearch} className="relative space-y-1">
       <div className="flex gap-2">
         <label htmlFor="member-lookup" className="sr-only">Member number or scan card</label>
         <div className="flex-1 relative">
-          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" aria-hidden="true" />
+          <Search size={20} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" aria-hidden="true" />
           <input
             id="member-lookup"
             ref={inputRef}
             value={query}
             onChange={handleQueryChange}
-            placeholder="Name or member number..."
-            className="w-full bg-slate-800 border border-slate-700 rounded-xl pl-9 pr-4 py-2.5 text-white
-              placeholder-slate-500 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500
-              focus:border-transparent transition-colors duration-200 min-h-[44px]"
+            placeholder="Find member — name or member number"
+            className="w-full bg-slate-800 border border-slate-700 rounded-xl pl-11 pr-4 text-white
+              placeholder-slate-400 text-base focus:outline-none focus:ring-2 focus:ring-blue-500
+              focus:border-transparent transition-colors duration-200 min-h-[48px]"
             aria-describedby={error ? 'member-lookup-error' : undefined}
           />
         </div>
         <button
           type="submit"
           aria-label="Find member"
-          className="px-4 min-h-[44px] bg-slate-800 hover:bg-slate-700 text-slate-300
-            hover:text-white rounded-xl text-sm transition-colors duration-200 cursor-pointer
+          className="px-4 min-h-[48px] bg-slate-800 hover:bg-slate-700 text-slate-100
+            hover:text-white rounded-xl text-[15px] font-bold transition-colors duration-200 cursor-pointer
             flex items-center gap-1.5 border border-slate-700 focus:ring-2 focus:ring-blue-500 focus:outline-none"
         >
           <ScanLine size={16} aria-hidden="true" />
@@ -202,8 +202,8 @@ export default function MemberLookup() {
             type="button"
             onClick={() => qrActive ? stopScanner() : setQrActive(true)}
             aria-label={qrActive ? 'Stop QR scanning' : 'Scan QR code'}
-            className="px-4 min-h-[44px] bg-slate-800 hover:bg-slate-700 text-slate-300
-              hover:text-white rounded-xl text-sm transition-colors duration-200 cursor-pointer
+            className="px-4 min-h-[48px] bg-slate-800 hover:bg-slate-700 text-slate-100
+              hover:text-white rounded-xl text-[15px] font-bold transition-colors duration-200 cursor-pointer
               flex items-center gap-1.5 border border-slate-700 focus:ring-2 focus:ring-blue-500 focus:outline-none"
           >
             {qrActive ? <X size={16} aria-hidden="true" /> : <Camera size={16} aria-hidden="true" />}
@@ -212,16 +212,19 @@ export default function MemberLookup() {
         )}
       </div>
       {suggestions.length > 0 && (
-        <ul className="bg-slate-800 border border-slate-700 rounded-xl overflow-hidden">
+        <ul className="absolute left-0 right-0 top-full mt-1 z-30 bg-slate-800 border border-blue-900 rounded-2xl overflow-hidden shadow-2xl">
           {suggestions.map(m => (
             <li key={m.id}>
               <button
                 type="button"
                 onClick={() => handleSelectSuggestion(m)}
-                className="w-full text-left px-4 py-2.5 text-sm text-white hover:bg-slate-700 flex items-center justify-between"
+                className="w-full text-left px-4 min-h-[56px] text-base font-semibold text-white hover:bg-slate-700 flex items-center justify-between gap-3 cursor-pointer"
               >
                 <span>{m.name}</span>
-                <span className="text-slate-500 text-xs font-mono">{m.membership_number}</span>
+                <span className="flex items-center gap-3 text-sm font-semibold">
+                  {m.tab_blocked && <span className="text-red-300">Tab blocked</span>}
+                  <span className="text-slate-400 font-mono">{m.membership_number}</span>
+                </span>
               </button>
             </li>
           ))}

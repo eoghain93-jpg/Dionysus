@@ -84,7 +84,7 @@ export default function ProductFormModal({ product, onClose, onSaved }) {
   return (
     <div
       ref={overlayRef}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 overflow-y-auto"
+      className="ui-modal-backdrop"
       onClick={handleOverlayClick}
       aria-hidden="false"
     >
@@ -92,36 +92,36 @@ export default function ProductFormModal({ product, onClose, onSaved }) {
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        className="w-full max-w-lg bg-[#0F172A] border border-slate-700 rounded-2xl shadow-xl flex flex-col my-auto"
+        className="ui-modal max-w-lg"
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-slate-700">
+        <div className="flex items-center justify-between gap-3">
           <h2
             id={titleId}
-            className="text-lg font-bold text-white"
+            className="ui-modal-title"
           >
             {isEditing ? 'Edit Product' : 'Add Product'}
           </h2>
           <button
             onClick={onClose}
             aria-label="Close modal"
-            className="text-slate-400 hover:text-white transition-colors cursor-pointer min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617]"
+            className="ui-btn ui-btn-ghost ui-btn-icon shrink-0"
           >
-            <X size={20} aria-hidden="true" />
+            <X size={22} aria-hidden="true" />
           </button>
         </div>
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="px-5 py-5 flex flex-col gap-4">
+        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           {error && (
-            <p role="alert" className="text-red-400 text-sm bg-red-400/10 px-3 py-2 rounded-lg">
+            <p role="alert" className="ui-banner ui-banner-bad">
               {error}
             </p>
           )}
 
           {/* Name */}
-          <div className="flex flex-col gap-1">
-            <label htmlFor="pf-name" className="text-sm font-medium text-slate-300">
+          <div>
+            <label htmlFor="pf-name" className="ui-label">
               Name <span aria-hidden="true">*</span>
             </label>
             <input
@@ -132,14 +132,14 @@ export default function ProductFormModal({ product, onClose, onSaved }) {
               value={form.name}
               onChange={handleChange('name')}
               placeholder="Product name"
-              className="bg-[#1E293B] border border-slate-600 rounded-lg px-3 py-2 text-white placeholder-slate-500 min-h-[44px] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617]"
+              className="ui-input"
             />
           </div>
 
           {/* Category + Unit */}
-          <div className="grid grid-cols-2 gap-3">
-            <div className="flex flex-col gap-1">
-              <label htmlFor="pf-category" className="text-sm font-medium text-slate-300">
+          <div className="grid grid-cols-1 min-[420px]:grid-cols-2 gap-3">
+            <div>
+              <label htmlFor="pf-category" className="ui-label">
                 Category <span aria-hidden="true">*</span>
               </label>
               <select
@@ -147,7 +147,7 @@ export default function ProductFormModal({ product, onClose, onSaved }) {
                 required
                 value={form.category}
                 onChange={handleChange('category')}
-                className="bg-[#1E293B] border border-slate-600 rounded-lg px-3 py-2 text-white min-h-[44px] capitalize focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617] cursor-pointer"
+                className="ui-select w-full capitalize"
               >
                 {CATEGORIES.map(c => (
                   <option key={c} value={c} className="capitalize">{c}</option>
@@ -155,8 +155,8 @@ export default function ProductFormModal({ product, onClose, onSaved }) {
               </select>
             </div>
 
-            <div className="flex flex-col gap-1">
-              <label htmlFor="pf-unit" className="text-sm font-medium text-slate-300">
+            <div>
+              <label htmlFor="pf-unit" className="ui-label">
                 Unit <span aria-hidden="true">*</span>
               </label>
               <select
@@ -164,7 +164,7 @@ export default function ProductFormModal({ product, onClose, onSaved }) {
                 required
                 value={form.unit}
                 onChange={handleChange('unit')}
-                className="bg-[#1E293B] border border-slate-600 rounded-lg px-3 py-2 text-white min-h-[44px] capitalize focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617] cursor-pointer"
+                className="ui-select w-full capitalize"
               >
                 {UNITS.map(u => (
                   <option key={u} value={u} className="capitalize">{u}</option>
@@ -174,9 +174,9 @@ export default function ProductFormModal({ product, onClose, onSaved }) {
           </div>
 
           {/* Standard price + Member price */}
-          <div className="grid grid-cols-2 gap-3">
-            <div className="flex flex-col gap-1">
-              <label htmlFor="pf-standard-price" className="text-sm font-medium text-slate-300">
+          <div className="grid grid-cols-1 min-[420px]:grid-cols-2 gap-3">
+            <div>
+              <label htmlFor="pf-standard-price" className="ui-label">
                 Standard Price (£) <span aria-hidden="true">*</span>
               </label>
               <input
@@ -188,12 +188,12 @@ export default function ProductFormModal({ product, onClose, onSaved }) {
                 value={form.standard_price}
                 onChange={handleChange('standard_price')}
                 placeholder="0.00"
-                className="bg-[#1E293B] border border-slate-600 rounded-lg px-3 py-2 text-white placeholder-slate-500 min-h-[44px] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617]"
+                className="ui-input"
               />
             </div>
 
-            <div className="flex flex-col gap-1">
-              <label htmlFor="pf-member-price" className="text-sm font-medium text-slate-300">
+            <div>
+              <label htmlFor="pf-member-price" className="ui-label">
                 Member Price (£) <span aria-hidden="true">*</span>
               </label>
               <input
@@ -205,15 +205,15 @@ export default function ProductFormModal({ product, onClose, onSaved }) {
                 value={form.member_price}
                 onChange={handleChange('member_price')}
                 placeholder="0.00"
-                className="bg-[#1E293B] border border-slate-600 rounded-lg px-3 py-2 text-white placeholder-slate-500 min-h-[44px] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617]"
+                className="ui-input"
               />
             </div>
           </div>
 
           {/* Stock quantity + Par level */}
-          <div className="grid grid-cols-2 gap-3">
-            <div className="flex flex-col gap-1">
-              <label htmlFor="pf-stock-qty" className="text-sm font-medium text-slate-300">
+          <div className="grid grid-cols-1 min-[420px]:grid-cols-2 gap-3">
+            <div>
+              <label htmlFor="pf-stock-qty" className="ui-label">
                 Stock Quantity <span aria-hidden="true">*</span>
               </label>
               <input
@@ -225,12 +225,12 @@ export default function ProductFormModal({ product, onClose, onSaved }) {
                 value={form.stock_quantity}
                 onChange={handleChange('stock_quantity')}
                 placeholder="0"
-                className="bg-[#1E293B] border border-slate-600 rounded-lg px-3 py-2 text-white placeholder-slate-500 min-h-[44px] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617]"
+                className="ui-input"
               />
             </div>
 
-            <div className="flex flex-col gap-1">
-              <label htmlFor="pf-par-level" className="text-sm font-medium text-slate-300">
+            <div>
+              <label htmlFor="pf-par-level" className="ui-label">
                 Par Level <span aria-hidden="true">*</span>
               </label>
               <input
@@ -242,15 +242,15 @@ export default function ProductFormModal({ product, onClose, onSaved }) {
                 value={form.par_level}
                 onChange={handleChange('par_level')}
                 placeholder="0"
-                className="bg-[#1E293B] border border-slate-600 rounded-lg px-3 py-2 text-white placeholder-slate-500 min-h-[44px] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617]"
+                className="ui-input"
               />
             </div>
           </div>
 
           {/* Cost price (optional) */}
-          <div className="flex flex-col gap-1">
-            <label htmlFor="pf-cost-price" className="text-sm font-medium text-slate-300">
-              Cost Price (£) <span className="text-slate-500 font-normal">(optional)</span>
+          <div>
+            <label htmlFor="pf-cost-price" className="ui-label">
+              Cost Price (£) <span className="text-slate-400 font-semibold">(optional)</span>
             </label>
             <input
               id="pf-cost-price"
@@ -260,14 +260,14 @@ export default function ProductFormModal({ product, onClose, onSaved }) {
               value={form.cost_price}
               onChange={handleChange('cost_price')}
               placeholder="0.00"
-              className="bg-[#1E293B] border border-slate-600 rounded-lg px-3 py-2 text-white placeholder-slate-500 min-h-[44px] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617]"
+              className="ui-input"
             />
           </div>
 
           {/* Supplier ID (optional) */}
-          <div className="flex flex-col gap-1">
-            <label htmlFor="pf-supplier-id" className="text-sm font-medium text-slate-300">
-              Supplier ID <span className="text-slate-500 font-normal">(optional)</span>
+          <div>
+            <label htmlFor="pf-supplier-id" className="ui-label">
+              Supplier ID <span className="text-slate-400 font-semibold">(optional)</span>
             </label>
             <input
               id="pf-supplier-id"
@@ -275,38 +275,38 @@ export default function ProductFormModal({ product, onClose, onSaved }) {
               value={form.supplier_id}
               onChange={handleChange('supplier_id')}
               placeholder="Supplier UUID or reference"
-              className="bg-[#1E293B] border border-slate-600 rounded-lg px-3 py-2 text-white placeholder-slate-500 min-h-[44px] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617]"
+              className="ui-input"
             />
           </div>
 
           {/* Product Image (optional) */}
-          <div className="flex flex-col gap-2">
-            <label htmlFor="pf-image-url" className="text-sm font-medium text-slate-300">
-              Logo URL <span className="text-slate-500 font-normal">(optional)</span>
+          <div>
+            <label htmlFor="pf-image-url" className="ui-label">
+              Logo URL <span className="text-slate-400 font-semibold">(optional)</span>
             </label>
             <div className="flex items-center gap-3">
               {/* Preview */}
-              <div className="w-16 h-16 rounded-lg bg-slate-900 flex items-center justify-center flex-shrink-0 overflow-hidden border border-slate-700">
+              <div className="w-16 h-16 rounded-xl bg-slate-800 flex items-center justify-center flex-shrink-0 overflow-hidden border border-slate-700">
                 {form.image_url ? (
                   <img src={form.image_url} alt="Logo preview" className="w-full h-full object-contain p-1" />
                 ) : (
-                  <ImageIcon size={20} className="text-slate-600" aria-hidden="true" />
+                  <ImageIcon size={24} className="text-slate-400" aria-hidden="true" />
                 )}
               </div>
-              <div className="flex flex-col gap-1.5 flex-1">
+              <div className="flex flex-col items-start gap-1.5 flex-1 min-w-0">
                 <input
                   id="pf-image-url"
                   type="url"
                   value={form.image_url}
                   onChange={handleChange('image_url')}
                   placeholder="https://img.logo.dev/guinness.com?token=…"
-                  className="bg-[#1E293B] border border-slate-600 rounded-lg px-3 py-2 text-white placeholder-slate-500 text-sm min-h-[44px] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617]"
+                  className="ui-input"
                 />
                 {form.image_url && (
                   <button
                     type="button"
                     onClick={() => setForm(prev => ({ ...prev, image_url: '' }))}
-                    className="text-xs text-slate-500 hover:text-red-400 transition-colors text-left cursor-pointer"
+                    className="ui-btn ui-btn-danger min-h-[44px]"
                   >
                     Remove logo
                   </button>
@@ -316,18 +316,18 @@ export default function ProductFormModal({ product, onClose, onSaved }) {
           </div>
 
           {/* Actions */}
-          <div className="flex gap-3 pt-1">
+          <div className="ui-modal-actions">
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 min-h-[44px] rounded-xl border border-slate-600 text-slate-300 hover:bg-slate-700 hover:text-white transition-colors cursor-pointer text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617]"
+              className="ui-btn ui-btn-ghost ui-btn-lg flex-1"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={saving}
-              className="flex-1 min-h-[44px] rounded-xl bg-[#22C55E] hover:bg-green-400 disabled:opacity-50 disabled:cursor-not-allowed text-slate-900 font-bold text-sm transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617]"
+              className="ui-btn ui-btn-primary ui-btn-lg flex-1"
             >
               {saving ? 'Saving…' : isEditing ? 'Save Changes' : 'Add Product'}
             </button>

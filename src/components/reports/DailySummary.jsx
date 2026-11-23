@@ -47,13 +47,13 @@ export default function DailySummary({ date }) {
 
   if (loading) {
     return (
-      <p className="text-slate-400 text-sm text-center py-8">Loading daily summary…</p>
+      <p className="ui-empty">Loading daily summary…</p>
     )
   }
 
   if (error) {
     return (
-      <p className="text-red-400 text-sm text-center py-8">Error: {error}</p>
+      <p className="ui-banner ui-banner-bad">Error: {error}</p>
     )
   }
 
@@ -64,10 +64,10 @@ export default function DailySummary({ date }) {
   return (
     <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
       {/* Total Revenue */}
-      <div className="col-span-2 sm:col-span-3 lg:col-span-2 bg-[#0F172A] border border-slate-700 rounded-2xl p-4 flex flex-col gap-1">
-        <span className="text-slate-400 text-xs uppercase tracking-wide">Total Revenue</span>
+      <div className="ui-stat col-span-2 sm:col-span-3 lg:col-span-2 flex flex-col gap-1">
+        <span className="ui-stat-label">Total Revenue</span>
         <span
-          className="text-3xl font-bold text-[#22C55E]"
+          className="ui-stat-value text-[44px]"
           data-testid="total-revenue"
         >
           {fmt(summary.totalRevenue)}
@@ -75,10 +75,10 @@ export default function DailySummary({ date }) {
       </div>
 
       {/* Transaction Count */}
-      <div className="bg-[#0F172A] border border-slate-700 rounded-2xl p-4 flex flex-col gap-1">
-        <span className="text-slate-400 text-xs uppercase tracking-wide">Transactions</span>
+      <div className="ui-stat flex flex-col gap-1">
+        <span className="ui-stat-label">Transactions</span>
         <span
-          className="text-2xl font-bold text-white"
+          className="ui-stat-value"
           data-testid="transaction-count"
         >
           {summary.transactionCount}
@@ -86,10 +86,10 @@ export default function DailySummary({ date }) {
       </div>
 
       {/* Void Count */}
-      <div className="bg-[#0F172A] border border-slate-700 rounded-2xl p-4 flex flex-col gap-1">
-        <span className="text-slate-400 text-xs uppercase tracking-wide">Voids</span>
+      <div className="ui-stat flex flex-col gap-1">
+        <span className="ui-stat-label">Voids</span>
         <span
-          className="text-2xl font-bold text-white"
+          className="ui-stat-value"
           data-testid="void-count"
         >
           {summary.voidCount}
@@ -97,24 +97,24 @@ export default function DailySummary({ date }) {
       </div>
 
       {/* Payment breakdown */}
-      <div className="col-span-2 sm:col-span-3 lg:col-span-2 bg-[#0F172A] border border-slate-700 rounded-2xl p-4 flex flex-col gap-2">
-        <span className="text-slate-400 text-xs uppercase tracking-wide">Payment Breakdown</span>
+      <div className="ui-stat col-span-2 sm:col-span-3 lg:col-span-2 flex flex-col gap-2">
+        <span className="ui-stat-label">Payment Breakdown</span>
         <div className="flex flex-col gap-1.5">
           <div className="flex items-center justify-between gap-2">
-            <span className="flex items-center gap-1.5 text-slate-300 text-sm">
-              <Banknote size={14} aria-hidden="true" className="text-[#22C55E]" />
+            <span className="flex items-center gap-2 text-slate-300 text-base font-semibold">
+              <Banknote size={18} aria-hidden="true" className="text-emerald-300" />
               Cash
             </span>
-            <span className="text-white text-sm font-semibold" data-testid="cash-total">
+            <span className="text-white text-xl font-extrabold" data-testid="cash-total">
               {fmt(summary.cashTotal)}
             </span>
           </div>
           <div className="flex items-center justify-between gap-2">
-            <span className="flex items-center gap-1.5 text-slate-300 text-sm">
-              <CreditCard size={14} aria-hidden="true" className="text-[#3B82F6]" />
+            <span className="flex items-center gap-2 text-slate-300 text-base font-semibold">
+              <CreditCard size={18} aria-hidden="true" className="text-blue-400" />
               Card
             </span>
-            <span className="text-white text-sm font-semibold" data-testid="card-total">
+            <span className="text-white text-xl font-extrabold" data-testid="card-total">
               {fmt(summary.cardTotal)}
             </span>
           </div>

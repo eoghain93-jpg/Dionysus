@@ -103,23 +103,25 @@ export default function MemberProfile({ member, onClose, onEdit, onSettleTab }) 
       ? member.favourite_drinks.split(',').map(d => d.trim()).filter(Boolean)
       : []
 
+  const fieldLabel = 'text-slate-400 text-sm font-semibold mb-0.5 flex items-center gap-1.5'
+
   return (
     <div
       ref={overlayRef}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 overflow-y-auto"
+      className="ui-modal-backdrop"
       onClick={handleOverlayClick}
     >
       <div
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        className="w-full max-w-lg bg-[#0F172A] border border-slate-700 rounded-2xl shadow-xl flex flex-col my-auto"
+        className="ui-modal max-w-xl p-0 gap-0 overflow-hidden"
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-slate-700">
+        <div className="flex items-center justify-between gap-3 pl-6 pr-4 py-4 border-b border-slate-800">
           <h2
             id={titleId}
-            className="text-lg font-bold text-white"
+            className="ui-modal-title text-[26px] min-w-0 break-words"
           >
             {member.name}
           </h2>
@@ -127,31 +129,31 @@ export default function MemberProfile({ member, onClose, onEdit, onSettleTab }) 
             ref={closeRef}
             onClick={onClose}
             aria-label="Close profile"
-            className="text-slate-400 hover:text-white transition-colors cursor-pointer min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617]"
+            className="ui-btn ui-btn-ghost ui-btn-icon shrink-0"
           >
-            <X size={20} aria-hidden="true" />
+            <X size={22} aria-hidden="true" />
           </button>
         </div>
 
         {/* Body */}
-        <div className="px-5 py-5 flex flex-col gap-5 overflow-y-auto max-h-[70vh]">
+        <div className="px-6 py-5 flex flex-col gap-5 overflow-y-auto min-h-0 flex-1">
           {/* Core details */}
-          <div className="grid grid-cols-2 gap-3 text-sm">
+          <div className="grid grid-cols-2 gap-x-4 gap-y-4 text-base">
             <div>
-              <p className="text-slate-400 text-xs mb-0.5">Membership No.</p>
-              <p className="text-white font-medium">{member.membership_number}</p>
+              <p className={fieldLabel}>Membership No.</p>
+              <p className="text-white font-bold">{member.membership_number}</p>
             </div>
             <div>
-              <p className="text-slate-400 text-xs mb-0.5 flex items-center gap-1">
-                <Star size={12} aria-hidden="true" /> Tier
+              <p className={fieldLabel}>
+                <Star size={14} aria-hidden="true" /> Tier
               </p>
-              <p className="text-white capitalize">{member.membership_tier ?? 'member'}</p>
+              <p className="text-white font-bold capitalize">{member.membership_tier ?? 'member'}</p>
             </div>
 
             {member.phone && (
               <div>
-                <p className="text-slate-400 text-xs mb-0.5 flex items-center gap-1">
-                  <Phone size={12} aria-hidden="true" /> Phone
+                <p className={fieldLabel}>
+                  <Phone size={14} aria-hidden="true" /> Phone
                 </p>
                 <p className="text-white">{member.phone}</p>
               </div>
@@ -159,22 +161,22 @@ export default function MemberProfile({ member, onClose, onEdit, onSettleTab }) 
 
             {member.email && (
               <div>
-                <p className="text-slate-400 text-xs mb-0.5 flex items-center gap-1">
-                  <Mail size={12} aria-hidden="true" /> Email
+                <p className={fieldLabel}>
+                  <Mail size={14} aria-hidden="true" /> Email
                 </p>
                 <p className="text-white break-all">{member.email}</p>
               </div>
             )}
 
             <div>
-              <p className="text-slate-400 text-xs mb-0.5 flex items-center gap-1">
-                <Calendar size={12} aria-hidden="true" /> Renewal Date
+              <p className={fieldLabel}>
+                <Calendar size={14} aria-hidden="true" /> Renewal Date
               </p>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <p className="text-white">{formatDate(member.renewal_date)}</p>
                 {renewalSoon && (
-                  <span className="inline-flex items-center gap-1 text-amber-400 text-xs" aria-label="Renewal due soon">
-                    <Clock size={12} aria-hidden="true" />
+                  <span className="ui-tag ui-tag-warn" aria-label="Renewal due soon">
+                    <Clock size={14} aria-hidden="true" />
                     <span>Renewal due</span>
                   </span>
                 )}
@@ -182,17 +184,17 @@ export default function MemberProfile({ member, onClose, onEdit, onSettleTab }) 
             </div>
 
             <div>
-              <p className="text-slate-400 text-xs mb-0.5">Tab Balance</p>
+              <p className={fieldLabel}>Tab Balance</p>
               {hasTab ? (
-                <BlurredAmount className="text-blue-400 font-medium">
+                <BlurredAmount className="text-blue-300 text-[22px] leading-tight font-extrabold">
                   {formatCurrency(member.tab_balance)}
                 </BlurredAmount>
               ) : (
                 <p className="text-slate-400">None</p>
               )}
               {tabBlocked && (
-                <p className="text-red-300 text-xs mt-1 flex items-center gap-1">
-                  <Lock size={12} aria-hidden="true" />
+                <p className="text-red-300 text-sm font-semibold mt-1 flex items-center gap-1.5">
+                  <Lock size={14} className="shrink-0" aria-hidden="true" />
                   Tab blocked — cash or card only
                 </p>
               )}
@@ -202,10 +204,10 @@ export default function MemberProfile({ member, onClose, onEdit, onSettleTab }) 
           {/* Favourite drinks */}
           {favouriteDrinks.length > 0 && (
             <div>
-              <p className="text-slate-400 text-xs mb-1">Favourite Drinks</p>
+              <p className={`${fieldLabel} mb-1.5`}>Favourite Drinks</p>
               <div className="flex flex-wrap gap-2">
                 {favouriteDrinks.map((drink, i) => (
-                  <span key={i} className="px-2 py-0.5 rounded-full bg-slate-700 text-slate-200 text-xs">
+                  <span key={i} className="ui-tag ui-tag-neutral text-slate-100">
                     {drink}
                   </span>
                 ))}
@@ -216,29 +218,30 @@ export default function MemberProfile({ member, onClose, onEdit, onSettleTab }) 
           {/* Notes */}
           {member.notes && (
             <div>
-              <p className="text-slate-400 text-xs mb-1">Notes</p>
-              <p className="text-white text-sm">{member.notes}</p>
+              <p className={fieldLabel}>Notes</p>
+              <p className="text-white text-base">{member.notes}</p>
             </div>
           )}
 
           {/* Spend history */}
           <div>
-            <h3
-              className="text-sm font-semibold text-slate-300 mb-2"
-            >
+            <h3 className="ui-section-title mb-2">
               Recent Purchases
             </h3>
             {loadingOrders ? (
-              <p className="text-slate-400 text-sm">Loading…</p>
+              <p className="text-slate-400 text-[15px]">Loading…</p>
             ) : orders.length === 0 ? (
-              <p className="text-slate-400 text-sm">No purchases recorded.</p>
+              <p className="text-slate-400 text-[15px]">No purchases recorded.</p>
             ) : (
-              <ul className="flex flex-col gap-1" role="list">
+              <ul className="flex flex-col" role="list">
                 {orders.map(order => (
-                  <li key={order.id} className="flex items-center justify-between text-sm py-1 border-b border-slate-800">
-                    <span className="text-slate-400">{formatDate(order.created_at)}</span>
+                  <li
+                    key={order.id}
+                    className="grid grid-cols-[1fr_auto_5.5rem] items-center gap-3 text-[15px] py-2.5 border-b border-slate-800 last:border-b-0"
+                  >
+                    <span className="text-slate-300">{formatDate(order.created_at)}</span>
                     <span className="text-slate-300 capitalize">{order.payment_method ?? '—'}</span>
-                    <span className="text-white font-medium">{formatCurrency(order.total_amount)}</span>
+                    <span className="text-white font-bold text-right">{formatCurrency(order.total_amount)}</span>
                   </li>
                 ))}
               </ul>
@@ -247,13 +250,13 @@ export default function MemberProfile({ member, onClose, onEdit, onSettleTab }) 
         </div>
 
         {/* Footer actions */}
-        <div className="flex flex-wrap gap-3 px-5 pb-5 pt-3 border-t border-slate-700">
+        <div className="flex flex-wrap gap-3 px-6 py-4 border-t border-slate-800">
           {hasTab && (
             <button
               onClick={() => setSettleModalOpen(true)}
-              className="flex items-center gap-2 px-4 min-h-[44px] rounded-xl bg-[#3B82F6] hover:bg-blue-400 text-white font-bold text-sm transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617]"
+              className="ui-btn ui-btn-pay"
             >
-              <CreditCard size={16} aria-hidden="true" />
+              <CreditCard size={18} aria-hidden="true" />
               Settle Tab
             </button>
           )}
@@ -261,36 +264,31 @@ export default function MemberProfile({ member, onClose, onEdit, onSettleTab }) 
               owe something, so this is the only way to open a tab from £0. */}
           <button
             onClick={() => setAdjustModalOpen(true)}
-            className="flex items-center gap-2 px-4 min-h-[44px] rounded-xl bg-slate-700 hover:bg-slate-600 text-white font-semibold text-sm transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617]"
+            className="ui-btn ui-btn-secondary"
           >
-            <Edit2 size={16} aria-hidden="true" />
+            <Edit2 size={18} aria-hidden="true" />
             Adjust Tab
           </button>
           <button
             onClick={handleToggleBlock}
             disabled={savingBlock}
-            className={`flex items-center gap-2 px-4 min-h-[44px] rounded-xl font-semibold text-sm transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-default focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617] ${
-              tabBlocked
-                ? 'bg-slate-700 hover:bg-slate-600 text-white'
-                : 'bg-red-900 hover:bg-red-800 text-red-100'
-            }`}
+            className={`ui-btn ${tabBlocked ? 'ui-btn-secondary' : 'ui-btn-danger'}`}
           >
-            <Lock size={16} aria-hidden="true" />
+            <Lock size={18} aria-hidden="true" />
             {tabBlocked ? 'Unblock Tab' : 'Block Tab'}
           </button>
           {member.membership_tier === 'staff' && (
             <button
               onClick={() => setSetPinOpen(true)}
-              className="flex items-center gap-2 px-4 min-h-[44px] rounded-xl bg-slate-700 hover:bg-slate-600
-                text-white font-semibold text-sm transition-colors cursor-pointer"
+              className="ui-btn ui-btn-secondary"
             >
-              <KeyRound size={16} aria-hidden="true" />
+              <KeyRound size={18} aria-hidden="true" />
               Set PIN
             </button>
           )}
           <button
             onClick={() => onEdit(member)}
-            className="flex-1 min-h-[44px] rounded-xl border border-slate-600 text-slate-300 hover:bg-slate-700 hover:text-white transition-colors cursor-pointer text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617]"
+            className="ui-btn ui-btn-ghost flex-1"
           >
             Edit Member
           </button>

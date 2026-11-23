@@ -168,56 +168,49 @@ export default function TabsPage() {
   }, [overdueCount, loading, error])
 
   return (
-    <div className="flex flex-col h-full min-h-0 p-4 gap-4 overflow-auto">
+    <div className="ui-page">
       {/* Header */}
-      <div className="flex items-center justify-between gap-4 flex-wrap">
-        <h1
-          className="text-2xl font-bold text-white"
-        >
-          Tabs
-        </h1>
+      <div className="ui-page-header">
+        <h1 className="ui-title">Tabs</h1>
         {tabs.length > 0 && (
-          <div className="flex items-center gap-4">
+          <div className="flex items-center justify-between gap-4 w-full sm:w-auto">
+            <div className="sm:text-right">
+              <p className="ui-stat-label">Total outstanding</p>
+              <BlurredAmount className="text-white text-[28px] leading-tight font-extrabold tracking-tight">
+                £{total.toFixed(2)}
+              </BlurredAmount>
+            </div>
             <button
               onClick={handlePrint}
               disabled={printing}
               aria-label="Print tabs"
-              className="shrink-0 px-3 min-h-[36px] rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-300 font-bold text-xs transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-default focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617]"
+              className="ui-btn ui-btn-secondary shrink-0 min-w-[96px]"
             >
               {printing ? 'Printing…' : 'Print'}
             </button>
-            <div className="text-right">
-              <p className="text-slate-400 text-xs">Total outstanding</p>
-              <BlurredAmount className="text-white font-bold text-lg">
-                £{total.toFixed(2)}
-              </BlurredAmount>
-            </div>
           </div>
         )}
       </div>
 
       {/* Overdue alert */}
       {overdueTabs.length > 0 && (
-        <div
-          role="status"
-          className="flex items-center justify-between gap-3 flex-wrap bg-amber-950 border border-amber-700 rounded-2xl px-4 py-3"
-        >
+        <div role="status" className="ui-banner ui-banner-warn justify-between">
           <div className="flex items-center gap-3 min-w-0">
-            <AlertTriangle size={20} className="text-amber-400 shrink-0" aria-hidden="true" />
-            <div>
-              <p className="text-amber-100 text-sm font-semibold">
+            <AlertTriangle size={24} className="text-amber-300 shrink-0" aria-hidden="true" />
+            <div className="min-w-0">
+              <p className="text-amber-100 text-base font-bold">
                 {overdueTabs.length} {overdueTabs.length === 1 ? 'tab has' : 'tabs have'} had no payment for {TAB_OVERDUE_DAYS}+ days
               </p>
-              <p className="text-amber-300 text-xs flex items-center gap-1">
+              <p className="text-amber-200 text-[15px] flex items-center gap-1.5 flex-wrap">
                 <span>Owed on overdue tabs:</span>
-                <BlurredAmount className="text-amber-300">£{overdueTotal.toFixed(2)}</BlurredAmount>
+                <BlurredAmount className="text-amber-100 font-bold">£{overdueTotal.toFixed(2)}</BlurredAmount>
               </p>
             </div>
           </div>
           <button
             onClick={() => setOverdueOnly(v => !v)}
             aria-pressed={showOverdueOnly}
-            className="shrink-0 px-3 min-h-[36px] rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-900 font-bold text-xs transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617]"
+            className="ui-btn ui-btn-warn shrink-0 w-full sm:w-auto"
           >
             {showOverdueOnly ? 'Show all tabs' : 'Show overdue only'}
           </button>
@@ -225,47 +218,48 @@ export default function TabsPage() {
       )}
 
       {/* Content */}
-      <div className="flex-1 bg-[#0F172A] rounded-2xl border border-slate-700 overflow-auto">
+      <div className="ui-card flex-1 min-h-[160px] overflow-auto">
         {loading ? (
-          <p className="text-slate-400 text-sm p-6 text-center">Loading open tabs…</p>
+          <p className="ui-empty">Loading open tabs…</p>
         ) : error ? (
-          <p className="text-red-400 text-sm p-6 text-center">{error}</p>
+          <p className="text-red-300 text-base font-semibold text-center py-10 px-4">{error}</p>
         ) : tabs.length === 0 ? (
-          <p className="text-slate-400 text-sm p-6 text-center">No open tabs.</p>
+          <p className="ui-empty">No open tabs.</p>
         ) : (
-          <ul className="divide-y divide-slate-700">
+          <ul className="divide-y divide-slate-800">
             {visibleTabs.map(member => {
               const isExpanded = expandedId === member.id
               const orders = expandedOrders[member.id]
               const ordersLoading = expandedLoading[member.id]
               return (
-                <li key={member.id}>
+                <li key={member.id} className={isExpanded ? 'bg-[#1D1F22]' : ''}>
                   {/* Row */}
-                  <div className="flex items-center gap-3 px-4 py-3">
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3">
                     <button
                       onClick={() => toggleExpand(member.id)}
-                      className="flex-1 flex items-center gap-3 text-left focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617]"
+                      className="flex-1 basis-56 min-w-0 min-h-[56px] flex items-center gap-3 text-left rounded-xl cursor-pointer
+                        focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400"
                       aria-expanded={isExpanded}
                     >
                       <ChevronRight
-                        size={16}
-                        className={`text-slate-500 shrink-0 transition-transform ${isExpanded ? 'rotate-90' : ''}`}
+                        size={22}
+                        className={`text-slate-400 shrink-0 transition-transform ${isExpanded ? 'rotate-90' : ''}`}
                         aria-hidden="true"
                       />
                       <div className="flex-1 min-w-0">
-                        <p className="text-white text-sm font-medium truncate">{member.name}</p>
-                        <p className="text-slate-400 text-xs">{member.membership_number}</p>
+                        <p className="text-white text-lg leading-snug font-bold truncate">{member.name}</p>
+                        <p className="text-slate-400 text-[15px]">{member.membership_number}</p>
                         {(member.overdue || member.tab_blocked) && (
-                          <div className="flex flex-wrap gap-1.5 mt-1">
+                          <div className="flex flex-wrap gap-1.5 mt-1.5">
                             {member.overdue && (
-                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-950 border border-amber-700 text-amber-300 text-xs font-medium">
-                                <Clock size={12} aria-hidden="true" />
+                              <span className="ui-tag ui-tag-warn">
+                                <Clock size={14} aria-hidden="true" />
                                 No payment for {member.days} days
                               </span>
                             )}
                             {member.tab_blocked && (
-                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-950 border border-red-800 text-red-300 text-xs font-medium">
-                                <Lock size={12} aria-hidden="true" />
+                              <span className="ui-tag ui-tag-bad">
+                                <Lock size={14} aria-hidden="true" />
                                 Tab blocked
                               </span>
                             )}
@@ -273,23 +267,25 @@ export default function TabsPage() {
                         )}
                       </div>
                     </button>
-                    <BlurredAmount className="text-white font-bold text-sm shrink-0">
-                      £{Number(member.tab_balance).toFixed(2)}
-                    </BlurredAmount>
-                    <button
-                      onClick={() => setSettlingMember(member)}
-                      aria-label={`Settle tab for ${member.name}`}
-                      className="shrink-0 px-3 min-h-[36px] rounded-lg bg-[#22C55E] hover:bg-green-400 text-slate-900 font-bold text-xs transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617]"
-                    >
-                      Settle
-                    </button>
+                    <div className="flex items-center justify-between gap-4 w-full sm:w-auto pl-[34px] sm:pl-0">
+                      <BlurredAmount className="text-white text-[22px] font-extrabold shrink-0 min-h-[48px] sm:min-w-[96px] sm:text-right">
+                        £{Number(member.tab_balance).toFixed(2)}
+                      </BlurredAmount>
+                      <button
+                        onClick={() => setSettlingMember(member)}
+                        aria-label={`Settle tab for ${member.name}`}
+                        className="ui-btn ui-btn-pay ui-btn-lg shrink-0 min-w-[120px]"
+                      >
+                        Settle
+                      </button>
+                    </div>
                   </div>
 
                   {/* Expanded order breakdown */}
                   {isExpanded && (
-                    <div className="px-4 pb-3 flex flex-col gap-2">
+                    <div className="px-4 pb-4 flex flex-col gap-3">
                       <div className="flex items-center justify-end gap-2 flex-wrap">
-                        <p className="text-slate-400 text-xs mr-auto">
+                        <p className="text-slate-300 text-[15px] mr-auto">
                           {member.last_paid_at
                             ? `Last payment ${new Date(member.last_paid_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}`
                             : 'No payments recorded'}
@@ -298,11 +294,7 @@ export default function TabsPage() {
                           onClick={() => handleToggleBlock(member)}
                           disabled={blockingId === member.id}
                           aria-label={`${member.tab_blocked ? 'Unblock' : 'Block'} tab for ${member.name}`}
-                          className={`shrink-0 px-3 min-h-[36px] rounded-lg font-bold text-xs transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-default focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617] ${
-                            member.tab_blocked
-                              ? 'bg-slate-700 hover:bg-slate-600 text-slate-300'
-                              : 'bg-red-900 hover:bg-red-800 text-red-100'
-                          }`}
+                          className={`ui-btn shrink-0 ${member.tab_blocked ? 'ui-btn-secondary' : 'ui-btn-danger'}`}
                         >
                           {member.tab_blocked ? 'Unblock tab' : 'Block tab'}
                         </button>
@@ -310,49 +302,49 @@ export default function TabsPage() {
                           onClick={() => handlePrintStatement(member)}
                           disabled={printingStatementId === member.id}
                           aria-label={`Print tab statement for ${member.name}`}
-                          className="shrink-0 px-3 min-h-[36px] rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-300 font-bold text-xs transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-default focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617]"
+                          className="ui-btn ui-btn-secondary shrink-0"
                         >
                           {printingStatementId === member.id ? 'Printing…' : 'Print'}
                         </button>
                         <button
                           onClick={() => setAdjustingMember(member)}
                           aria-label={`Adjust tab for ${member.name}`}
-                          className="shrink-0 px-3 min-h-[36px] rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-300 font-bold text-xs transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617]"
+                          className="ui-btn ui-btn-secondary shrink-0"
                         >
                           Adjust
                         </button>
                       </div>
                       {ordersLoading ? (
-                        <p className="text-slate-400 text-xs">Loading orders…</p>
+                        <p className="text-slate-400 text-[15px]">Loading orders…</p>
                       ) : orders?.fetchError ? (
-                        <p className="text-red-400 text-xs">Failed to load orders. Please try again.</p>
+                        <p className="ui-error text-[15px]">Failed to load orders. Please try again.</p>
                       ) : !orders?.length ? (
-                        <p className="text-slate-400 text-xs">No tab orders found.</p>
+                        <p className="text-slate-400 text-[15px]">No tab orders found.</p>
                       ) : (
                         orders.map(order => (
-                          <div key={order.id} className="bg-slate-800 rounded-xl p-3">
-                            <div className="flex items-center justify-between mb-2">
-                              <p className="text-slate-400 text-xs">
+                          <div key={order.id} className="bg-slate-800 rounded-xl pl-4 pr-2 py-2">
+                            <div className="flex items-center justify-between gap-3 min-h-[48px]">
+                              <p className="text-slate-300 text-[15px]">
                                 {new Date(order.created_at).toLocaleString('en-GB', {
                                   day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
                                 })}
-                                <span className="text-white font-bold ml-2">£{Number(order.total_amount).toFixed(2)}</span>
+                                <span className="text-white text-base font-extrabold ml-3">£{Number(order.total_amount).toFixed(2)}</span>
                               </p>
                               {removingOrderId === order.id ? (
-                                <span className="text-slate-500 text-xs">Removing…</span>
+                                <span className="text-slate-400 text-[15px] px-3">Removing…</span>
                               ) : (
                                 <button
                                   onClick={() => handleRemoveOrder(order, member)}
                                   aria-label="Remove order from tab"
-                                  className="text-red-400 hover:text-red-300 text-xs font-medium cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 rounded px-1"
+                                  className="ui-btn ui-btn-danger shrink-0"
                                 >
                                   Remove
                                 </button>
                               )}
                             </div>
-                            <ul className="flex flex-col gap-1">
+                            <ul className="flex flex-col gap-1 pr-2 pb-1.5 mt-1">
                               {order.order_items.map(item => (
-                                <li key={item.id} className="flex justify-between text-xs text-slate-300">
+                                <li key={item.id} className="flex justify-between gap-3 text-[15px] text-slate-100">
                                   <span>
                                     <span>{item.products?.name ?? 'Unknown'}</span>
                                     {' × '}

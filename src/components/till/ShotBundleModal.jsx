@@ -63,65 +63,65 @@ export default function ShotBundleModal({ products, onClose }) {
 
   return (
     <div
-      className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4"
+      className="ui-modal-backdrop"
       role="dialog"
       aria-modal="true"
       aria-labelledby="shot-bundle-title"
     >
-      <div className="bg-[#0F172A] border border-slate-700 rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col">
+      <div className="ui-modal max-w-3xl p-0 gap-0 overflow-hidden">
         {/* Header */}
-        <div className="flex items-center justify-between px-5 pt-5 pb-3 border-b border-slate-700">
+        <div className="flex items-start justify-between gap-3 px-5 md:px-6 pt-5 pb-4 border-b border-slate-800">
           <div>
-            <h2 id="shot-bundle-title" className="text-white text-lg font-bold">4 Shots for £10</h2>
-            <p className="text-slate-400 text-sm">
+            <h2 id="shot-bundle-title" className="ui-modal-title">4 Shots for £10</h2>
+            <p className="ui-subtitle mt-1">
               {isReady
-                ? 'Ready — tap Confirm to add to the order.'
+                ? 'Ready — tap Add to Order.'
                 : `Pick ${remaining} more ${remaining === 1 ? 'spirit' : 'spirits'} — Sambuca, Fireball or Tequila.`}
             </p>
           </div>
           <button
             onClick={onClose}
             aria-label="Close"
-            className="text-slate-400 hover:text-white cursor-pointer min-h-[44px] min-w-[44px] flex items-center justify-center"
+            className="ui-btn ui-btn-ghost ui-btn-icon shrink-0"
           >
-            <X size={20} aria-hidden="true" />
+            <X size={22} aria-hidden="true" />
           </button>
         </div>
 
         {/* Selected summary */}
-        <div className="px-5 py-3 border-b border-slate-700 flex flex-wrap gap-2 items-center min-h-[60px]">
+        <div className="px-5 md:px-6 py-3 border-b border-slate-800 flex flex-wrap gap-2 items-center min-h-[72px]">
           {summary.length === 0 ? (
-            <p className="text-slate-500 text-sm italic">Nothing selected yet</p>
+            <p className="text-slate-400 text-[15px]">Nothing selected yet</p>
           ) : (
             <>
               {summary.map((item, idx) => (
                 <span
                   key={idx}
-                  className="inline-flex items-center gap-1.5 bg-emerald-700 text-white text-sm font-medium px-3 py-1.5 rounded-lg"
+                  className="inline-flex items-center gap-1.5 bg-slate-100 text-[#121314] text-[15px] font-bold px-3 py-1.5 rounded-full"
                 >
-                  {item.qty > 1 && <span className="font-bold">{item.qty}×</span>}
+                  {item.qty > 1 && <span className="font-extrabold">{item.qty}×</span>}
                   {item.name}
                 </span>
               ))}
               <button
                 type="button"
                 onClick={handleReset}
-                className="ml-auto text-slate-400 hover:text-white text-sm flex items-center gap-1 cursor-pointer min-h-[36px] px-2"
+                className="ui-btn ui-btn-ghost ml-auto"
               >
-                <RotateCcw size={14} aria-hidden="true" /> Reset
+                <RotateCcw size={18} aria-hidden="true" /> Reset
               </button>
             </>
           )}
         </div>
 
         {/* Spirit grid */}
-        <div className="flex-1 overflow-auto p-5">
+        <div className="flex-1 min-h-0 overflow-auto px-5 md:px-6 py-5">
           {spirits.length === 0 ? (
-            <p className="text-slate-500 text-sm text-center py-8">
+            <p className="ui-empty">
               No eligible spirits configured for this promotion. Add Sambuca, Fireball or Tequila to the menu first.
             </p>
           ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
               {spirits.map(product => {
                 const count = selected.filter(s => s.id === product.id).length
                 return (
@@ -130,23 +130,22 @@ export default function ShotBundleModal({ products, onClose }) {
                     type="button"
                     onClick={() => handlePick(product)}
                     disabled={selected.length >= BUNDLE_QTY}
-                    className={`relative bg-slate-800 hover:bg-slate-700 active:scale-95 rounded-xl p-3
-                      text-left transition-all duration-150 flex flex-col gap-1 cursor-pointer
-                      min-h-[72px] border-l-[3px] border-l-purple-500
-                      disabled:opacity-50 disabled:cursor-not-allowed
-                      focus:outline-none focus:ring-2 focus:ring-blue-500`}
+                    className={TILE_CLASS}
+                    style={{ backgroundColor: TINT.bg, borderColor: count > 0 ? TINT.text : TINT.border }}
                   >
                     {count > 0 && (
                       <span
                         aria-label={`${count} selected`}
-                        className="absolute top-2 right-2 bg-emerald-500 text-white text-xs font-bold
-                          rounded-full w-6 h-6 flex items-center justify-center"
+                        className="absolute top-2.5 right-2.5 min-w-[28px] h-7 px-1.5 rounded-full bg-slate-100
+                          text-[#121314] text-[15px] font-extrabold leading-7 text-center"
                       >
                         {count}
                       </span>
                     )}
-                    <span className="text-white font-medium text-sm leading-tight pr-7">{product.name}</span>
-                    <span className="text-slate-400 text-xs">£{product.standard_price.toFixed(2)} normally</span>
+                    <span className="font-semibold text-[17px] leading-tight pr-8">{product.name}</span>
+                    <span className="text-[15px] font-semibold" style={{ color: TINT.text }}>
+                      £{product.standard_price.toFixed(2)} normally
+                    </span>
                   </button>
                 )
               })}
@@ -155,16 +154,15 @@ export default function ShotBundleModal({ products, onClose }) {
         </div>
 
         {/* Footer actions */}
-        <div className="px-5 py-4 border-t border-slate-700 flex gap-3 items-center">
-          <div className="text-slate-400 text-sm">
-            <span className="text-white font-bold">£{(UNIT_PRICE * selected.length).toFixed(2)}</span>
-            <span className="text-slate-500 text-xs"> / £{BUNDLE_TOTAL.toFixed(2)}</span>
+        <div className="px-5 md:px-6 py-4 border-t border-slate-800 flex flex-wrap gap-3 items-center">
+          <div className="mr-auto text-slate-400 text-[15px] font-semibold">
+            <span className="text-white text-[22px] font-extrabold">£{(UNIT_PRICE * selected.length).toFixed(2)}</span>
+            <span> / £{BUNDLE_TOTAL.toFixed(2)}</span>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="ml-auto min-h-[44px] px-4 rounded-xl border border-slate-600 text-slate-300
-              hover:bg-slate-700 cursor-pointer text-sm font-medium transition-colors"
+            className="ui-btn ui-btn-ghost ui-btn-lg"
           >
             Cancel
           </button>
@@ -172,9 +170,7 @@ export default function ShotBundleModal({ products, onClose }) {
             type="button"
             onClick={handleConfirm}
             disabled={!isReady}
-            className="min-h-[44px] px-5 rounded-xl bg-emerald-600 hover:bg-emerald-500
-              disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-bold
-              cursor-pointer transition-colors"
+            className="ui-btn ui-btn-primary ui-btn-lg flex-1 sm:flex-none"
           >
             Add to Order — £{BUNDLE_TOTAL.toFixed(2)}
           </button>
@@ -183,3 +179,11 @@ export default function ShotBundleModal({ products, onClose }) {
     </div>
   )
 }
+
+// Same tile as the till's product grid, in the spirit category tint.
+const TINT = { bg: '#231F33', border: '#463D73', text: '#B9ADF2' }
+const TILE_CLASS = `relative rounded-2xl border-[1.5px] px-3.5 py-3 text-left text-white
+  flex flex-col justify-between gap-2 min-h-[88px] cursor-pointer
+  transition-transform duration-100 active:scale-[0.97]
+  disabled:opacity-50 disabled:cursor-not-allowed
+  focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400`

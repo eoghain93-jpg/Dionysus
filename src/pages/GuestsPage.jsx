@@ -31,9 +31,9 @@ export default function GuestsPage() {
   }
 
   return (
-    <div className="flex flex-col h-full min-h-0 p-4 gap-4 overflow-auto">
-      <div className="flex items-center justify-between gap-4 flex-wrap">
-        <h1 className="text-2xl font-bold text-white">Guests</h1>
+    <div className="ui-page">
+      <div className="ui-page-header">
+        <h1 className="ui-title">Guests</h1>
         <div className="flex items-center gap-3 flex-wrap">
           <input
             type="date"
@@ -41,40 +41,40 @@ export default function GuestsPage() {
             onChange={e => changeDate(e.target.value)}
             max={tradingTodayISO()}
             aria-label="Select guest book date"
-            className="bg-[#0F172A] border border-slate-700 rounded-xl px-3 min-h-[44px] text-white text-sm cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617]"
+            className="ui-input w-auto flex-1 sm:flex-none cursor-pointer [color-scheme:dark]"
           />
           <button
             onClick={() => setShowSignIn(true)}
-            className="flex items-center gap-2 px-4 min-h-[44px] rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617]"
+            className="ui-btn ui-btn-primary flex-1 sm:flex-none"
           >
-            <UserPlus size={16} aria-hidden="true" />
+            <UserPlus size={20} aria-hidden="true" />
             Sign in guest
           </button>
         </div>
       </div>
 
       {error ? (
-        <p role="alert" className="text-red-400 text-sm">{error}</p>
+        <p role="alert" className="ui-banner ui-banner-bad">{error}</p>
       ) : loading ? (
-        <div className="text-slate-400 text-sm">Loading…</div>
+        <div className="ui-card ui-empty">Loading…</div>
       ) : guests.length === 0 ? (
-        <div className="text-slate-400 text-sm">No guests signed in on {date}</div>
+        <div className="ui-card ui-empty px-4">No guests signed in on {date}</div>
       ) : (
-        <div className="bg-[#0F172A] border border-slate-700 rounded-2xl overflow-hidden">
-          <div className="px-4 py-3 border-b border-slate-700 text-slate-400 text-sm">
+        <div className="ui-card overflow-hidden">
+          <div className="px-4 py-3 border-b border-slate-800 text-slate-300 text-[15px] font-bold">
             {guests.length} guest{guests.length > 1 ? 's' : ''}
           </div>
-          <ul className="divide-y divide-slate-800">
+          <ul>
             {guests.map(g => (
-              <li key={g.id} className="px-4 py-3 flex items-center justify-between gap-3">
+              <li key={g.id} className="ui-row justify-between py-3">
                 <div className="min-w-0">
-                  <div className="text-white text-sm font-medium truncate">{g.guest_name}</div>
-                  <div className="text-slate-400 text-xs truncate">
+                  <div className="text-white text-lg font-extrabold leading-tight truncate">{g.guest_name}</div>
+                  <div className="text-slate-400 text-[15px] truncate">
                     Guest of {g.member?.name ?? 'unknown member'}
                     {g.member?.membership_number && ` (${g.member.membership_number})`}
                   </div>
                 </div>
-                <div className="text-slate-400 text-xs shrink-0">
+                <div className="text-slate-300 text-[15px] font-bold tabular-nums shrink-0">
                   {new Date(g.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                 </div>
               </li>

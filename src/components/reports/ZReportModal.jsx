@@ -215,92 +215,87 @@ export default function ZReportModal({ date, onClose, onDayClose }) {
 
   return (
     <div
-      className="fixed inset-0 bg-black/80 flex items-start justify-center z-50 p-4 overflow-auto"
+      className="ui-modal-backdrop"
       role="dialog"
       aria-modal="true"
       aria-label={`Z Report for ${date}`}
     >
-      <div className="bg-[#0F172A] border border-slate-700 rounded-2xl w-full max-w-2xl my-4 flex flex-col">
+      <div className="ui-modal max-w-3xl p-0 gap-0 overflow-hidden">
 
         {/* Header */}
-        <div className="flex items-center justify-between p-5 border-b border-slate-700">
+        <div className="flex items-center justify-between gap-3 px-5 md:px-6 py-4 border-b border-slate-800">
           <div>
-            <h2
-              className="text-xl font-bold text-white"
-            >
+            <h2 className="ui-modal-title">
               Z Report
             </h2>
-            <p className="text-slate-400 text-sm mt-0.5">{date}</p>
+            <p className="ui-subtitle mt-0.5">{date}</p>
           </div>
           <button
             onClick={onClose}
             aria-label="Close"
-            className="text-slate-400 hover:text-white transition-colors cursor-pointer p-1 rounded-lg hover:bg-slate-700"
+            className="ui-btn ui-btn-ghost ui-btn-icon shrink-0"
           >
-            <X size={20} aria-hidden="true" />
+            <X size={22} aria-hidden="true" />
           </button>
         </div>
 
         {/* Body */}
-        <div className="flex-1 overflow-auto p-5 space-y-6">
+        <div className="flex-1 min-h-0 overflow-auto px-5 md:px-6 py-5 space-y-6">
           {loading && (
-            <p className="text-slate-400 text-sm text-center py-12">Loading Z report…</p>
+            <p className="ui-empty">Loading Z report…</p>
           )}
 
           {error && (
-            <p className="text-red-400 text-sm text-center py-12">{error}</p>
+            <p className="ui-banner ui-banner-bad">{error}</p>
           )}
 
           {data && (
             <>
               <section aria-labelledby="z-sales-heading">
-                <h3
-                  id="z-sales-heading"
-                  className="text-sm font-semibold text-slate-400 uppercase tracking-wide mb-3"
-                >
+                <h3 id="z-sales-heading" className={SECTION_HEADING}>
                   Sales Summary
                 </h3>
-                <div className="bg-slate-800/60 rounded-xl p-4 space-y-2">
+                <div className={`${PANEL} space-y-2.5`}>
                   <Row label="Total Revenue">
-                    <span className="text-green-400 font-bold text-lg" data-testid="z-total-revenue">
+                    <span className="text-white font-extrabold text-[28px] leading-tight" data-testid="z-total-revenue">
                       {fmt(data.salesSummary.totalRevenue)}
                     </span>
                   </Row>
                   <Row label="Transactions">
-                    <span className="text-white font-semibold" data-testid="z-transaction-count">
+                    <span className={VALUE_STRONG} data-testid="z-transaction-count">
                       {data.salesSummary.transactionCount}
                     </span>
                   </Row>
-                  <div className="border-t border-slate-700/50 my-1" />
-                  <Row label={<><Banknote size={13} className="inline mr-1 text-green-400" aria-hidden="true" />Cash</>}>
-                    <span className="text-white text-sm" data-testid="z-cash-total">
+                  <Divider />
+                  <Row label={<><Banknote size={16} className="inline mr-1.5 text-emerald-300" aria-hidden="true" />Cash</>}>
+                    <span className={VALUE} data-testid="z-cash-total">
                       {fmt(data.salesSummary.cashTotal)}
                     </span>
                   </Row>
-                  <Row label={<><CreditCard size={13} className="inline mr-1 text-blue-400" aria-hidden="true" />Card</>}>
-                    <span className="text-white text-sm" data-testid="z-card-total">
+                  <Row label={<><CreditCard size={16} className="inline mr-1.5 text-blue-400" aria-hidden="true" />Card</>}>
+                    <span className={VALUE} data-testid="z-card-total">
                       {fmt(data.salesSummary.cardTotal)}
                     </span>
                   </Row>
-                  <div className="border-t border-slate-700/50 my-1" />
+                  <Divider />
                   <Row label="Refunds">
-                    <span className="text-red-400 text-sm" data-testid="z-refunds-total">
+                    <span className="text-red-300 text-base font-semibold" data-testid="z-refunds-total">
                       {fmt(-data.salesSummary.refundsTotal)}
                     </span>
                   </Row>
                   <Row label="Net Revenue">
-                    <span className="text-white font-semibold" data-testid="z-net-revenue">
+                    <span className={VALUE_STRONG} data-testid="z-net-revenue">
                       {fmt(data.salesSummary.netRevenue)}
                     </span>
                   </Row>
-                  <div className="border-t border-slate-700/50 my-1" />
-                  <Row label={<span className="text-slate-300 font-medium">Week to Date</span>}>
-                    <span className="text-emerald-400 font-bold tabular-nums">
+                  <Divider />
+                  <Row label={<span className="text-slate-300 font-semibold">Week to Date</span>}>
+                    <span className={VALUE_STRONG}>
                       {fmt(data.weekToDateRevenue ?? 0)}
                     </span>
                   </Row>
-                  <Row label={<span className="text-slate-300 font-medium">Outstanding Tabs</span>}>
-                    <span className="text-amber-400 font-bold tabular-nums">
+                  <Row label={<span className="text-slate-300 font-semibold">Outstanding Tabs</span>}>
+                    <span className="text-amber-300 text-[17px] font-extrabold">
                       {fmt(data.outstandingTabs ?? 0)}
                     </span>
                   </Row>
@@ -308,31 +303,28 @@ export default function ZReportModal({ date, onClose, onDayClose }) {
               </section>
 
               <section aria-labelledby="z-products-heading">
-                <h3
-                  id="z-products-heading"
-                  className="text-sm font-semibold text-slate-400 uppercase tracking-wide mb-3"
-                >
+                <h3 id="z-products-heading" className={SECTION_HEADING}>
                   Top Products
                 </h3>
-                <div className="bg-slate-800/60 rounded-xl p-4">
+                <div className="bg-slate-800 rounded-2xl">
                   {data.topProducts.length === 0 ? (
-                    <p className="text-slate-500 text-sm text-center py-4">No product sales for this date.</p>
+                    <p className="ui-empty py-6">No product sales for this date.</p>
                   ) : (
-                    <ol className="divide-y divide-slate-700/50" aria-label="Top products by revenue">
+                    <ol className="divide-y divide-slate-700" aria-label="Top products by revenue">
                       {data.topProducts.map((p, i) => (
-                        <li key={i} className="flex items-center gap-3 py-2.5">
-                          <span className="w-5 text-right text-slate-500 text-xs font-mono shrink-0" aria-hidden="true">
+                        <li key={i} className="flex items-center gap-3 px-4 py-3">
+                          <span className="w-6 text-right text-slate-400 text-[15px] font-bold shrink-0" aria-hidden="true">
                             {i + 1}
                           </span>
-                          <span className="flex-1 text-white text-sm truncate">{p.name}</span>
+                          <span className="flex-1 min-w-0 text-white text-base font-semibold truncate">{p.name}</span>
                           <span
-                            className="text-slate-400 text-xs tabular-nums shrink-0"
+                            className="text-slate-300 text-[15px] shrink-0"
                             data-testid={`z-product-qty-${i}`}
                           >
                             ×{p.qty}
                           </span>
                           <span
-                            className="text-green-400 text-sm font-semibold shrink-0 tabular-nums"
+                            className="text-white text-base font-extrabold shrink-0 w-20 text-right"
                             data-testid={`z-product-revenue-${i}`}
                           >
                             {fmt(p.revenue)}
@@ -346,62 +338,64 @@ export default function ZReportModal({ date, onClose, onDayClose }) {
 
               {data.weekSummary && (
                 <section aria-labelledby="z-week-heading">
-                  <h3 id="z-week-heading" className="text-sm font-semibold text-slate-400 uppercase tracking-wide mb-3">
-                    Week Summary <span className="text-slate-500 text-xs ml-2 normal-case">{data.weekSummary.weekStart} → {data.weekSummary.weekEnd}</span>
+                  <h3 id="z-week-heading" className={SECTION_HEADING}>
+                    Week Summary <span className="text-slate-400 text-[15px] font-semibold ml-2">{data.weekSummary.weekStart} → {data.weekSummary.weekEnd}</span>
                   </h3>
-                  <div className="bg-slate-800/60 rounded-xl p-4 space-y-3">
+                  <div className={`${PANEL} space-y-3`}>
                     {/* Daily breakdown — cash / card / total */}
-                    <div className="grid grid-cols-[1fr_auto_auto_auto] gap-x-4 gap-y-1 text-sm tabular-nums">
-                      <span className="text-slate-500 text-xs uppercase tracking-wide">Day</span>
-                      <span className="text-slate-500 text-xs uppercase tracking-wide text-right">Cash</span>
-                      <span className="text-slate-500 text-xs uppercase tracking-wide text-right">Card</span>
-                      <span className="text-slate-500 text-xs uppercase tracking-wide text-right">Total</span>
-                      {data.weekSummary.daily.map(d => (
-                        <Fragment key={d.date}>
-                          <span className="text-slate-400 text-xs self-center">
-                            {new Date(`${d.date}T12:00:00Z`).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })}
-                          </span>
-                          <span className="text-slate-300 text-right">{fmt(d.cash)}</span>
-                          <span className="text-slate-300 text-right">{fmt(d.card)}</span>
-                          <span className="text-white text-right">{fmt(d.total)}</span>
-                        </Fragment>
-                      ))}
-                      <span className="col-span-4 border-t border-slate-700/50 mt-1" />
-                      <span className="text-slate-300 text-xs font-semibold uppercase tracking-wide self-center">Total</span>
-                      <span className="text-emerald-400 font-semibold text-right">
-                        {fmt(data.weekSummary.daily.reduce((s, d) => s + d.cash, 0))}
-                      </span>
-                      <span className="text-emerald-400 font-semibold text-right">
-                        {fmt(data.weekSummary.daily.reduce((s, d) => s + d.card, 0))}
-                      </span>
-                      <span className="text-emerald-400 font-bold text-right">
-                        {fmt(data.weekSummary.weekRevenue)}
-                      </span>
+                    <div className="overflow-x-auto">
+                      <div className="grid grid-cols-[1fr_auto_auto_auto] gap-x-4 gap-y-1.5 text-[15px] min-w-[340px]">
+                        <span className={COL_HEAD}>Day</span>
+                        <span className={`${COL_HEAD} text-right`}>Cash</span>
+                        <span className={`${COL_HEAD} text-right`}>Card</span>
+                        <span className={`${COL_HEAD} text-right`}>Total</span>
+                        {data.weekSummary.daily.map(d => (
+                          <Fragment key={d.date}>
+                            <span className="text-slate-300 self-center whitespace-nowrap">
+                              {new Date(`${d.date}T12:00:00Z`).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })}
+                            </span>
+                            <span className="text-slate-300 text-right">{fmt(d.cash)}</span>
+                            <span className="text-slate-300 text-right">{fmt(d.card)}</span>
+                            <span className="text-white font-semibold text-right">{fmt(d.total)}</span>
+                          </Fragment>
+                        ))}
+                        <span className="col-span-4 border-t border-slate-700 mt-1" />
+                        <span className="text-white font-extrabold self-center">Total</span>
+                        <span className="text-white font-bold text-right">
+                          {fmt(data.weekSummary.daily.reduce((s, d) => s + d.cash, 0))}
+                        </span>
+                        <span className="text-white font-bold text-right">
+                          {fmt(data.weekSummary.daily.reduce((s, d) => s + d.card, 0))}
+                        </span>
+                        <span className="text-white font-extrabold text-right">
+                          {fmt(data.weekSummary.weekRevenue)}
+                        </span>
+                      </div>
                     </div>
                     <Row label="Last Week">
-                      <span className="text-slate-400 text-sm tabular-nums">{fmt(data.weekSummary.previousWeekRevenue)}</span>
+                      <span className="text-slate-300 text-base">{fmt(data.weekSummary.previousWeekRevenue)}</span>
                     </Row>
                     {data.weekSummary.weekOnWeekDelta != null && (
                       <Row label="Change">
-                        <span className={`text-sm font-semibold tabular-nums ${data.weekSummary.weekOnWeekDelta >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                        <span className={`text-base font-bold ${data.weekSummary.weekOnWeekDelta >= 0 ? 'text-emerald-300' : 'text-red-300'}`}>
                           {data.weekSummary.weekOnWeekDelta >= 0 ? '+' : ''}{data.weekSummary.weekOnWeekDelta.toFixed(1)}%
                         </span>
                       </Row>
                     )}
-                    <div className="border-t border-slate-700/50" />
-                    <Row label="Wastage (week)"><span className="text-red-400 text-sm tabular-nums">{fmt(data.weekSummary.wastageTotal)}</span></Row>
-                    <Row label="Staff Drinks (week)"><span className="text-orange-400 text-sm tabular-nums">{fmt(data.weekSummary.staffDrinksTotal)}</span></Row>
+                    <Divider />
+                    <Row label="Wastage (week)"><span className="text-red-300 text-base font-semibold">{fmt(data.weekSummary.wastageTotal)}</span></Row>
+                    <Row label="Staff Drinks (week)"><span className="text-amber-300 text-base font-semibold">{fmt(data.weekSummary.staffDrinksTotal)}</span></Row>
                     {data.weekSummary.topProducts.length > 0 && (
                       <>
-                        <div className="border-t border-slate-700/50" />
-                        <p className="text-slate-400 text-xs uppercase tracking-wide">Top sellers (week)</p>
-                        <ol className="space-y-1">
+                        <Divider />
+                        <p className={COL_HEAD}>Top sellers (week)</p>
+                        <ol className="space-y-1.5">
                           {data.weekSummary.topProducts.map((p, i) => (
-                            <li key={i} className="flex items-center gap-2 text-sm">
-                              <span className="text-slate-500 text-xs font-mono w-5 text-right">{i + 1}</span>
-                              <span className="flex-1 text-white truncate">{p.name}</span>
-                              <span className="text-slate-400 text-xs tabular-nums">×{p.qty}</span>
-                              <span className="text-emerald-400 text-sm tabular-nums">{fmt(p.revenue)}</span>
+                            <li key={i} className="flex items-center gap-2.5 text-[15px]">
+                              <span className="text-slate-400 font-bold w-5 text-right">{i + 1}</span>
+                              <span className="flex-1 min-w-0 text-white truncate">{p.name}</span>
+                              <span className="text-slate-300">×{p.qty}</span>
+                              <span className="text-white font-bold w-20 text-right">{fmt(p.revenue)}</span>
                             </li>
                           ))}
                         </ol>
@@ -416,7 +410,7 @@ export default function ZReportModal({ date, onClose, onDayClose }) {
                 title="Wastage"
                 items={data.wastage}
                 renderLabel={w => `${w.name} ×${w.quantity}`}
-                valueClass="text-red-400"
+                valueClass="text-red-300"
               />
 
               <ReportSection
@@ -424,19 +418,16 @@ export default function ZReportModal({ date, onClose, onDayClose }) {
                 title="Staff Drinks"
                 items={data.staffDrinks}
                 renderLabel={s => (
-                  <><span>{s.name}</span><span className="text-slate-500 text-xs ml-1">({s.items} item{s.items !== 1 ? 's' : ''})</span></>
+                  <><span>{s.name}</span><span className="text-slate-400 text-sm ml-1.5">({s.items} item{s.items !== 1 ? 's' : ''})</span></>
                 )}
-                valueClass="text-orange-400"
+                valueClass="text-amber-300"
               />
 
               <section aria-labelledby="z-cash-heading">
-                <h3
-                  id="z-cash-heading"
-                  className="text-sm font-semibold text-slate-400 uppercase tracking-wide mb-3"
-                >
+                <h3 id="z-cash-heading" className={SECTION_HEADING}>
                   Cash Reconciliation
                 </h3>
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <TillReconciliationCard
                     title="Till 1"
                     floatId="z-opening-float"
@@ -474,35 +465,35 @@ export default function ZReportModal({ date, onClose, onDayClose }) {
                 </div>
 
                 {/* Combined footer — visible at-a-glance totals */}
-                <div className="bg-slate-900/60 border border-slate-700 rounded-xl p-4 mt-3 space-y-2">
-                  <p className="text-xs text-slate-400 uppercase tracking-wide">Combined</p>
+                <div className="border border-slate-700 rounded-2xl p-4 mt-3 space-y-2.5">
+                  <p className="text-white text-[17px] font-extrabold">Combined</p>
                   <Row label="Total Expected">
-                    <span className="text-white font-semibold tabular-nums" data-testid="z-expected-till">
+                    <span className={VALUE_STRONG} data-testid="z-expected-till">
                       {fmt(expectedInTill)}
                     </span>
                   </Row>
                   <Row label="Total Actual Cash">
-                    <span className="text-white font-semibold tabular-nums">{fmt(actualCash)}</span>
+                    <span className={VALUE_STRONG}>{fmt(actualCash)}</span>
                   </Row>
                   <Row label="Total Variance">
                     <span
                       data-testid="z-variance"
-                      className={`font-bold tabular-nums ${variance >= 0 ? 'text-green-400' : 'text-red-400'}`}
+                      className={`text-[22px] leading-tight font-extrabold ${variance >= 0 ? 'text-green-400' : 'text-red-400'}`}
                     >
                       {fmt(variance)}
                     </span>
                   </Row>
                   {prizeWinsTotal > 0 && (
-                    <div className="pl-1 pt-1 border-t border-slate-700/50 space-y-1 text-xs">
-                      <div className="flex justify-between">
-                        <span className="text-slate-500">Prize Wins · Machine 1</span>
-                        <span className="text-red-400/80" data-testid="z-prize-wins-m1">
+                    <div className="pt-2.5 border-t border-slate-700 space-y-1.5 text-[15px]">
+                      <div className="flex justify-between gap-3">
+                        <span className="text-slate-400">Prize Wins · Machine 1</span>
+                        <span className="text-red-300" data-testid="z-prize-wins-m1">
                           -{fmt(data.prizeWins?.machine1 ?? 0)}
                         </span>
                       </div>
-                      <div className="flex justify-between">
-                        <span className="text-slate-500">Prize Wins · Machine 2</span>
-                        <span className="text-red-400/80" data-testid="z-prize-wins-m2">
+                      <div className="flex justify-between gap-3">
+                        <span className="text-slate-400">Prize Wins · Machine 2</span>
+                        <span className="text-red-300" data-testid="z-prize-wins-m2">
                           -{fmt(data.prizeWins?.machine2 ?? 0)}
                         </span>
                       </div>
@@ -513,7 +504,7 @@ export default function ZReportModal({ date, onClose, onDayClose }) {
               </section>
 
               {closeError && (
-                <p className="text-red-400 text-sm text-center">{closeError}</p>
+                <p className="ui-banner ui-banner-bad">{closeError}</p>
               )}
             </>
           )}
@@ -521,20 +512,20 @@ export default function ZReportModal({ date, onClose, onDayClose }) {
 
         {/* Footer actions */}
         {data && (
-          <div className="flex items-center justify-end gap-3 p-5 border-t border-slate-700">
+          <div className="flex flex-wrap items-center justify-end gap-3 px-5 md:px-6 py-4 border-t border-slate-800">
             <button
               onClick={handleExportCSV}
-              className="flex items-center gap-2 px-4 min-h-[44px] rounded-xl bg-slate-700 hover:bg-slate-600 border border-slate-600 text-white text-sm font-semibold transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617]"
+              className="ui-btn ui-btn-secondary ui-btn-lg flex-1 sm:flex-none"
             >
-              <Download size={15} aria-hidden="true" />
+              <Download size={20} aria-hidden="true" />
               Export CSV
             </button>
             <button
               onClick={handleCloseDay}
               disabled={closing}
-              className="flex items-center gap-2 px-4 min-h-[44px] rounded-xl bg-red-800 hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-semibold transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 focus:ring-offset-[#020617]"
+              className="ui-btn ui-btn-primary ui-btn-lg flex-1 sm:flex-none"
             >
-              <Lock size={15} aria-hidden="true" />
+              <Lock size={20} aria-hidden="true" />
               {closing ? 'Closing…' : 'Close Day'}
             </button>
           </div>
@@ -544,10 +535,21 @@ export default function ZReportModal({ date, onClose, onDayClose }) {
   )
 }
 
+const SECTION_HEADING = 'ui-section-title mb-3'
+const PANEL = 'bg-slate-800 rounded-2xl p-4'
+const COL_HEAD = 'text-slate-400 text-[13px] font-bold uppercase tracking-wide'
+const VALUE = 'text-white text-base font-semibold'
+const VALUE_STRONG = 'text-white text-[17px] font-extrabold'
+const MONEY_INPUT = 'ui-input w-28 px-3 text-right font-bold bg-slate-900'
+
+function Divider() {
+  return <div className="border-t border-slate-700" />
+}
+
 function Row({ label, children }) {
   return (
     <div className="flex items-center justify-between gap-3">
-      <span className="text-slate-400 text-sm">{label}</span>
+      <span className="text-slate-300 text-base">{label}</span>
       {children}
     </div>
   )
@@ -559,15 +561,15 @@ function TillReconciliationCard({
   actualId, actualLabel, actualValue, onActualChange, variance,
 }) {
   return (
-    <div className="bg-slate-800/60 rounded-xl p-4 space-y-3">
-      <p className="text-xs text-slate-400 uppercase tracking-wide">{title}</p>
+    <div className={`${PANEL} space-y-3`}>
+      <p className="text-white text-[17px] font-extrabold">{title}</p>
 
       <div className="flex items-center justify-between gap-4">
-        <label htmlFor={floatId} className="text-slate-300 text-sm shrink-0">
+        <label htmlFor={floatId} className="text-slate-100 text-base font-semibold shrink-0">
           Opening Float
         </label>
-        <div className="flex items-center gap-1">
-          <span className="text-slate-400 text-sm">£</span>
+        <div className="flex items-center gap-1.5">
+          <span className="text-slate-400 text-base font-bold">£</span>
           <input
             id={floatId}
             type="number"
@@ -577,43 +579,43 @@ function TillReconciliationCard({
             onChange={e => onFloatChange(parseFloat(e.target.value) || 0)}
             onFocus={e => e.target.select()}
             aria-label={floatLabel}
-            className="w-24 bg-slate-700 border border-slate-600 rounded-lg px-2 py-1.5 text-white text-sm text-right focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className={MONEY_INPUT}
           />
         </div>
       </div>
 
       <Row label="Cash Received">
-        <span className="text-white text-sm tabular-nums">{fmt(cashSales)}</span>
+        <span className={VALUE}>{fmt(cashSales)}</span>
       </Row>
 
       <Row label="Card Received">
-        <span className="text-white text-sm tabular-nums">{fmt(cardSales ?? 0)}</span>
+        <span className={VALUE}>{fmt(cardSales ?? 0)}</span>
       </Row>
 
       <Row label="Cashback Given">
-        <span className={`text-sm tabular-nums ${cashback > 0 ? 'text-red-400 font-semibold' : 'text-slate-500'}`}>
+        <span className={`text-base ${cashback > 0 ? 'text-red-300 font-bold' : 'text-slate-400'}`}>
           {cashback > 0 ? `-${fmt(cashback)}` : '—'}
         </span>
       </Row>
 
       <Row label="Prize Wins Paid Out">
-        <span className={`text-sm tabular-nums ${prizeWins > 0 ? 'text-red-400 font-semibold' : 'text-slate-500'}`}>
+        <span className={`text-base ${prizeWins > 0 ? 'text-red-300 font-bold' : 'text-slate-400'}`}>
           {prizeWins > 0 ? `-${fmt(prizeWins)}` : '—'}
         </span>
       </Row>
 
-      <div className="border-t border-slate-700/50 my-1" />
+      <Divider />
 
       <Row label="Expected in Till">
-        <span className="text-white font-semibold tabular-nums">{fmt(expected)}</span>
+        <span className={VALUE_STRONG}>{fmt(expected)}</span>
       </Row>
 
       <div className="flex items-center justify-between gap-4">
-        <label htmlFor={actualId} className="text-slate-300 text-sm shrink-0">
+        <label htmlFor={actualId} className="text-slate-100 text-base font-semibold shrink-0">
           Actual Cash
         </label>
-        <div className="flex items-center gap-1">
-          <span className="text-slate-400 text-sm">£</span>
+        <div className="flex items-center gap-1.5">
+          <span className="text-slate-400 text-base font-bold">£</span>
           <input
             id={actualId}
             type="number"
@@ -623,13 +625,13 @@ function TillReconciliationCard({
             onChange={e => onActualChange(parseFloat(e.target.value) || 0)}
             onFocus={e => e.target.select()}
             aria-label={actualLabel}
-            className="w-24 bg-slate-700 border border-slate-600 rounded-lg px-2 py-1.5 text-white text-sm text-right focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className={MONEY_INPUT}
           />
         </div>
       </div>
 
       <Row label="Variance">
-        <span className={`font-bold tabular-nums ${variance >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+        <span className={`text-[17px] font-extrabold ${variance >= 0 ? 'text-emerald-300' : 'text-red-300'}`}>
           {fmt(variance)}
         </span>
       </Row>
@@ -641,13 +643,13 @@ function ReportSection({ id, title, items, renderLabel, valueClass }) {
   if (!items?.length) return null
   return (
     <section aria-labelledby={id}>
-      <h3 id={id} className="text-sm font-semibold text-slate-400 uppercase tracking-wide mb-3">
+      <h3 id={id} className={SECTION_HEADING}>
         {title}
       </h3>
-      <div className="bg-slate-800/60 rounded-xl p-4 space-y-2">
+      <div className={`${PANEL} space-y-2.5`}>
         {items.map((item, i) => (
           <Row key={i} label={renderLabel(item)}>
-            <span className={`${valueClass} text-sm tabular-nums`}>{fmt(item.value)}</span>
+            <span className={`${valueClass} text-base font-semibold`}>{fmt(item.value)}</span>
           </Row>
         ))}
       </div>

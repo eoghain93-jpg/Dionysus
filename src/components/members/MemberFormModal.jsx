@@ -90,10 +90,12 @@ export default function MemberFormModal({ member, onClose, onSaved }) {
     }
   }
 
+  const optional = 'text-slate-400 font-normal'
+
   return (
     <div
       ref={overlayRef}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 overflow-y-auto"
+      className="ui-modal-backdrop"
       onClick={handleOverlayClick}
       aria-hidden="false"
     >
@@ -101,36 +103,36 @@ export default function MemberFormModal({ member, onClose, onSaved }) {
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        className="w-full max-w-lg bg-[#0F172A] border border-slate-700 rounded-2xl shadow-xl flex flex-col my-auto"
+        className="ui-modal max-w-xl"
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-slate-700">
+        <div className="flex items-center justify-between gap-3">
           <h2
             id={titleId}
-            className="text-lg font-bold text-white"
+            className="ui-modal-title"
           >
             {isEditing ? 'Edit Member' : 'Add Member'}
           </h2>
           <button
             onClick={onClose}
             aria-label="Close modal"
-            className="text-slate-400 hover:text-white transition-colors cursor-pointer min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617]"
+            className="ui-btn ui-btn-ghost ui-btn-icon shrink-0"
           >
-            <X size={20} aria-hidden="true" />
+            <X size={22} aria-hidden="true" />
           </button>
         </div>
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="px-5 py-5 flex flex-col gap-4">
+        <form onSubmit={handleSubmit} className="flex flex-col gap-3">
           {error && (
-            <p role="alert" className="text-red-400 text-sm bg-red-400/10 px-3 py-2 rounded-lg">
+            <p role="alert" className="ui-banner ui-banner-bad">
               {error}
             </p>
           )}
 
           {/* Name */}
-          <div className="flex flex-col gap-1">
-            <label htmlFor="mf-name" className="text-sm font-medium text-slate-300">
+          <div>
+            <label htmlFor="mf-name" className="ui-label">
               Name <span aria-hidden="true">*</span>
             </label>
             <input
@@ -141,14 +143,14 @@ export default function MemberFormModal({ member, onClose, onSaved }) {
               value={form.name}
               onChange={handleChange('name')}
               placeholder="Full name"
-              className="bg-[#1E293B] border border-slate-600 rounded-lg px-3 py-2 text-white placeholder-slate-500 min-h-[44px] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617]"
+              className="ui-input"
             />
           </div>
 
           {/* Membership number */}
-          <div className="flex flex-col gap-1">
-            <label htmlFor="mf-membership-number" className="text-sm font-medium text-slate-300">
-              Membership Number{!isEditing && <span className="text-slate-500 font-normal"> (auto-generated if blank)</span>}
+          <div>
+            <label htmlFor="mf-membership-number" className="ui-label">
+              Membership Number{!isEditing && <span className={optional}> (auto-generated if blank)</span>}
               {isEditing && <span aria-hidden="true"> *</span>}
             </label>
             <input
@@ -158,15 +160,15 @@ export default function MemberFormModal({ member, onClose, onSaved }) {
               value={form.membership_number}
               onChange={handleChange('membership_number')}
               placeholder="e.g. M0001"
-              className="bg-[#1E293B] border border-slate-600 rounded-lg px-3 py-2 text-white placeholder-slate-500 min-h-[44px] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617]"
+              className="ui-input"
             />
           </div>
 
           {/* Phone + Email */}
-          <div className="grid grid-cols-2 gap-3">
-            <div className="flex flex-col gap-1">
-              <label htmlFor="mf-phone" className="text-sm font-medium text-slate-300">
-                Phone <span className="text-slate-500 font-normal">(optional)</span>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label htmlFor="mf-phone" className="ui-label">
+                Phone <span className={optional}>(optional)</span>
               </label>
               <input
                 id="mf-phone"
@@ -174,12 +176,12 @@ export default function MemberFormModal({ member, onClose, onSaved }) {
                 value={form.phone}
                 onChange={handleChange('phone')}
                 placeholder="07700 000000"
-                className="bg-[#1E293B] border border-slate-600 rounded-lg px-3 py-2 text-white placeholder-slate-500 min-h-[44px] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617]"
+                className="ui-input"
               />
             </div>
-            <div className="flex flex-col gap-1">
-              <label htmlFor="mf-email" className="text-sm font-medium text-slate-300">
-                Email <span className="text-slate-500 font-normal">(optional)</span>
+            <div>
+              <label htmlFor="mf-email" className="ui-label">
+                Email <span className={optional}>(optional)</span>
               </label>
               <input
                 id="mf-email"
@@ -187,15 +189,15 @@ export default function MemberFormModal({ member, onClose, onSaved }) {
                 value={form.email}
                 onChange={handleChange('email')}
                 placeholder="name@example.com"
-                className="bg-[#1E293B] border border-slate-600 rounded-lg px-3 py-2 text-white placeholder-slate-500 min-h-[44px] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617]"
+                className="ui-input"
               />
             </div>
           </div>
 
           {/* Tier + Renewal date */}
-          <div className="grid grid-cols-2 gap-3">
-            <div className="flex flex-col gap-1">
-              <label htmlFor="mf-tier" className="text-sm font-medium text-slate-300">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label htmlFor="mf-tier" className="ui-label">
                 Membership Tier <span aria-hidden="true">*</span>
               </label>
               <select
@@ -203,31 +205,31 @@ export default function MemberFormModal({ member, onClose, onSaved }) {
                 required
                 value={form.membership_tier}
                 onChange={handleChange('membership_tier')}
-                className="bg-[#1E293B] border border-slate-600 rounded-lg px-3 py-2 text-white min-h-[44px] capitalize focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617] cursor-pointer"
+                className="ui-select w-full capitalize"
               >
                 {TIERS.map(t => (
                   <option key={t} value={t} className="capitalize">{t}</option>
                 ))}
               </select>
             </div>
-            <div className="flex flex-col gap-1">
-              <label htmlFor="mf-renewal-date" className="text-sm font-medium text-slate-300">
-                Renewal Date <span className="text-slate-500 font-normal">(optional)</span>
+            <div>
+              <label htmlFor="mf-renewal-date" className="ui-label">
+                Renewal Date <span className={optional}>(optional)</span>
               </label>
               <input
                 id="mf-renewal-date"
                 type="date"
                 value={form.renewal_date}
                 onChange={handleChange('renewal_date')}
-                className="bg-[#1E293B] border border-slate-600 rounded-lg px-3 py-2 text-white placeholder-slate-500 min-h-[44px] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617] cursor-pointer"
+                className="ui-input cursor-pointer [color-scheme:dark]"
               />
             </div>
           </div>
 
           {/* Favourite drinks */}
-          <div className="flex flex-col gap-1">
-            <label htmlFor="mf-favourite-drinks" className="text-sm font-medium text-slate-300">
-              Favourite Drinks <span className="text-slate-500 font-normal">(comma-separated, optional)</span>
+          <div>
+            <label htmlFor="mf-favourite-drinks" className="ui-label">
+              Favourite Drinks <span className={optional}>(comma-separated, optional)</span>
             </label>
             <input
               id="mf-favourite-drinks"
@@ -235,38 +237,38 @@ export default function MemberFormModal({ member, onClose, onSaved }) {
               value={form.favourite_drinks}
               onChange={handleChange('favourite_drinks')}
               placeholder="Guinness, Jameson, Coke"
-              className="bg-[#1E293B] border border-slate-600 rounded-lg px-3 py-2 text-white placeholder-slate-500 min-h-[44px] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617]"
+              className="ui-input"
             />
           </div>
 
           {/* Notes */}
-          <div className="flex flex-col gap-1">
-            <label htmlFor="mf-notes" className="text-sm font-medium text-slate-300">
-              Notes <span className="text-slate-500 font-normal">(optional)</span>
+          <div>
+            <label htmlFor="mf-notes" className="ui-label">
+              Notes <span className={optional}>(optional)</span>
             </label>
             <textarea
               id="mf-notes"
-              rows={3}
+              rows={2}
               value={form.notes}
               onChange={handleChange('notes')}
               placeholder="Any additional notes…"
-              className="bg-[#1E293B] border border-slate-600 rounded-lg px-3 py-2 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617] resize-none"
+              className="ui-input py-3 resize-none"
             />
           </div>
 
           {/* Actions */}
-          <div className="flex gap-3 pt-1">
+          <div className="ui-modal-actions">
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 min-h-[44px] rounded-xl border border-slate-600 text-slate-300 hover:bg-slate-700 hover:text-white transition-colors cursor-pointer text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617]"
+              className="ui-btn ui-btn-ghost ui-btn-lg flex-1"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={saving}
-              className="flex-1 min-h-[44px] rounded-xl bg-[#22C55E] hover:bg-green-400 disabled:opacity-50 disabled:cursor-not-allowed text-slate-900 font-bold text-sm transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617]"
+              className="ui-btn ui-btn-primary ui-btn-lg flex-1"
             >
               {saving ? 'Saving…' : isEditing ? 'Save Changes' : 'Add Member'}
             </button>

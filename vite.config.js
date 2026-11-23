@@ -14,8 +14,8 @@ export default defineConfig({
         name: 'Dionysus',
         short_name: 'Dionysus',
         description: 'Dionysus Club Point of Sale',
-        theme_color: '#1e3a5f',
-        background_color: '#0f172a',
+        theme_color: '#121314',
+        background_color: '#121314',
         display: 'standalone',
         orientation: 'any',
         icons: [

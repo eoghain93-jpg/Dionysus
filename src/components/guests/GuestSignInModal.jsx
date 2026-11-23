@@ -58,38 +58,38 @@ export default function GuestSignInModal({ initialMember = null, onClose, onSave
 
   return (
     <div
-      className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4"
+      className="ui-modal-backdrop"
       role="dialog"
       aria-modal="true"
       aria-label="Sign In Guest"
     >
-      <div className="bg-[#0F172A] border border-slate-700 rounded-2xl w-full max-w-sm p-5 flex flex-col gap-4 max-h-[90dvh] overflow-auto">
-        <div className="flex items-center justify-between">
-          <h2 className="text-white font-bold text-lg">Sign In Guest</h2>
-          <button onClick={onClose} aria-label="Close" className="text-slate-400 hover:text-white cursor-pointer">
-            <X size={20} aria-hidden="true" />
+      <div className="ui-modal">
+        <div className="flex items-center justify-between gap-3">
+          <h2 className="ui-modal-title">Sign In Guest</h2>
+          <button onClick={onClose} aria-label="Close" className="ui-btn ui-btn-ghost ui-btn-icon shrink-0">
+            <X size={22} aria-hidden="true" />
           </button>
         </div>
-        <form onSubmit={handleSubmit} className="flex flex-col gap-3">
-          <div className="flex flex-col gap-1">
-            <label htmlFor="guest-member" className="text-slate-300 text-sm">Signed in by member</label>
+        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+          <div>
+            <label htmlFor="guest-member" className="ui-label">Signed in by member</label>
             {member ? (
-              <div className="flex items-center justify-between bg-slate-800 border border-slate-600 rounded-lg px-3 py-2">
-                <span className="text-white text-sm">
+              <div className="flex items-center justify-between gap-3 bg-blue-950 border border-blue-600 rounded-xl pl-4 pr-1.5 min-h-[56px]">
+                <span className="text-white text-base font-bold min-w-0 truncate">
                   {member.name}
-                  <span className="text-slate-400 ml-2">{member.membership_number}</span>
+                  <span className="text-blue-300 font-semibold ml-2">{member.membership_number}</span>
                 </span>
                 <button
                   type="button"
                   onClick={() => { setMember(null); setQuery('') }}
-                  className="text-blue-400 hover:text-blue-300 text-xs font-medium cursor-pointer"
+                  className="ui-btn ui-btn-ghost min-h-[44px] shrink-0"
                 >
                   Change
                 </button>
               </div>
             ) : (
               <div className="relative">
-                <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" aria-hidden="true" />
+                <Search size={20} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" aria-hidden="true" />
                 <input
                   id="guest-member"
                   type="text"
@@ -98,19 +98,19 @@ export default function GuestSignInModal({ initialMember = null, onClose, onSave
                   placeholder="Search member name"
                   autoComplete="off"
                   autoFocus
-                  className="w-full bg-slate-800 border border-slate-600 rounded-lg pl-9 pr-3 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="ui-input pl-12"
                 />
                 {suggestions.length > 0 && (
-                  <ul className="absolute z-10 left-0 right-0 mt-1 bg-slate-800 border border-slate-600 rounded-lg overflow-hidden shadow-xl">
+                  <ul className="absolute z-10 left-0 right-0 mt-1 bg-slate-800 border border-slate-700 rounded-xl overflow-hidden shadow-xl divide-y divide-slate-700">
                     {suggestions.map(m => (
                       <li key={m.id}>
                         <button
                           type="button"
                           onClick={() => setMember(m)}
-                          className="w-full text-left px-3 py-2 min-h-[44px] text-sm text-white hover:bg-slate-700 cursor-pointer"
+                          className="w-full text-left px-4 min-h-[52px] text-base font-bold text-white hover:bg-slate-700 cursor-pointer"
                         >
                           {m.name}
-                          <span className="text-slate-400 ml-2">{m.membership_number}</span>
+                          <span className="text-slate-400 font-semibold ml-2">{m.membership_number}</span>
                         </button>
                       </li>
                     ))}
@@ -121,7 +121,7 @@ export default function GuestSignInModal({ initialMember = null, onClose, onSave
           </div>
 
           <fieldset className="flex flex-col gap-2">
-            <legend className="text-slate-300 text-sm mb-1">Guest name{guests.length > 1 ? 's' : ''}</legend>
+            <legend className="ui-label">Guest name{guests.length > 1 ? 's' : ''}</legend>
             {guests.map((name, i) => (
               <div key={i} className="flex gap-2">
                 <input
@@ -132,16 +132,16 @@ export default function GuestSignInModal({ initialMember = null, onClose, onSave
                   aria-label={`Guest ${i + 1} name`}
                   autoComplete="off"
                   autoFocus={!!member && i === guests.length - 1}
-                  className="flex-1 bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="ui-input flex-1 min-w-0"
                 />
                 {guests.length > 1 && (
                   <button
                     type="button"
                     onClick={() => removeGuest(i)}
                     aria-label={`Remove guest ${i + 1}`}
-                    className="px-2 text-slate-400 hover:text-white cursor-pointer"
+                    className="ui-btn ui-btn-ghost ui-btn-icon shrink-0"
                   >
-                    <X size={16} aria-hidden="true" />
+                    <X size={20} aria-hidden="true" />
                   </button>
                 )}
               </div>
@@ -149,27 +149,27 @@ export default function GuestSignInModal({ initialMember = null, onClose, onSave
             <button
               type="button"
               onClick={() => setGuests(g => [...g, ''])}
-              className="self-start flex items-center gap-1 text-blue-400 hover:text-blue-300 text-xs font-medium cursor-pointer min-h-[32px]"
+              className="ui-btn ui-btn-secondary self-start"
             >
-              <Plus size={14} aria-hidden="true" />
+              <Plus size={18} aria-hidden="true" />
               Add another guest
             </button>
           </fieldset>
 
-          {error && <p role="alert" className="text-red-400 text-sm">{error}</p>}
-          <div className="flex gap-2 mt-1">
+          {error && <p role="alert" className="ui-banner ui-banner-bad">{error}</p>}
+          <div className="ui-modal-actions">
             <button
               type="button"
               onClick={onClose}
               disabled={saving}
-              className="flex-1 min-h-[44px] rounded-xl border border-slate-600 text-slate-300 hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium cursor-pointer transition-colors"
+              className="ui-btn ui-btn-ghost ui-btn-lg flex-1"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={saving}
-              className="flex-1 min-h-[44px] rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-semibold cursor-pointer transition-colors"
+              className="ui-btn ui-btn-accent ui-btn-lg flex-1"
             >
               {saving ? 'Saving…' : 'Sign in'}
             </button>

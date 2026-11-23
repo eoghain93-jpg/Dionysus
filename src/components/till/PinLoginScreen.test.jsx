@@ -21,9 +21,7 @@ const STAFF = [
 ]
 
 async function selectStaffAndEnterPin(pin = '1234') {
-  fireEvent.change(await screen.findByRole('combobox', { name: /staff member/i }), {
-    target: { value: 'staff-1' },
-  })
+  fireEvent.click(await screen.findByRole('button', { name: 'Alice' }))
   for (const d of pin) {
     fireEvent.click(screen.getByRole('button', { name: d }))
   }
@@ -44,20 +42,20 @@ beforeEach(() => {
 })
 
 describe('PinLoginScreen', () => {
-  it('renders a staff selector', async () => {
+  it('renders a staff picker', async () => {
     render(<PinLoginScreen />)
-    expect(await screen.findByRole('combobox', { name: /staff member/i })).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: 'Alice' })).toBeInTheDocument()
   })
 
-  it('populates the dropdown with staff members from Supabase', async () => {
+  it('lists the staff members from Supabase as buttons', async () => {
     render(<PinLoginScreen />)
-    expect(await screen.findByRole('option', { name: 'Alice' })).toBeInTheDocument()
-    expect(screen.getByRole('option', { name: 'Bob' })).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: 'Alice' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Bob' })).toBeInTheDocument()
   })
 
   it('renders 12 numpad buttons', async () => {
     render(<PinLoginScreen />)
-    await screen.findByRole('combobox', { name: /staff member/i })
+    await screen.findByRole('button', { name: 'Alice' })
     const numpadButtons = screen.getAllByRole('button').filter(
       btn => /^[0-9]$/.test(btn.textContent) || btn.getAttribute('aria-label') === 'Backspace' || btn.getAttribute('aria-label') === 'Clear PIN'
     )
@@ -66,14 +64,14 @@ describe('PinLoginScreen', () => {
 
   it('renders 4 PIN dots initially all empty', async () => {
     render(<PinLoginScreen />)
-    await screen.findByRole('combobox', { name: /staff member/i })
+    await screen.findByRole('button', { name: 'Alice' })
     const display = screen.getByLabelText(/PIN display/i)
     expect(display.querySelectorAll('[data-filled="false"]')).toHaveLength(4)
   })
 
   it('pressing digit fills a dot', async () => {
     render(<PinLoginScreen />)
-    await screen.findByRole('combobox', { name: /staff member/i })
+    await screen.findByRole('button', { name: 'Alice' })
     fireEvent.click(screen.getByRole('button', { name: '1' }))
     const display = screen.getByLabelText(/PIN display/i)
     expect(display.querySelectorAll('[data-filled="true"]')).toHaveLength(1)
@@ -82,7 +80,7 @@ describe('PinLoginScreen', () => {
 
   it('backspace removes the last digit', async () => {
     render(<PinLoginScreen />)
-    await screen.findByRole('combobox', { name: /staff member/i })
+    await screen.findByRole('button', { name: 'Alice' })
     fireEvent.click(screen.getByRole('button', { name: '1' }))
     fireEvent.click(screen.getByRole('button', { name: '2' }))
     fireEvent.click(screen.getByRole('button', { name: /backspace/i }))
@@ -92,7 +90,7 @@ describe('PinLoginScreen', () => {
 
   it('clear resets all digits', async () => {
     render(<PinLoginScreen />)
-    await screen.findByRole('combobox', { name: /staff member/i })
+    await screen.findByRole('button', { name: 'Alice' })
     fireEvent.click(screen.getByRole('button', { name: '1' }))
     fireEvent.click(screen.getByRole('button', { name: '2' }))
     fireEvent.click(screen.getByRole('button', { name: '3' }))
@@ -103,7 +101,7 @@ describe('PinLoginScreen', () => {
 
   it('cannot enter more than 4 digits', async () => {
     render(<PinLoginScreen />)
-    await screen.findByRole('combobox', { name: /staff member/i })
+    await screen.findByRole('button', { name: 'Alice' })
     ;['1', '2', '3', '4', '5'].forEach(d =>
       fireEvent.click(screen.getByRole('button', { name: d }))
     )
@@ -117,8 +115,8 @@ describe('PinLoginScreen', () => {
       error: null,
     })
     render(<PinLoginScreen />)
-    const select = await screen.findByRole('combobox', { name: /staff member/i })
-    fireEvent.change(select, { target: { value: 'staff-1' } })
+    const select = await screen.findByRole('button', { name: 'Alice' })
+    fireEvent.click(select)
     ;['1', '2', '3', '4'].forEach(d =>
       fireEvent.click(screen.getByRole('button', { name: d }))
     )
@@ -131,7 +129,7 @@ describe('PinLoginScreen', () => {
 
   it('does not submit if no staff member is selected', async () => {
     render(<PinLoginScreen />)
-    await screen.findByRole('combobox', { name: /staff member/i })
+    await screen.findByRole('button', { name: 'Alice' })
     ;['1', '2', '3', '4'].forEach(d =>
       fireEvent.click(screen.getByRole('button', { name: d }))
     )
@@ -144,8 +142,8 @@ describe('PinLoginScreen', () => {
       error: null,
     })
     render(<PinLoginScreen />)
-    const select = await screen.findByRole('combobox', { name: /staff member/i })
-    fireEvent.change(select, { target: { value: 'staff-1' } })
+    const select = await screen.findByRole('button', { name: 'Alice' })
+    fireEvent.click(select)
     ;['1', '2', '3', '4'].forEach(d =>
       fireEvent.click(screen.getByRole('button', { name: d }))
     )
@@ -157,8 +155,8 @@ describe('PinLoginScreen', () => {
   it('on invalid PIN shows error message and clears digits', async () => {
     mockInvoke.mockResolvedValue({ data: { valid: false }, error: null })
     render(<PinLoginScreen />)
-    const select = await screen.findByRole('combobox', { name: /staff member/i })
-    fireEvent.change(select, { target: { value: 'staff-1' } })
+    const select = await screen.findByRole('button', { name: 'Alice' })
+    fireEvent.click(select)
     ;['9', '9', '9', '9'].forEach(d =>
       fireEvent.click(screen.getByRole('button', { name: d }))
     )
@@ -170,8 +168,8 @@ describe('PinLoginScreen', () => {
   it('on network error shows generic error message', async () => {
     mockInvoke.mockResolvedValue({ data: null, error: { message: 'Network error' } })
     render(<PinLoginScreen />)
-    const select = await screen.findByRole('combobox', { name: /staff member/i })
-    fireEvent.change(select, { target: { value: 'staff-1' } })
+    const select = await screen.findByRole('button', { name: 'Alice' })
+    fireEvent.click(select)
     ;['1', '2', '3', '4'].forEach(d =>
       fireEvent.click(screen.getByRole('button', { name: d }))
     )
@@ -181,8 +179,8 @@ describe('PinLoginScreen', () => {
   it('shows a loading indicator while verifying', async () => {
     mockInvoke.mockReturnValue(new Promise(() => {}))
     render(<PinLoginScreen />)
-    const select = await screen.findByRole('combobox', { name: /staff member/i })
-    fireEvent.change(select, { target: { value: 'staff-1' } })
+    const select = await screen.findByRole('button', { name: 'Alice' })
+    fireEvent.click(select)
     ;['1', '2', '3', '4'].forEach(d =>
       fireEvent.click(screen.getByRole('button', { name: d }))
     )
