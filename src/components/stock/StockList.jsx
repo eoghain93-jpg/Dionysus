@@ -2,7 +2,7 @@ import { AlertTriangle, AlertCircle, CheckCircle, Trash2, Plus, Edit2 } from '..
 
 /**
  * Computes the RAG (Red/Amber/Green) stock status for a product.
- * Returns { color, bgColor, Icon, label }
+ * Returns { color, bgColor, tag, Icon, label } (tag = shared UI-kit tag class)
  *
  * Rules:
  *   par_level = 0  → always Green/Good
@@ -12,28 +12,28 @@ import { AlertTriangle, AlertCircle, CheckCircle, Trash2, Plus, Edit2 } from '..
  */
 export function getStockStatus(stock_quantity, par_level) {
   if (par_level === 0) {
-    return { color: 'text-green-400', bgColor: 'bg-green-400/10', Icon: CheckCircle, label: 'Good' }
+    return { color: 'text-green-400', bgColor: 'bg-green-400/10', tag: 'ui-tag-good', Icon: CheckCircle, label: 'Good' }
   }
   if (stock_quantity < par_level) {
-    return { color: 'text-red-400', bgColor: 'bg-red-400/10', Icon: AlertTriangle, label: 'Low' }
+    return { color: 'text-red-400', bgColor: 'bg-red-400/10', tag: 'ui-tag-bad', Icon: AlertTriangle, label: 'Low' }
   }
   if (stock_quantity <= par_level * 1.5) {
-    return { color: 'text-amber-400', bgColor: 'bg-amber-400/10', Icon: AlertCircle, label: 'OK' }
+    return { color: 'text-amber-400', bgColor: 'bg-amber-400/10', tag: 'ui-tag-warn', Icon: AlertCircle, label: 'OK' }
   }
-  return { color: 'text-green-400', bgColor: 'bg-green-400/10', Icon: CheckCircle, label: 'Good' }
+  return { color: 'text-green-400', bgColor: 'bg-green-400/10', tag: 'ui-tag-good', Icon: CheckCircle, label: 'Good' }
 }
 
 /**
  * Renders the RAG badge with colour + icon + text label (STOCK-01 accessibility).
  */
 function StockBadge({ stock_quantity, par_level }) {
-  const { color, bgColor, Icon, label } = getStockStatus(stock_quantity, par_level)
+  const { tag, Icon, label } = getStockStatus(stock_quantity, par_level)
   return (
     <span
-      className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-semibold ${color} ${bgColor}`}
+      className={`ui-tag ${tag}`}
       aria-label={`Stock status: ${label}`}
     >
-      <Icon size={12} aria-hidden="true" />
+      <Icon size={14} aria-hidden="true" />
       {label}
     </span>
   )
@@ -51,46 +51,46 @@ function StockBadge({ stock_quantity, par_level }) {
 export default function StockList({ products, onWastage, onRestock, onEdit }) {
   if (products.length === 0) {
     return (
-      <p className="text-slate-400 text-sm py-6 text-center">No products found.</p>
+      <p className="ui-empty">No products found.</p>
     )
   }
 
   return (
-    <div className="w-full overflow-x-auto">
-      <table className="w-full min-w-[640px] border-collapse text-sm">
-        <thead>
-          <tr className="border-b border-slate-700">
-            <th className="text-left px-3 py-3 text-slate-400 font-medium">Name</th>
-            <th className="text-left px-3 py-3 text-slate-400 font-medium">Category</th>
-            <th className="text-right px-3 py-3 text-slate-400 font-medium">Stock</th>
-            <th className="text-right px-3 py-3 text-slate-400 font-medium">Par</th>
-            <th className="text-center px-3 py-3 text-slate-400 font-medium">Status</th>
-            <th className="text-right px-3 py-3 text-slate-400 font-medium">Actions</th>
+    <div className="w-full flex-1 min-h-0 overflow-auto">
+      <table className="w-full min-w-[720px] border-collapse">
+        <thead className="sticky top-0 z-10 bg-slate-900 shadow-[0_1px_0_0_var(--color-slate-800)]">
+          <tr>
+            <th className="ui-th">Name</th>
+            <th className="ui-th">Category</th>
+            <th className="ui-th text-right">Stock</th>
+            <th className="ui-th text-right">Par</th>
+            <th className="ui-th text-center">Status</th>
+            <th className="ui-th text-right">Actions</th>
           </tr>
         </thead>
         <tbody>
           {products.map(product => (
             <tr
               key={product.id}
-              className="border-b border-slate-800 hover:bg-slate-800/40 transition-colors"
+              className="border-b border-slate-800 last:border-b-0"
             >
-              <td className="px-3 py-3 text-white font-medium">{product.name}</td>
-              <td className="px-3 py-3 text-slate-400 capitalize">{product.category}</td>
-              <td className="px-3 py-3 text-white text-right font-mono">{product.stock_quantity}</td>
-              <td className="px-3 py-3 text-slate-400 text-right font-mono">{product.par_level}</td>
-              <td className="px-3 py-3 text-center">
+              <td className="ui-td text-white text-base font-bold">{product.name}</td>
+              <td className="ui-td text-slate-300 capitalize">{product.category}</td>
+              <td className="ui-td text-white text-lg text-right font-extrabold tabular-nums">{product.stock_quantity}</td>
+              <td className="ui-td text-slate-400 text-right tabular-nums">{product.par_level}</td>
+              <td className="ui-td text-center">
                 <StockBadge stock_quantity={product.stock_quantity} par_level={product.par_level} />
               </td>
-              <td className="px-3 py-3">
-                <div className="flex items-center justify-end gap-1">
+              <td className="ui-td py-2">
+                <div className="flex items-center justify-end gap-2">
                   {/* Wastage/Spillage */}
                   <button
                     onClick={() => onWastage(product)}
                     title="Log wastage or spillage"
                     aria-label={`Log wastage or spillage for ${product.name}`}
-                    className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg text-slate-400 hover:text-red-400 hover:bg-red-400/10 transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#121314]"
+                    className="ui-btn ui-btn-danger ui-btn-icon"
                   >
-                    <Trash2 size={16} aria-hidden="true" />
+                    <Trash2 size={20} aria-hidden="true" />
                   </button>
 
                   {/* Restock */}
@@ -98,9 +98,9 @@ export default function StockList({ products, onWastage, onRestock, onEdit }) {
                     onClick={() => onRestock(product)}
                     title="Restock"
                     aria-label={`Restock ${product.name}`}
-                    className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg text-slate-400 hover:text-green-400 hover:bg-green-400/10 transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#121314]"
+                    className="ui-btn ui-btn-secondary ui-btn-icon"
                   >
-                    <Plus size={16} aria-hidden="true" />
+                    <Plus size={20} aria-hidden="true" />
                   </button>
 
                   {/* Edit */}
@@ -108,9 +108,9 @@ export default function StockList({ products, onWastage, onRestock, onEdit }) {
                     onClick={() => onEdit(product)}
                     title="Edit product"
                     aria-label={`Edit ${product.name}`}
-                    className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg text-slate-400 hover:text-blue-400 hover:bg-blue-400/10 transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#121314]"
+                    className="ui-btn ui-btn-ghost ui-btn-icon"
                   >
-                    <Edit2 size={16} aria-hidden="true" />
+                    <Edit2 size={20} aria-hidden="true" />
                   </button>
                 </div>
               </td>

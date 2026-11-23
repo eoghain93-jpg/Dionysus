@@ -63,6 +63,9 @@
   --color-nav-idle-text: #A9AFB6;
 }
 
+/* Dark app: native date/time pickers, selects and scrollbars follow suit. */
+:root { color-scheme: dark; }
+
 body {
   background-color: var(--color-bg);
   color: var(--color-text);

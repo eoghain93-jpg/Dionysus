@@ -66,7 +66,7 @@ export default function StockMovementModal({ product, type, onClose, onSaved }) 
   return (
     <div
       ref={overlayRef}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
+      className="ui-modal-backdrop"
       onClick={handleOverlayClick}
       aria-hidden="false"
     >
@@ -74,40 +74,40 @@ export default function StockMovementModal({ product, type, onClose, onSaved }) 
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        className="w-full max-w-sm bg-[#191B1D] border border-slate-700 rounded-2xl shadow-xl flex flex-col"
+        className="ui-modal"
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-slate-700">
+        <div className="flex items-center justify-between gap-3">
           <h2
             id={titleId}
-            className="text-lg font-bold text-white"
+            className="ui-modal-title"
           >
             {typeLabel}
           </h2>
           <button
             onClick={onClose}
             aria-label="Close modal"
-            className="text-slate-400 hover:text-white transition-colors cursor-pointer min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#121314]"
+            className="ui-btn ui-btn-ghost ui-btn-icon shrink-0"
           >
-            <X size={20} aria-hidden="true" />
+            <X size={22} aria-hidden="true" />
           </button>
         </div>
 
         {/* Body */}
-        <form onSubmit={handleSubmit} className="px-5 py-5 flex flex-col gap-4">
-          <p className="text-slate-400 text-sm">
+        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+          <p className="text-slate-300 text-base">
             {actionVerb}{' '}
-            <span className="text-white font-semibold">{product.name}</span>
+            <span className="text-white font-extrabold">{product.name}</span>
           </p>
 
           {error && (
-            <p role="alert" className="text-red-400 text-sm bg-red-400/10 px-3 py-2 rounded-lg">
+            <p role="alert" className="ui-banner ui-banner-bad">
               {error}
             </p>
           )}
 
-          <div className="flex flex-col gap-1">
-            <label htmlFor="movement-qty" className="text-sm font-medium text-slate-300">
+          <div>
+            <label htmlFor="movement-qty" className="ui-label">
               Quantity <span aria-hidden="true">*</span>
             </label>
             <input
@@ -120,13 +120,13 @@ export default function StockMovementModal({ product, type, onClose, onSaved }) 
               value={quantity}
               onChange={e => setQuantity(e.target.value)}
               placeholder="e.g. 2"
-              className="bg-[#1E293B] border border-slate-600 rounded-lg px-3 py-2 text-white placeholder-slate-500 min-h-[44px] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#121314]"
+              className="ui-input min-h-[56px] text-xl font-bold"
             />
           </div>
 
-          <div className="flex flex-col gap-1">
-            <label htmlFor="movement-notes" className="text-sm font-medium text-slate-300">
-              Notes <span className="text-slate-500 font-normal">(optional)</span>
+          <div>
+            <label htmlFor="movement-notes" className="ui-label">
+              Notes <span className="text-slate-400 font-semibold">(optional)</span>
             </label>
             <textarea
               id="movement-notes"
@@ -134,22 +134,22 @@ export default function StockMovementModal({ product, type, onClose, onSaved }) 
               value={notes}
               onChange={e => setNotes(e.target.value)}
               placeholder="Reason or extra details..."
-              className="bg-[#1E293B] border border-slate-600 rounded-lg px-3 py-2 text-white placeholder-slate-500 resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#121314]"
+              className="ui-input py-3 resize-none"
             />
           </div>
 
-          <div className="flex gap-3 pt-1">
+          <div className="ui-modal-actions">
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 min-h-[44px] rounded-xl border border-slate-600 text-slate-300 hover:bg-slate-700 hover:text-white transition-colors cursor-pointer text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#121314]"
+              className="ui-btn ui-btn-ghost ui-btn-lg flex-1"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={saving}
-              className="flex-1 min-h-[44px] rounded-xl bg-[#22C55E] hover:bg-green-400 disabled:opacity-50 disabled:cursor-not-allowed text-slate-900 font-bold text-sm transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#121314]"
+              className={`ui-btn ui-btn-lg flex-1 ${type === 'restock' ? 'ui-btn-pay' : 'ui-btn-primary'}`}
             >
               {saving ? 'Saving…' : typeLabel}
             </button>

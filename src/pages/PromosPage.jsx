@@ -46,27 +46,23 @@ export default function PromosPage() {
   }
 
   return (
-    <div className="flex flex-col h-full min-h-0 p-4 gap-4 overflow-auto">
+    <div className="ui-page">
       {/* Page header */}
-      <div className="flex items-center justify-between gap-4 flex-wrap">
-        <h1
-          className="text-2xl font-bold text-white"
-        >
-          Promos
-        </h1>
+      <div className="ui-page-header">
+        <h1 className="ui-title">Promos</h1>
         <button
           onClick={() => setPromoModal(null)}
-          className="flex items-center gap-2 px-4 min-h-[44px] rounded-xl bg-[#22C55E] hover:bg-green-400 text-slate-900 font-bold text-sm transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#121314]"
+          className="ui-btn ui-btn-primary"
         >
-          <Plus size={16} aria-hidden="true" />
+          <Plus size={20} aria-hidden="true" />
           Add Promo
         </button>
       </div>
 
       {/* Content */}
-      <div className="flex-1 bg-[#191B1D] rounded-2xl border border-slate-700 overflow-hidden">
+      <div className="ui-card flex-1 min-h-[160px] overflow-auto">
         {loading ? (
-          <p className="text-slate-400 text-sm p-6 text-center">Loading promotions…</p>
+          <p className="ui-empty">Loading promotions…</p>
         ) : (
           <PromoList
             promos={promos}
