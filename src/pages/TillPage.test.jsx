@@ -16,6 +16,10 @@ vi.mock('../lib/orders', () => ({
   saveOrder: vi.fn(),
 }))
 vi.mock('../lib/till', () => ({ getTillId: vi.fn(() => 'till-1') }))
+vi.mock('../lib/tabs', () => ({
+  fetchTabAges: vi.fn().mockResolvedValue({}),
+  isTabBlocked: vi.fn().mockResolvedValue(false),
+}))
 vi.mock('../lib/starPrinter', () => ({
   printReceipt: vi.fn(),
   getPrinterIp: vi.fn(),

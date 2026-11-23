@@ -4,6 +4,14 @@ import { MemoryRouter } from 'react-router-dom'
 
 const { mockSignOut, mockRpc } = vi.hoisted(() => ({ mockSignOut: vi.fn(), mockRpc: vi.fn() }))
 
+vi.mock('../lib/tabs', () => ({
+  fetchTabAges: vi.fn().mockResolvedValue({
+    m1: { days: 20, overdue: true },
+    m2: { days: 30, overdue: true },
+    m3: { days: 2, overdue: false },
+  }),
+}))
+
 vi.mock('./till/SwitchUserModal', () => ({
   default: () => null,
 }))
@@ -255,5 +263,13 @@ describe('NavBar', () => {
     fireEvent.click(screen.getByRole('button', { name: /more navigation options/i }))
     fireEvent.click(screen.getByRole('button', { name: /^davey$/i }))
     expect(logEvent).toHaveBeenCalledWith('app.davey_mode')
+  })
+
+  // ── Overdue tabs ───────────────────────────────────────────────────────────
+  it('badges the Tabs link with the number of overdue tabs', async () => {
+    renderNav()
+    await waitFor(() => {
+      expect(screen.getAllByLabelText('2 overdue tabs').length).toBeGreaterThan(0)
+    })
   })
 })

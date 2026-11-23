@@ -1,7 +1,9 @@
 // src/pages/TabsPage.jsx
 import { useState, useEffect, useCallback } from 'react'
-import { ChevronRight } from '../lib/icons'
-import { fetchOpenTabs, fetchTabOrders } from '../lib/tabs'
+import { ChevronRight, AlertTriangle, Clock, Lock } from '../lib/icons'
+import { fetchOpenTabs, fetchTabOrders, setTabBlocked, TAB_OVERDUE_DAYS } from '../lib/tabs'
+import { useSessionStore } from '../stores/sessionStore'
+import { useTabAlertStore } from '../stores/tabAlertStore'
 import SettleTabModal from '../components/members/SettleTabModal'
 import AdjustTabModal from '../components/members/AdjustTabModal'
 import { removeOrderFromTab } from '../lib/tabs'
@@ -22,6 +24,9 @@ export default function TabsPage() {
   const [removingOrderId, setRemovingOrderId] = useState(null)
   const [printing, setPrinting] = useState(false)
   const [printingStatementId, setPrintingStatementId] = useState(null)
+  const [overdueOnly, setOverdueOnly] = useState(false)
+  const [blockingId, setBlockingId] = useState(null)
+  const { activeStaff } = useSessionStore()
 
   const loadTabs = useCallback(() => {
     setLoading(true)
@@ -111,6 +116,26 @@ export default function TabsPage() {
     }
   }
 
+  async function handleToggleBlock(member) {
+    const blocked = !member.tab_blocked
+    setBlockingId(member.id)
+    try {
+      await setTabBlocked(member.id, blocked, activeStaff?.id)
+      setTabs(prev => prev.map(m => m.id === member.id ? { ...m, tab_blocked: blocked } : m))
+      useToastStore.getState().addToast(
+        blocked
+          ? `${member.name} can't put drinks on their tab until it's unblocked`
+          : `${member.name} can use their tab again`,
+        'success'
+      )
+    } catch (err) {
+      console.error('Failed to update tab block:', err)
+      useToastStore.getState().addToast('Could not update the tab block — try again', 'error')
+    } finally {
+      setBlockingId(null)
+    }
+  }
+
   async function handlePrint() {
     setPrinting(true)
     try {
@@ -150,6 +175,18 @@ export default function TabsPage() {
   }
 
   const total = tabs.reduce((sum, m) => sum + Number(m.tab_balance), 0)
+  const overdueTabs = tabs.filter(m => m.overdue)
+  const overdueTotal = overdueTabs.reduce((sum, m) => sum + Number(m.tab_balance), 0)
+  // Fall back to the full list if the last overdue tab was just settled.
+  const showOverdueOnly = overdueOnly && overdueTabs.length > 0
+  const visibleTabs = showOverdueOnly ? overdueTabs : tabs
+
+  // Keep the nav badge in step with what this page shows (settles and
+  // adjustments here change the count without a refetch).
+  const overdueCount = overdueTabs.length
+  useEffect(() => {
+    if (!loading && !error) useTabAlertStore.getState().setOverdueCount(overdueCount)
+  }, [overdueCount, loading, error])
 
   return (
     <div className="flex flex-col h-full min-h-0 p-4 gap-4 overflow-auto">
@@ -186,6 +223,34 @@ export default function TabsPage() {
         )}
       </div>
 
+      {/* Overdue alert */}
+      {overdueTabs.length > 0 && (
+        <div
+          role="status"
+          className="flex items-center justify-between gap-3 flex-wrap bg-amber-950 border border-amber-700 rounded-2xl px-4 py-3"
+        >
+          <div className="flex items-center gap-3 min-w-0">
+            <AlertTriangle size={20} className="text-amber-400 shrink-0" aria-hidden="true" />
+            <div>
+              <p className="text-amber-100 text-sm font-semibold">
+                {overdueTabs.length} {overdueTabs.length === 1 ? 'tab has' : 'tabs have'} had no payment for {TAB_OVERDUE_DAYS}+ days
+              </p>
+              <p className="text-amber-300 text-xs flex items-center gap-1">
+                <span>Owed on overdue tabs:</span>
+                <BlurredAmount className="text-amber-300">£{overdueTotal.toFixed(2)}</BlurredAmount>
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => setOverdueOnly(v => !v)}
+            aria-pressed={showOverdueOnly}
+            className="shrink-0 px-3 min-h-[36px] rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-900 font-bold text-xs transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617]"
+          >
+            {showOverdueOnly ? 'Show all tabs' : 'Show overdue only'}
+          </button>
+        </div>
+      )}
+
       {/* Content */}
       <div className="flex-1 bg-[#0F172A] rounded-2xl border border-slate-700 overflow-auto">
         {loading ? (
@@ -196,7 +261,7 @@ export default function TabsPage() {
           <p className="text-slate-400 text-sm p-6 text-center">No open tabs.</p>
         ) : (
           <ul className="divide-y divide-slate-700">
-            {tabs.map(member => {
+            {visibleTabs.map(member => {
               const isExpanded = expandedId === member.id
               const orders = expandedOrders[member.id]
               const ordersLoading = expandedLoading[member.id]
@@ -217,6 +282,22 @@ export default function TabsPage() {
                       <div className="flex-1 min-w-0">
                         <p className="text-white text-sm font-medium truncate">{member.name}</p>
                         <p className="text-slate-400 text-xs">{member.membership_number}</p>
+                        {(member.overdue || member.tab_blocked) && (
+                          <div className="flex flex-wrap gap-1.5 mt-1">
+                            {member.overdue && (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-950 border border-amber-700 text-amber-300 text-xs font-medium">
+                                <Clock size={12} aria-hidden="true" />
+                                No payment for {member.days} days
+                              </span>
+                            )}
+                            {member.tab_blocked && (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-950 border border-red-800 text-red-300 text-xs font-medium">
+                                <Lock size={12} aria-hidden="true" />
+                                Tab blocked
+                              </span>
+                            )}
+                          </div>
+                        )}
                       </div>
                     </button>
                     <span
@@ -239,7 +320,24 @@ export default function TabsPage() {
                   {/* Expanded order breakdown */}
                   {isExpanded && (
                     <div className="px-4 pb-3 flex flex-col gap-2">
-                      <div className="flex justify-end gap-2">
+                      <div className="flex items-center justify-end gap-2 flex-wrap">
+                        <p className="text-slate-400 text-xs mr-auto">
+                          {member.last_paid_at
+                            ? `Last payment ${new Date(member.last_paid_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}`
+                            : 'No payments recorded'}
+                        </p>
+                        <button
+                          onClick={() => handleToggleBlock(member)}
+                          disabled={blockingId === member.id}
+                          aria-label={`${member.tab_blocked ? 'Unblock' : 'Block'} tab for ${member.name}`}
+                          className={`shrink-0 px-3 min-h-[36px] rounded-lg font-bold text-xs transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-default focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617] ${
+                            member.tab_blocked
+                              ? 'bg-slate-700 hover:bg-slate-600 text-slate-300'
+                              : 'bg-red-900 hover:bg-red-800 text-red-100'
+                          }`}
+                        >
+                          {member.tab_blocked ? 'Unblock tab' : 'Block tab'}
+                        </button>
                         <button
                           onClick={() => handlePrintStatement(member)}
                           disabled={printingStatementId === member.id}

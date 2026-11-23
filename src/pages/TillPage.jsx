@@ -5,6 +5,7 @@ import { fetchActivePromotions } from '../lib/promotions'
 import { isBundleEnabled } from '../lib/promos'
 import { newOrderId, saveOrder } from '../lib/orders'
 import { getTillId } from '../lib/till'
+import { fetchTabAges, isTabBlocked } from '../lib/tabs'
 import { printReceipt, getPrinterIp } from '../lib/starPrinter'
 import { logEvent } from '../lib/audit/log'
 import { useToastStore } from '../hooks/useToast'
@@ -68,6 +69,34 @@ export default function TillPage() {
     loadPromos(fetchActivePromotions)
   }, [])
 
+  // Flag a member's tab standing the moment they're put on the sale: a
+  // toast (seen whichever panel is open) plus a note in the order panel.
+  const activeMember = useTillStore(s => s.activeMember)
+  const activeMemberId = activeMember?.id
+  useEffect(() => {
+    if (!activeMember) return
+    const { addToast } = useToastStore.getState()
+    if (activeMember.tab_blocked) {
+      addToast(`${activeMember.name}'s tab is blocked — cash or card only`, 'error')
+    }
+    if (!(Number(activeMember.tab_balance) > 0)) return
+    let cancelled = false
+    fetchTabAges(activeMember.id)
+      .then(ages => {
+        const age = ages[activeMember.id]
+        // Ignore a late answer for a member who has since been cleared.
+        if (cancelled || !age || useTillStore.getState().activeMember?.id !== activeMember.id) return
+        useTillStore.getState().setActiveMemberTab(age)
+        if (age.overdue) {
+          addToast(`${activeMember.name} hasn't paid their tab for ${age.days} days`, 'error')
+        }
+      })
+      .catch(err => console.error('Failed to load tab age:', err))
+    return () => { cancelled = true }
+    // Keyed on the id only: the member object is replaced on every lookup.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeMemberId])
+
   // Auto-close mobile order sheet after checkout clears the cart
   useEffect(() => {
     if (orderItems.length === 0) setShowMobileOrder(false)
@@ -77,6 +106,17 @@ export default function TillPage() {
     const total = useTillStore.getState().getTotal()
     const currentItems = useTillStore.getState().orderItems
     const currentMember = useTillStore.getState().activeMember
+
+    // Blocked tabs take cash or card only. The member on the order may have
+    // been looked up before another till blocked them, so re-check live.
+    if (paymentMethod === 'tab' && currentMember) {
+      const blocked = currentMember.tab_blocked || (isOnline && await isTabBlocked(currentMember.id))
+      if (blocked) {
+        useTillStore.setState({ activeMember: { ...currentMember, tab_blocked: true } })
+        useToastStore.getState().addToast(`${currentMember.name}'s tab is blocked — take cash or card`, 'error')
+        return
+      }
+    }
 
     const order = {
       // Client-generated id: the create_order_with_items RPC upserts on it,

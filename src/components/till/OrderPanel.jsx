@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Banknote, CreditCard, Receipt, LogOut, Plus, Minus, X, Trash2, ChevronDown } from 'lucide-react'
+import { Banknote, CreditCard, Receipt, LogOut, Plus, Minus, X, Trash2, ChevronDown, Clock, Lock } from 'lucide-react'
 import { useTillStore } from '../../stores/tillStore'
 import { logEvent } from '../../lib/audit/log'
 import CashPaymentModal from './CashPaymentModal'
@@ -20,10 +20,11 @@ function lineDetail(line) {
 }
 
 export default function OrderPanel({ onCheckout, onClose }) {
-  const { orderItems, activeMember, clearMember, updateQuantity, removeItem, getTotal, clearOrder } = useTillStore()
+  const { orderItems, activeMember, activeMemberTab, clearMember, updateQuantity, removeItem, getTotal, clearOrder } = useTillStore()
   const [paying, setPaying] = useState(false)
   const [showCashModal, setShowCashModal] = useState(false)
   const total = getTotal()
+  const tabBlocked = !!activeMember?.tab_blocked
 
   async function handleCheckout(method) {
     setPaying(true)
@@ -132,6 +133,18 @@ export default function OrderPanel({ onCheckout, onClose }) {
                 </span>
               </div>
             )}
+            {tabBlocked && (
+              <div className="text-red-300 text-xs font-semibold mt-1 flex items-center gap-1">
+                <Lock size={12} aria-hidden="true" />
+                Tab blocked — cash or card only
+              </div>
+            )}
+            {activeMemberTab?.overdue && (
+              <div className="text-amber-300 text-xs font-semibold mt-1 flex items-center gap-1">
+                <Clock size={12} aria-hidden="true" />
+                No tab payment for {activeMemberTab.days} days
+              </div>
+            )}
           </div>
           <button
             onClick={handleClearMember}
@@ -209,7 +222,7 @@ export default function OrderPanel({ onCheckout, onClose }) {
             <button
               key={method}
               onClick={() => method === 'cash' ? setShowCashModal(true) : handleCheckout(method)}
-              disabled={paying || orderItems.length === 0 || (needsMember && !activeMember)}
+              disabled={paying || orderItems.length === 0 || (needsMember && (!activeMember || tabBlocked))}
               className={`${cls} disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer
                 text-white font-semibold py-3 rounded-xl text-sm transition-colors duration-200
                 active:scale-95 flex flex-col items-center gap-1 min-h-[60px]`}

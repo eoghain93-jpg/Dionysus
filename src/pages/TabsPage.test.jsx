@@ -8,6 +8,8 @@ vi.mock('../lib/tabs', () => ({
   fetchTabOrders: vi.fn(),
   adjustTabBalance: vi.fn(),
   removeOrderFromTab: vi.fn(),
+  setTabBlocked: vi.fn(),
+  TAB_OVERDUE_DAYS: 14,
 }))
 
 vi.mock('../lib/starPrinter', () => ({
@@ -39,7 +41,8 @@ vi.mock('../components/members/AdjustTabModal', () => ({
   ),
 }))
 
-import { fetchOpenTabs, fetchTabOrders, removeOrderFromTab } from '../lib/tabs'
+import { fetchOpenTabs, fetchTabOrders, removeOrderFromTab, setTabBlocked } from '../lib/tabs'
+import { useTabAlertStore } from '../stores/tabAlertStore'
 import { printTabsList, printTabStatement, getPrinterIp } from '../lib/starPrinter'
 import { logEvent } from '../lib/audit/log'
 
@@ -430,5 +433,65 @@ describe('TabsPage — audit events', () => {
     expect(logEvent.mock.calls).toEqual([
       ['tab.amount_revealed', { member_id: null, what: 'total_outstanding' }],
     ])
+  })
+})
+
+describe('TabsPage overdue tabs and blocking', () => {
+  const overdueTabs = [
+    { id: 'm1', name: 'Alice', tab_balance: 15.50, membership_number: 'M0001', days: 21, overdue: true, last_paid_at: '2026-11-01T20:00:00Z', tab_blocked: false },
+    { id: 'm2', name: 'Bob', tab_balance: 8.00, membership_number: 'M0002', days: 2, overdue: false, last_paid_at: null, tab_blocked: true },
+  ]
+
+  beforeEach(() => {
+    fetchOpenTabs.mockResolvedValue(overdueTabs)
+    setTabBlocked.mockResolvedValue(undefined)
+    useTabAlertStore.setState({ overdueCount: 0 })
+  })
+
+  it('shows no alert when nothing is overdue', async () => {
+    fetchOpenTabs.mockResolvedValue(mockTabs)
+    render(<TabsPage />)
+    await waitFor(() => screen.getByText('Alice'))
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
+  })
+
+  it('alerts staff to overdue tabs and flags the row', async () => {
+    render(<TabsPage />)
+    await waitFor(() => {
+      expect(screen.getByRole('status')).toHaveTextContent('1 tab has had no payment for 14+ days')
+    })
+    expect(screen.getByText('No payment for 21 days')).toBeInTheDocument()
+    expect(screen.getByText('Tab blocked')).toBeInTheDocument()
+    // The badge count is set by an effect after the list has rendered.
+    await waitFor(() => expect(useTabAlertStore.getState().overdueCount).toBe(1))
+  })
+
+  it('filters to overdue tabs only', async () => {
+    render(<TabsPage />)
+    await waitFor(() => screen.getByText('Bob'))
+    fireEvent.click(screen.getByRole('button', { name: /show overdue only/i }))
+    expect(screen.getByText('Alice')).toBeInTheDocument()
+    expect(screen.queryByText('Bob')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /show all tabs/i }))
+    expect(screen.getByText('Bob')).toBeInTheDocument()
+  })
+
+  it('blocks a tab from the expanded row', async () => {
+    render(<TabsPage />)
+    await waitFor(() => screen.getByText('Alice'))
+    fireEvent.click(screen.getByText('Alice'))
+    fireEvent.click(await screen.findByRole('button', { name: 'Block tab for Alice' }))
+    await waitFor(() => {
+      expect(setTabBlocked).toHaveBeenCalledWith('m1', true, undefined)
+      expect(screen.getByRole('button', { name: 'Unblock tab for Alice' })).toBeInTheDocument()
+    })
+  })
+
+  it('unblocks a blocked tab', async () => {
+    render(<TabsPage />)
+    await waitFor(() => screen.getByText('Bob'))
+    fireEvent.click(screen.getByText('Bob'))
+    fireEvent.click(await screen.findByRole('button', { name: 'Unblock tab for Bob' }))
+    await waitFor(() => expect(setTabBlocked).toHaveBeenCalledWith('m2', false, undefined))
   })
 })

@@ -5,6 +5,10 @@ import DaveyMode from './DaveyMode'
 import NavBar from '../NavBar'
 import { useSessionStore } from '../../stores/sessionStore'
 
+vi.mock('../../lib/tabs', () => ({
+  fetchTabAges: vi.fn().mockResolvedValue({}),
+}))
+
 vi.mock('../till/SwitchUserModal', () => ({
   default: () => null,
 }))

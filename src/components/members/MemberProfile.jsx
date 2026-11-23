@@ -1,6 +1,9 @@
 import { useState, useEffect, useRef, useId } from 'react'
-import { X, Clock, Phone, Mail, Calendar, Star, CreditCard, KeyRound, Edit2 } from '../../lib/icons'
+import { X, Clock, Phone, Mail, Calendar, Star, CreditCard, KeyRound, Edit2, Lock } from '../../lib/icons'
 import { supabase } from '../../lib/supabase'
+import { setTabBlocked } from '../../lib/tabs'
+import { useSessionStore } from '../../stores/sessionStore'
+import { useToastStore } from '../../hooks/useToast'
 import SettleTabModal from './SettleTabModal'
 import AdjustTabModal from './AdjustTabModal'
 import SetPinModal from './SetPinModal'
@@ -26,6 +29,26 @@ export default function MemberProfile({ member, onClose, onEdit, onSettleTab }) 
   const [settleModalOpen, setSettleModalOpen] = useState(false)
   const [setPinOpen, setSetPinOpen] = useState(false)
   const [adjustModalOpen, setAdjustModalOpen] = useState(false)
+  const [tabBlocked, setTabBlockedState] = useState(!!member.tab_blocked)
+  const [savingBlock, setSavingBlock] = useState(false)
+  const { activeStaff } = useSessionStore()
+
+  useEffect(() => { setTabBlockedState(!!member.tab_blocked) }, [member.id, member.tab_blocked])
+
+  async function handleToggleBlock() {
+    const blocked = !tabBlocked
+    setSavingBlock(true)
+    try {
+      await setTabBlocked(member.id, blocked, activeStaff?.id)
+      setTabBlockedState(blocked)
+      onSettleTab()
+    } catch (err) {
+      console.error('Failed to update tab block:', err)
+      useToastStore.getState().addToast('Could not update the tab block — try again', 'error')
+    } finally {
+      setSavingBlock(false)
+    }
+  }
 
   // Focus close button on mount
   useEffect(() => {
@@ -173,6 +196,12 @@ export default function MemberProfile({ member, onClose, onEdit, onSettleTab }) 
               ) : (
                 <p className="text-slate-400">None</p>
               )}
+              {tabBlocked && (
+                <p className="text-red-300 text-xs mt-1 flex items-center gap-1">
+                  <Lock size={12} aria-hidden="true" />
+                  Tab blocked — cash or card only
+                </p>
+              )}
             </div>
           </div>
 
@@ -224,7 +253,7 @@ export default function MemberProfile({ member, onClose, onEdit, onSettleTab }) 
         </div>
 
         {/* Footer actions */}
-        <div className="flex gap-3 px-5 pb-5 pt-3 border-t border-slate-700">
+        <div className="flex flex-wrap gap-3 px-5 pb-5 pt-3 border-t border-slate-700">
           {hasTab && (
             <button
               onClick={() => setSettleModalOpen(true)}
@@ -242,6 +271,18 @@ export default function MemberProfile({ member, onClose, onEdit, onSettleTab }) 
           >
             <Edit2 size={16} aria-hidden="true" />
             Adjust Tab
+          </button>
+          <button
+            onClick={handleToggleBlock}
+            disabled={savingBlock}
+            className={`flex items-center gap-2 px-4 min-h-[44px] rounded-xl font-semibold text-sm transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-default focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617] ${
+              tabBlocked
+                ? 'bg-slate-700 hover:bg-slate-600 text-white'
+                : 'bg-red-900 hover:bg-red-800 text-red-100'
+            }`}
+          >
+            <Lock size={16} aria-hidden="true" />
+            {tabBlocked ? 'Unblock Tab' : 'Block Tab'}
           </button>
           {member.membership_tier === 'staff' && (
             <button
