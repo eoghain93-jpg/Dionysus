@@ -83,6 +83,22 @@ All of this passed on local staging on 2026-06-10.
 - [ ] After a successful verify, the failure counter resets
 - [ ] Another staff member can still log in while one is locked
 
+## Registered devices
+
+| Login | till_id | Device | Registered by |
+|---|---|---|---|
+| `till-1@fairmile.club` | `till-1` | Main bar till | migration `20260610180000` |
+| `till-2@fairmile.club` | `till-2` | Second till | migration `20260610180000` |
+| `till-3@fairmile.club` | `till-3` | Office Mac (checking the system, not a bar till) | added directly 2026-11-23 — auth user + `till_devices` row, no migration |
+
+Passwords are held by Eoghain — never in this repo.
+
+`till-3` has no cash drawer and no receipt printer. The Z report's per-till
+cash reconciliation only knows `till-1` and `till-2`
+(`src/lib/zReport.js`, `ZReportModal.jsx`), so a cash sale rung on the
+Office Mac counts in the day's totals but in neither drawer's expected
+cash. Use it for looking, not for ringing cash sales.
+
 ## Day-to-day notes
 
 - A locked PIN clears itself after 15 minutes; to clear it early run
