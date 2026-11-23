@@ -10,6 +10,7 @@ import { removeOrderFromTab } from '../lib/tabs'
 import { printTabsList, printTabStatement, getPrinterIp } from '../lib/starPrinter'
 import { logEvent } from '../lib/audit/log'
 import { useToastStore } from '../hooks/useToast'
+import { useCanUnblockTabs } from '../hooks/useCanUnblockTabs'
 import BlurredAmount from '../components/ui/BlurredAmount'
 
 export default function TabsPage() {
@@ -27,6 +28,7 @@ export default function TabsPage() {
   const [overdueOnly, setOverdueOnly] = useState(false)
   const [blockingId, setBlockingId] = useState(null)
   const { activeStaff } = useSessionStore()
+  const canUnblock = useCanUnblockTabs(activeStaff?.id)
 
   const loadTabs = useCallback(() => {
     setLoading(true)
@@ -130,7 +132,10 @@ export default function TabsPage() {
       )
     } catch (err) {
       console.error('Failed to update tab block:', err)
-      useToastStore.getState().addToast('Could not update the tab block — try again', 'error')
+      useToastStore.getState().addToast(
+        err?.code === '42501' ? 'Only Admin or Nikki can unblock a tab' : 'Could not update the tab block — try again',
+        'error'
+      )
     } finally {
       setBlockingId(null)
     }
@@ -328,6 +333,9 @@ export default function TabsPage() {
                             ? `Last payment ${new Date(member.last_paid_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}`
                             : 'No payments recorded'}
                         </p>
+                        {member.tab_blocked && !canUnblock ? (
+                          <p className="text-slate-400 text-[15px] shrink-0">Only Admin or Nikki can unblock</p>
+                        ) : (
                         <button
                           onClick={() => handleToggleBlock(member)}
                           disabled={blockingId === member.id}
@@ -336,6 +344,7 @@ export default function TabsPage() {
                         >
                           {member.tab_blocked ? 'Unblock tab' : 'Block tab'}
                         </button>
+                        )}
                         <button
                           onClick={() => handlePrintStatement(member)}
                           disabled={printingStatementId === member.id}

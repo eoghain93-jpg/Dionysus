@@ -9,6 +9,7 @@ vi.mock('../lib/tabs', () => ({
   adjustTabBalance: vi.fn(),
   removeOrderFromTab: vi.fn(),
   setTabBlocked: vi.fn(),
+  canUnblockTabs: vi.fn().mockResolvedValue(true),
   TAB_OVERDUE_DAYS: 14,
 }))
 
@@ -41,8 +42,9 @@ vi.mock('../components/members/AdjustTabModal', () => ({
   ),
 }))
 
-import { fetchOpenTabs, fetchTabOrders, removeOrderFromTab, setTabBlocked } from '../lib/tabs'
+import { fetchOpenTabs, fetchTabOrders, removeOrderFromTab, setTabBlocked, canUnblockTabs } from '../lib/tabs'
 import { useTabAlertStore } from '../stores/tabAlertStore'
+import { useToastStore } from '../hooks/useToast'
 import { printTabsList, printTabStatement, getPrinterIp } from '../lib/starPrinter'
 import { logEvent } from '../lib/audit/log'
 
@@ -493,5 +495,30 @@ describe('TabsPage overdue tabs and blocking', () => {
     fireEvent.click(screen.getByText('Bob'))
     fireEvent.click(await screen.findByRole('button', { name: 'Unblock tab for Bob' }))
     await waitFor(() => expect(setTabBlocked).toHaveBeenCalledWith('m2', false, undefined))
+  })
+
+  it('does not offer Unblock to staff who are not allowed to', async () => {
+    canUnblockTabs.mockResolvedValue(false)
+    render(<TabsPage />)
+    await waitFor(() => screen.getByText('Bob'))
+    fireEvent.click(screen.getByText('Bob'))
+    expect(await screen.findByText('Only Admin or Nikki can unblock')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Unblock tab for Bob' })).not.toBeInTheDocument()
+    // ...but they can still block someone else
+    fireEvent.click(screen.getByText('Alice'))
+    expect(await screen.findByRole('button', { name: 'Block tab for Alice' })).toBeInTheDocument()
+    canUnblockTabs.mockResolvedValue(true)
+  })
+
+  it('shows who may unblock when the database refuses', async () => {
+    setTabBlocked.mockRejectedValue({ code: '42501' })
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    render(<TabsPage />)
+    await waitFor(() => screen.getByText('Bob'))
+    fireEvent.click(screen.getByText('Bob'))
+    fireEvent.click(await screen.findByRole('button', { name: 'Unblock tab for Bob' }))
+    await waitFor(() => {
+      expect(useToastStore.getState().toasts.some(t => t.message === 'Only Admin or Nikki can unblock a tab')).toBe(true)
+    })
   })
 })

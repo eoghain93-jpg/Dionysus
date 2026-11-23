@@ -7,6 +7,7 @@ vi.mock('./supabase', async () => {
 })
 import { supabase } from './supabase'
 import {
+  canUnblockTabs,
   fetchOpenTabs, fetchTabOrders, adjustTabBalance, removeOrderFromTab, applyTabDelta,
   tabStanding, fetchTabAges, setTabBlocked, isTabBlocked, TAB_OVERDUE_DAYS,
 } from './tabs'
@@ -311,13 +312,16 @@ describe('setTabBlocked', () => {
     expect(chain.eq).toHaveBeenCalledWith('id', 'm1')
   })
 
-  it('clears the block details when unblocking', async () => {
+  it('unblocks through the unblock_tab RPC, which checks who may', async () => {
+    supabase.rpc.mockResolvedValue({ data: null, error: null })
     await setTabBlocked('m1', false, 'staff-1')
-    expect(supabase.__chain('members').update).toHaveBeenCalledWith({
-      tab_blocked: false,
-      tab_blocked_at: null,
-      tab_blocked_by: null,
-    })
+    expect(supabase.rpc).toHaveBeenCalledWith('unblock_tab', { p_member_id: 'm1' })
+    expect(supabase.__chain('members')).toBeUndefined()
+  })
+
+  it('passes on a refused unblock', async () => {
+    supabase.rpc.mockResolvedValue({ data: null, error: { code: '42501', message: 'Only Admin or Nikki can unblock a tab' } })
+    await expect(setTabBlocked('m1', false)).rejects.toThrow('Only Admin or Nikki')
   })
 
   it('throws on error', async () => {
@@ -335,5 +339,19 @@ describe('isTabBlocked', () => {
   it('does not block the sale when the lookup fails', async () => {
     supabase.__configure({ members: { data: null, error: { message: 'offline' } } })
     expect(await isTabBlocked('m1')).toBe(false)
+  })
+})
+
+describe('canUnblockTabs', () => {
+  it('reads the staff member\'s permission', async () => {
+    supabase.__configure({ members: { data: { can_unblock_tabs: true } } })
+    expect(await canUnblockTabs('s1')).toBe(true)
+    expect(supabase.__chain('members').eq).toHaveBeenCalledWith('id', 's1')
+  })
+
+  it('is false with no one signed in or on error', async () => {
+    expect(await canUnblockTabs(null)).toBe(false)
+    supabase.__configure({ members: { data: null, error: { message: 'x' } } })
+    expect(await canUnblockTabs('s1')).toBe(false)
   })
 })
