@@ -31,11 +31,17 @@ Every entry carries one of these next to the staff name:
 
 - **PIN checked** — the database itself checked that person's PIN on that
   till, and the request carried the session it issued.
-- **matched a sign-in** — a sale that arrived late (rung offline) names a
-  person who the database knows was signed in on that till at that time.
+- **matched a sign-in** — a sale that arrived late (rung offline), or a till
+  action reported later, names a person who the database knows was signed in
+  on that till at that time.
 - **said to be** — the till named someone, but the database could not
-  confirm it (an old version of the till app, or the fallback PIN check).
+  confirm it (an old version of the till app, the fallback PIN check, or
+  work done after "Carry on without checking the PIN").
 - **nobody signed in**.
+
+A sale is filed under **who rang it**. If it was sent to the server later
+(an offline sale) while someone else was signed in, the entry says so. A
+live sale that names someone other than the signed-in person is an alert.
 
 The **till** always comes from the device's own login, never from what the
 app claims.
@@ -44,10 +50,21 @@ app claims.
 
 - Every page now needs a staff member signed in, not just the Till page.
 - The till locks itself after 5 minutes without a touch. The open order is
-  kept; a PIN carries on. Change the time (or set 0 for never) in
-  **Settings**. That change is itself recorded.
-- It never locks while the till is offline, because a PIN cannot be checked
-  offline.
+  kept; a PIN carries on, or someone else signs in. Change the time (or set 0
+  for never) in **Settings**. That change is itself recorded.
+- Locking ends that person's sign-in on the server; unlocking is a fresh,
+  PIN-checked sign-in. Nothing done at a locked till is credited to them.
+- It does not lock while the till cannot reach the server (offline, or the
+  internet is down), because a PIN cannot be checked then.
+- **A till is never left unusable.** If the PIN cannot be checked (server
+  unreachable), or that person's PIN is locked out after five wrong tries,
+  the lock screen offers "Carry on without checking the PIN" for the same
+  person. Using it is recorded as an alert (serious, for the locked-out
+  case), and everything done afterwards is recorded as "said to be", not
+  "PIN checked", until someone signs in properly. So the lock cannot stop
+  trade — but getting past it without a PIN is always visible in the Log.
+- "Sign out" is refused while the server cannot be reached (use Lock): a
+  signed-out till needs the server to sign anyone back in.
 
 ## What a till can no longer do
 
@@ -57,9 +74,19 @@ cash-back, prize payouts, guest sign-ins, the price change log, members,
 products or day closes by talking to the database directly. The attempt is
 refused and recorded as serious. Everything the app itself does is unaffected.
 
-Editing a past sale's amount or a tab balance directly is **recorded as
-serious but not yet refused**; it can be switched to refused once a week or
-two of entries show nothing legitimate depends on it.
+A till also cannot write a member's **PIN, tab balance, login link or
+settlement date** straight into their record (only the app's own functions
+can): the attempt is put back and recorded as serious. Without this, someone
+could give a colleague a PIN of their choosing and sign in as them.
+
+Editing a past sale's amount directly is **recorded as serious but not yet
+refused**; it can be switched to refused once a week or two of entries show
+nothing legitimate depends on it. A sale or a sale line written straight into
+the table rather than by the app is recorded as an alert.
+
+"Directly" includes Supabase's GraphQL door, which the app does not use. If
+you do not need it, switching it off in the Supabase dashboard is one less
+way in.
 
 Repairs by hand (dashboard, SQL) still work, and are always recorded as
 "outside the till" alerts with the full before and after.
@@ -72,11 +99,13 @@ Repairs by hand (dashboard, SQL) still work, and are always recorded as
   protection off — and a nightly check reports if that has happened.
 - Every five minutes the new entries are sealed together with the previous
   seal. Changing, removing or adding any sealed entry breaks every seal after
-  it. **Log → Check now** re-checks the whole chain on demand; it also runs
+  it. **Log → Check now** re-checks the chain on demand (on a large log: every
+  seal, plus every entry from the last 30 days); the whole log is re-checked
   every night.
 - Copies of the newest seal are kept **outside the database**: each till
-  remembers the last one it saw (and raises an alert if the database no
-  longer has it), and Close Day puts the seal's short code in the Z-report
+  remembers the last one it saw (if the database later no longer has it, the
+  till keeps its copy as evidence, the Log shows it, and an alert is raised),
+  and Close Day puts the seal's short code in the Z-report
   email subject. To prove the log has not been rewritten, compare the code in
   an old email with the one the Log shows for that seal.
 
@@ -84,7 +113,16 @@ Repairs by hand (dashboard, SQL) still work, and are always recorded as
 
 - Someone with the database password or dashboard access can switch the
   protection off and rewrite the log. That is *detectable* (seal codes in
-  emails, the tills' own copies, the nightly check) but not *preventable*.
+  emails, the tills' own copies, the nightly check — which also compares the
+  audit code itself against a stored fingerprint) but not *preventable*.
+- **Staff PINs are four digits, and a till can read their scrambled form.**
+  Someone with technical skill and time at a till could work out a
+  colleague's PIN from it and sign in as them. So "PIN checked" means the
+  right PIN was entered, not proof of who entered it. Closing this needs the
+  PIN check moved fully into the database and the old sign-in function
+  redeployed — a follow-up, once both tills run this version. (This version
+  already stops the till keeping its own copy of them.)
+- The lock is a record, not a wall: see "Signing in and locking".
 - "Till actions" are the app's own account. Someone who modifies the app on
   the till could leave them out. Data changes are recorded by the database and
   cannot be skipped.
@@ -114,14 +152,21 @@ update auditlog.settings set capture_enabled = false;
 Check integrity and coverage by hand:
 
 ```sql
-select auditlog.verify();     -- ok / problems
-select auditlog.coverage();   -- tables not recorded, triggers switched off
+select auditlog.verify();     -- ok / problems (the whole log)
+select auditlog.coverage();   -- anything missing, switched off or redirected
 select * from auditlog.failures order by id desc limit 20;  -- should be empty
 ```
 
 A new table is not recorded until `select auditlog.attach_all();` has been
-run (put it at the end of the migration that creates the table). The nightly
-check raises an alert for any table that is not covered.
+run (put it at the end of the migration that creates the table; it only
+touches tables that are not yet covered, so it takes no locks on the busy
+ones). The nightly check raises an alert for any table that is not covered.
+
+A migration that changes the audit layer's own functions or triggers must end
+with `select auditlog.accept_manifest('<why>');` — otherwise the nightly check
+reports that the audit code no longer matches the accepted version (which is
+exactly what it should report if someone changes it quietly). A database
+engine upgrade can also trip it once; accept it the same way.
 
 Erasure request for a member (keeps the seals valid, records that it was done):
 
