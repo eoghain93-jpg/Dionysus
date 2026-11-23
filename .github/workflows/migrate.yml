@@ -37,8 +37,12 @@ jobs:
       # 20 Nov 2026, a bare `db push` targets the local Docker stack and fails
       # with ECONNREFUSED 127.0.0.1:54322 instead of pushing to the linked
       # project.
+      # --yes: since the CLI release picked up by `version: latest` on
+      # 23 Nov 2026, `db push` asks "Apply N migrations?" and, with no
+      # terminal to ask, exits 1 with "Confirmation required ... Nothing was
+      # changed." Merging to master is the confirmation.
       - name: Run migrations
-        run: supabase db push --remote
+        run: supabase db push --remote --yes
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
