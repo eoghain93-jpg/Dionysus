@@ -186,6 +186,9 @@ const FIELD_LABELS = {
   favourite_drinks: 'favourite drinks',
   auth_user_id: 'app login',
   last_settled_at: 'last tab payment',
+  tab_blocked: 'tab block',
+  tab_blocked_at: 'time the tab was blocked',
+  tab_blocked_by: 'who blocked the tab',
   prev_last_settled_at: 'tab payment before that',
   payment_method: 'payment type',
   total_amount: 'total',
@@ -358,6 +361,7 @@ const FLAG_LABELS = {
   direct_insert_of_sale_line: 'Sale line written straight into the books, not by the till app',
   tab_balance_adjusted: 'Tab changed without a sale or a payment',
   tier_changed: 'Staff status changed',
+  staff_created: 'Staff member added directly, not through the Members page',
   pin_changed: 'PIN changed',
   direct_edit_of_protected_field: 'Protected figure edited directly',
   till_registration_changed: 'Till registration changed',
@@ -1006,10 +1010,12 @@ function memberRow(entry, ctx) {
   if (entry.action !== 'update') return null
 
   const keys = changedKeys(entry)
-  const quiet = ['last_settled_at']
+  const quiet = ['last_settled_at', 'tab_blocked_at', 'tab_blocked_by']
   const main = keys.filter(k => !quiet.includes(k))
   const part = key => {
     switch (key) {
+      case 'tab_blocked':
+        return after.tab_blocked ? 'tab blocked' : 'tab unblocked'
       case 'tab_balance':
         return `tab from ${money(before.tab_balance)} to ${money(after.tab_balance)}`
       case 'membership_tier':
@@ -1024,6 +1030,15 @@ function memberRow(entry, ctx) {
   }
   if (main.length === 1) {
     const key = main[0]
+    if (key === 'tab_blocked') {
+      return {
+        title: `${after.tab_blocked ? 'Blocked' : 'Unblocked'} ${possessive(safeName)} tab`,
+        lines: [after.tab_blocked
+          ? 'The till now refuses to put more drinks on this tab (cash or card only) until it is unblocked'
+          : 'Drinks can go on this tab again'],
+        category: 'tabs',
+      }
+    }
     if (key === 'tab_balance') {
       return { title: `${possessive(safeName)} tab went from ${money(before.tab_balance)} to ${money(after.tab_balance)}`, category: 'tabs' }
     }
@@ -1352,6 +1367,18 @@ function describeProtectedFields(entry, ctx, mode, door) {
   const keys = changedKeys(entry)
   const what = listText(keys.map(k => PROTECTED_WORDS[k] ?? fieldLabel(k))) || 'protected details'
   const refused = mode !== 'would_block'
+  if (String(entry.action ?? '').split('.')[1] === 'insert') {
+    const who = name && name !== '[erased]' ? ` (${name})` : ''
+    return {
+      title: refused
+        ? `A new member${who} was added with ${what} already set — refused`
+        : `Allowed, but should not happen: a new member${who} was added with ${what} already set`,
+      lines: [...door, refused
+        ? 'Refused: those were left blank. A PIN, a tab balance or an app login is only ever set through the till’s own steps, so it is worth asking who tried.'
+        : 'Protection of past records was in watch-only mode, so this went through.'],
+      category: 'blocked',
+    }
+  }
   const lines = keys.map(k => protectedFieldText(k, before, after, refused))
   if (refused) {
     return {
@@ -1380,7 +1407,7 @@ function describeGuard(entry, ctx) {
     const after = asObj(entry.new)
     for (const key of Object.keys(after)) {
       if (JSON.stringify(after[key]) !== JSON.stringify(before[key])) {
-        lines.push(`Tried to change ${changeText(key, { old: before, new: after }, ctx)}`)
+        lines.push(`${mode === 'would_block' ? 'Changed' : 'Tried to change'} ${changeText(key, { old: before, new: after }, ctx)}`)
       }
     }
   }
@@ -1693,6 +1720,28 @@ function describeSystem(entry, ctx) {
         lines: detail.note ? [`Note: ${detail.note}`] : [],
         category: 'system',
       }
+    case 'settings.protection_off':
+      return {
+        title: detail.capture_enabled === false
+          ? 'Recording is SWITCHED OFF in the log’s settings'
+          : 'Protection of past records is switched off (watch-only) in the log’s settings',
+        lines: [
+          detail.capture_enabled === false
+            ? 'While this is off, changes at the till are not being written to the log'
+            : 'While this is off, edits to past sales and protected figures are recorded but not refused',
+          'Checked every night and reported until it is switched back on',
+        ],
+        category: 'system',
+      }
+    case 'privacy.erased_rows': {
+      const who = entry.subject || nameOf(ctx, entry.pk)
+      const rows = Object.keys(asObj(detail.rows)).length
+      return {
+        title: `Record of which log entries had personal details erased${who && who !== '[erased]' ? ` for ${who}` : ''}${rows ? ` (${count(rows, 'entry', 'entries')})` : ''}`,
+        lines: ['Kept so the nightly check can tell an approved erasure from tampering'],
+        category: 'system',
+      }
+    }
     case 'privacy.erased': {
       const who = entry.subject || nameOf(ctx, entry.pk)
       return {
@@ -1865,6 +1914,21 @@ function describeEvent(entry, ctx) {
       if (who) extra.push(`Member on the order: ${who}`)
       return out(`Cleared a whole order before payment: ${count(d.lines ?? items.length, 'line')}${has(d, 'value') ? ` worth ${money(d.value)}` : ''}`, extra)
     }
+    case 'cart.order_parked':
+    case 'cart.order_resumed': {
+      const items = asList(d.items).filter(isObj)
+      const who = memberFrom(d, ctx)
+      const extra = []
+      if (items.length) extra.push(items.map(i => `${num(i.quantity)} × ${i.product ?? 'an item'}${has(i, 'value') ? ` (${money(i.value)})` : ''}`).join(', '))
+      if (who) extra.push(`Member on the order: ${who}`)
+      const size = `${count(d.lines ?? items.length, 'line')}${has(d, 'value') ? ` worth ${money(d.value)}` : ''}`
+      const label = d.label ? ` “${d.label}”` : ''
+      if (entry.action === 'cart.order_resumed') return out(`Brought parked order${label} back onto the till: ${size}`, extra)
+      extra.push(d.swapped_for
+        ? 'Set aside automatically when another parked order was brought back'
+        : 'A parked order is held only on that till until it is brought back and paid — look for it being brought back')
+      return out(`Parked an order${label} without payment: ${size}`, extra)
+    }
     case 'cart.member_attached': {
       const who = memberFrom(d, ctx)
       return out(`Put ${who ?? 'a member'} on the order`, d.method ? [`Found by ${prettify(d.method)}`] : [])
@@ -1963,8 +2027,14 @@ function describeEvent(entry, ctx) {
       return out(`Printed the tabs summary${has(d, 'tabs') ? ` (${count(d.tabs, 'tab')}${has(d, 'total') ? `, ${money(d.total)}` : ''})` : ''}`)
     case 'tab.amount_revealed': {
       if (d.what === 'total_outstanding') return out('Revealed the total owed on all tabs')
+      if (d.what === 'overdue_total') return out('Revealed the total owed on overdue tabs')
       const who = memberFrom(d, ctx)
       return out(who ? `Revealed ${possessive(who)} tab amount` : 'Revealed a hidden tab amount')
+    }
+    case 'tab.sale_refused_blocked': {
+      const who = memberFrom(d, ctx)
+      return out(`Refused to put ${has(d, 'total') ? `${money(d.total)} ` : 'a sale '}on ${who ? `${possessive(who)} tab` : 'a tab'} — the tab is blocked`,
+        ['Nothing was charged; the till asked for cash or card instead'])
     }
     case 'tab.order_removed': {
       const who = memberFrom(d, ctx)

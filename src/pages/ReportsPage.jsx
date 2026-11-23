@@ -28,12 +28,24 @@ export default function ReportsPage() {
     setExporting(true)
     try {
       const range = tradingDayRange(date)
-      const { data: rawOrders } = await supabase
+      const fetchDay = columns => supabase
         .from('orders')
-        .select('id, created_at, total_amount, payment_method, status, till_id, staff_id, members(name, membership_number)')
+        .select(columns)
         .gte('created_at', range.from)
         .lt('created_at', range.to)
         .order('created_at')
+      const columns = 'id, created_at, total_amount, payment_method, status, till_id, members(name, membership_number)'
+      let { data: rawOrders, error } = await fetchDay(`${columns}, staff_id`)
+      // A database that has not had the staff column added yet (the app can
+      // deploy before a migration lands): export without it.
+      if (error && (error.code === '42703' || error.code === 'PGRST204')) {
+        ({ data: rawOrders, error } = await fetchDay(columns))
+      }
+      if (error) {
+        // Not "no orders": the day's sales could not be read at all.
+        useToastStore.getState().addToast('Could not export the orders. Check the connection and try again.', 'error')
+        return
+      }
       const orders = rawOrders ? await attachStaffNames(rawOrders) : rawOrders
 
       if (!orders || orders.length === 0) {

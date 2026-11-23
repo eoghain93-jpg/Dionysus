@@ -143,6 +143,11 @@ export default function TillPage() {
       if (blocked) {
         useTillStore.setState({ activeMember: { ...currentMember, tab_blocked: true } })
         useToastStore.getState().addToast(`${currentMember.name}'s tab is blocked — take cash or card`, 'error')
+        // Nothing is written to the database for a refused sale, so this is
+        // the only record that someone tried to put drinks on a blocked tab.
+        logEvent('tab.sale_refused_blocked', {
+          member_id: currentMember.id, member_name: currentMember.name, total: Number(total.toFixed(2)),
+        }, { severity: 1 })
         return
       }
     }

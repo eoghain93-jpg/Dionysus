@@ -1232,6 +1232,55 @@ select auditlog.nightly();
 select t.ok((t.entry('system', 'settings.protection_off') ->> 'severity')::int = 3, 'guards left switched off are reported every night');
 rollback;
 
+-- ── After merging master: tab block, and the one serious till event ──────
+
+-- Blocking a tab is an ordinary edit a till makes directly (lib/tabs.js):
+-- allowed, and recorded against whoever is signed in.
+begin;
+select t.req('till1', 'PATCH', '/members', :'kim_token');
+update members set tab_blocked = true, tab_blocked_at = now(), tab_blocked_by = :'kim'
+ where id = '5a000000-0000-0000-0000-0000000000f1';
+commit;
+select t.ok((select tab_blocked from members where id = '5a000000-0000-0000-0000-0000000000f1'), 'a till can block a tab');
+select t.put('e', t.entry('row', 'update', 'members'));
+select t.ok((t.get('e') ->> 'row_pk') = '5a000000-0000-0000-0000-0000000000f1' and (t.get('e') ->> 'staff_id') = :'kim'
+            and (t.get('e') ->> 'staff_trust') = 'pin' and (t.get('e') -> 'changed') ? 'tab_blocked',
+  'and the block is recorded with who did it');
+-- A protected figure slipped into the same edit is still refused; the unblock itself stands.
+begin;
+select t.req('till1', 'PATCH', '/members', :'kim_token');
+update members set tab_blocked = false, tab_blocked_at = null, tab_blocked_by = null, tab_balance = 99
+ where id = '5a000000-0000-0000-0000-0000000000f1';
+commit;
+select t.ok((select not tab_blocked and tab_balance = 0 from members where id = '5a000000-0000-0000-0000-0000000000f1'),
+  'unblocking with a balance change in the same edit: unblocked, balance untouched');
+-- The tab-age lookup is one of the app's own functions and works with the audit triggers in place.
+begin;
+select t.req('till1', 'POST', '/rpc/open_tab_ages', :'kim_token');
+select count(*) as tab_ages from open_tab_ages() \gset
+commit;
+select t.ok(:tab_ages >= 0 and auditlog.via_is_app_function('POST /rpc/open_tab_ages'), 'open_tab_ages runs for a till and counts as an app function');
+
+-- A till can raise its own events to 2 and no higher. Carrying on at the lock
+-- screen is graded by the server: serious when the PIN was locked out.
+begin;
+select t.req('till1', 'POST', '/rpc/audit_log_events', :'kim_token');
+select audit_log_events(jsonb_build_array(
+  jsonb_build_object('id', 'e0000000-0000-0000-0000-0000000000a1', 'type', 'till.unlocked_unverified', 'at', now(),
+    'severity', 0, 'detail', jsonb_build_object('reason', 'pin_locked')),
+  jsonb_build_object('id', 'e0000000-0000-0000-0000-0000000000a2', 'type', 'till.unlocked_unverified', 'at', now(),
+    'severity', 0, 'detail', jsonb_build_object('reason', 'unreachable')),
+  jsonb_build_object('id', 'e0000000-0000-0000-0000-0000000000a3', 'type', 'cart.order_voided', 'at', now(), 'severity', 3),
+  jsonb_build_object('id', 'e0000000-0000-0000-0000-0000000000a4', 'type', 'cart.order_parked', 'at', now(), 'severity', -5)));
+commit;
+select t.ok((select severity from auditlog.log where client_event_id = 'e0000000-0000-0000-0000-0000000000a1') = 3,
+  'carrying on past a locked-out PIN is serious, whatever the till says');
+select t.ok((select severity from auditlog.log where client_event_id = 'e0000000-0000-0000-0000-0000000000a2') = 2,
+  'carrying on because the server could not be reached is an alert');
+select t.ok((select severity from auditlog.log where client_event_id = 'e0000000-0000-0000-0000-0000000000a3') = 2
+            and (select severity from auditlog.log where client_event_id = 'e0000000-0000-0000-0000-0000000000a4') = 0,
+  'no other till event can call itself serious, or less than routine');
+
 -- ── Done ─────────────────────────────────────────────────────────────────
 
 select t.ok((select count(*) from auditlog.failures) = 0, 'no capture failures at the end of the run');

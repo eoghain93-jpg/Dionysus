@@ -13,10 +13,10 @@ You read it in the till app: **Log** in the menu.
 
 | | Examples | Recorded by |
 |---|---|---|
-| **Every data change** | a sale and its lines, a void, a price or product edit, a tab payment or adjustment, wastage and staff drinks, a member edit, someone made staff, a promotion switched on, Close Day | the database itself, whatever made the change (till, phone app, Stripe, the dashboard, hand-written SQL) |
+| **Every data change** | a sale and its lines, a void, a price or product edit, a tab payment or adjustment, a tab being blocked or unblocked, wastage and staff drinks, a member edit, someone made staff, a promotion switched on, Close Day | the database itself, whatever made the change (till, phone app, Stripe, the dashboard, hand-written SQL) |
 | **Sign-ins and PINs** | who signed in on which till and when, sign-outs, wrong PINs, lockouts, PIN re-checks and what they were for, a PIN being set or changed | the database |
 | **Refused attempts** | a till trying to delete or edit a past sale, stock movement, tab adjustment or correction directly | the database |
-| **Till actions** | line removed from an order, order voided before payment, members-only pricing switched on, drawer opened with no sale, printer address changed, report viewed / exported / emailed, till went offline, queued sales sent later, till locked / unlocked | the till app (shown as "reported by the till") |
+| **Till actions** | line removed from an order, order voided before payment, an order parked and brought back, a tab sale refused because the tab is blocked, members-only pricing switched on, drawer opened with no sale, printer address changed, report viewed / exported / emailed, till went offline, queued sales sent later, till locked / unlocked | the till app (shown as "reported by the till") |
 | **The log's own health** | nightly integrity check, a till seen from a new network address, anything not being recorded, the log being viewed | the database |
 
 For each sale line the log also freezes the product's **list prices at that
@@ -60,11 +60,22 @@ app claims.
   unreachable), or that person's PIN is locked out after five wrong tries,
   the lock screen offers "Carry on without checking the PIN" for the same
   person. Using it is recorded as an alert (serious, for the locked-out
-  case), and everything done afterwards is recorded as "said to be", not
+  case), and what is done afterwards is recorded as "said to be", not
   "PIN checked", until someone signs in properly. So the lock cannot stop
   trade — but getting past it without a PIN is always visible in the Log.
+  One wrinkle: if the till was cut off from the server when it locked, the
+  server only hears about the lock once the connection is back, so sales
+  rung offline after that lock can still show as "matched a sign-in" for
+  that person. The carry-on alert carries its own time; sales after it are
+  the ones to read as "said to be".
 - "Sign out" is refused while the server cannot be reached (use Lock): a
-  signed-out till needs the server to sign anyone back in.
+  signed-out till needs the server to sign anyone back in. If the server
+  does not answer within a few seconds the sign-out is called off, the till
+  says so, and the person stays signed in.
+- **Parked orders** (the Park button) live only in that till's memory until
+  they are brought back and paid. The Log records what was parked and when
+  it was brought back; a parked order with no "brought back" after it is
+  worth asking about.
 
 ## What a till can no longer do
 
@@ -121,7 +132,9 @@ Repairs by hand (dashboard, SQL) still work, and are always recorded as
   right PIN was entered, not proof of who entered it. Closing this needs the
   PIN check moved fully into the database and the old sign-in function
   redeployed — a follow-up, once both tills run this version. (This version
-  already stops the till keeping its own copy of them.)
+  no longer asks the server for them, and clears copies kept by older
+  versions when the till starts; the database itself still lets a till
+  device read them until that follow-up.)
 - The lock is a record, not a wall: see "Signing in and locking".
 - "Till actions" are the app's own account. Someone who modifies the app on
   the till could leave them out. Data changes are recorded by the database and
@@ -176,3 +189,29 @@ select auditlog.erase_member_data('<member id>', 'erasure request, <date>');
 
 Size: about 2 KB per sale, roughly 80 MB a year at current trade. The Log's
 health strip shows the current size.
+
+## Known gaps (follow-ups)
+
+None of these stops a sale or loses a record; they are about how precisely
+unusual situations are labelled.
+
+- **PIN hashes and the old sign-in function.** A till device can still read
+  staff PIN hashes from the database, and the `verify-pin` edge function
+  still lets anyone holding the app's public key trigger a 15-minute PIN
+  lockout. Both need the edge functions redeploying (they are not deployed
+  automatically) and the hash column closing off once both tills run this
+  version.
+- **Sign-out time after an offline lock.** See "Signing in and locking": the
+  server stamps a sign-out when it hears of it, not when the till locked.
+- **A superseded PIN attempt.** If two PIN attempts are in flight at the lock
+  screen and the earlier answer arrives last, the till can end up holding
+  the earlier sign-in. Same person, so nothing is misattributed; a spare
+  sign-in is left open until it expires.
+- **A till showing someone signed in with no session.** After a second
+  browser tab signs in, or the 24-hour session expiry with auto-lock set to
+  "never", actions are recorded as "said to be" until the next lock or
+  sign-in. The till does not yet notice this by itself.
+- **Supabase's GraphQL door** is not used by the app and is refused by the
+  guards; switching it off in the Supabase dashboard removes it altogether.
+- **The audit trigger on a tab adjustment made by an old app version** is an
+  alert with no staff name until both tills run this version.

@@ -1,5 +1,6 @@
 // src/lib/tabs.js
 import { supabase } from './supabase'
+import { selectMembers } from './members'
 
 // A tab counts as overdue once this many days pass with no payment towards
 // it (or, if nothing has ever been paid, since the tab was opened).
@@ -38,14 +39,13 @@ export async function fetchTabAges(member_id = null) {
 // with how long it has gone unpaid (`days`, `overdue`) and whether staff
 // have blocked it (`tab_blocked`).
 export async function fetchOpenTabs() {
-  const { data, error } = await supabase
+  // Named columns (never the PIN hash); falls back to '*' on a database
+  // that hasn't had a listed column added yet, so the Tabs page still loads.
+  const { data, error } = await selectMembers(columns => supabase
     .from('members')
-    // '*' rather than a column list so tab_blocked comes along when it
-    // exists without the Tabs page breaking on a database that hasn't had
-    // the tab-block migration yet.
-    .select('*')
+    .select(columns)
     .gt('tab_balance', 0)
-    .order('tab_balance', { ascending: false })
+    .order('tab_balance', { ascending: false }))
   if (error) throw error
   const tabs = data ?? []
   if (tabs.length === 0) return tabs

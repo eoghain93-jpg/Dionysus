@@ -19,8 +19,10 @@ import {
   QUICK_VIEWS, DEFAULT_VIEW, PAGE_SIZE, buildFilters, defaultRange, findView, rangeToIso, recordFromParams,
 } from '../components/audit/quickViews'
 
-const FIELD = 'w-full min-w-0 bg-[#0F172A] border border-slate-700 rounded-xl px-3 py-2 text-white placeholder-slate-500 min-h-[44px] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617]'
-const BUTTON = 'min-h-[44px] px-4 rounded-xl border border-slate-600 text-slate-200 hover:bg-slate-700 hover:text-white text-sm font-medium transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617] disabled:opacity-60'
+// The shared UI kit (index.css): fields, pickers and their labels.
+const FIELD = 'ui-input min-w-0'
+const PICKER = 'ui-select w-full min-w-0'
+const LABEL = 'flex flex-col gap-1.5 text-slate-300 text-sm font-bold min-w-0'
 
 // Reasons the log cannot be shown at all (as opposed to "try again").
 const BLOCKERS = {
@@ -349,21 +351,21 @@ export default function AuditPage() {
     : null
 
   return (
-    <div ref={top} className="flex flex-col h-full min-h-0 p-4 gap-4 overflow-auto">
-      <div className="flex items-center justify-between gap-4 flex-wrap">
-        <h1 className="text-2xl font-bold text-white">Log</h1>
-        <button onClick={reload} className={`flex items-center gap-2 ${BUTTON}`}>
-          <RefreshCw size={16} aria-hidden="true" />
+    <div ref={top} className="ui-page">
+      <div className="ui-page-header">
+        <h1 className="ui-title">Log</h1>
+        <button onClick={reload} className="ui-btn ui-btn-secondary">
+          <RefreshCw size={18} aria-hidden="true" />
           Refresh
         </button>
       </div>
 
       {blocker ? (
         <>
-          <div role="alert" className="bg-[#0F172A] rounded-2xl border border-slate-700 p-6 flex flex-col gap-3 items-start">
-            <h2 className="text-white text-lg font-semibold">{blocker.title}</h2>
-            <p className="text-slate-400 text-sm">{blocker.body ?? signInHint()}</p>
-            <button onClick={reload} className={BUTTON}>Try again</button>
+          <div role="alert" className="ui-card p-6 flex flex-col gap-3 items-start">
+            <h2 className="ui-section-title">{blocker.title}</h2>
+            <p className="text-slate-300 text-base">{blocker.body ?? signInHint()}</p>
+            <button onClick={reload} className="ui-btn ui-btn-primary">Try again</button>
           </div>
           {/* What the till itself remembers needs nothing from the server,
               and a database put back to before the log existed looks just
@@ -386,21 +388,21 @@ export default function AuditPage() {
           />
 
           {record ? (
-            <div className="rounded-2xl border border-blue-500/60 bg-blue-950/30 p-4 flex items-center gap-3 flex-wrap">
-              <p className="text-white font-medium flex-1 min-w-[12rem] break-words">
+            <div className="ui-banner bg-blue-950 border border-blue-900">
+              <p className="text-white text-base font-bold flex-1 min-w-[12rem] break-words">
                 Everything recorded about {recordName ? `${tableNoun(record.table)} ${recordName}` : `this ${tableNoun(record.table)}`}
               </p>
-              <button onClick={closeRecord} className={`flex items-center gap-2 ${BUTTON}`}>
-                <X size={16} aria-hidden="true" />
+              <button onClick={closeRecord} className="ui-btn ui-btn-secondary">
+                <X size={18} aria-hidden="true" />
                 Back to the whole log
               </button>
             </div>
           ) : (
             <>
               {/* Quick views: a picker on a phone, buttons on anything wider */}
-              <label className="md:hidden flex flex-col gap-1 text-slate-400 text-xs">
+              <label className={`md:hidden ${LABEL}`}>
                 Show
-                <select value={view.id} onChange={e => chooseView(e.target.value)} className={`${FIELD} cursor-pointer text-base`}>
+                <select value={view.id} onChange={e => chooseView(e.target.value)} className={PICKER}>
                   {QUICK_VIEWS.map(v => <option key={v.id} value={v.id}>{v.label}</option>)}
                 </select>
               </label>
@@ -410,17 +412,13 @@ export default function AuditPage() {
                     key={v.id}
                     onClick={() => chooseView(v.id)}
                     aria-pressed={v.id === view.id}
-                    className={`min-h-[44px] px-4 rounded-xl text-sm font-semibold transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617] ${
-                      v.id === view.id
-                        ? 'bg-blue-600 text-white'
-                        : 'bg-[#0F172A] border border-slate-700 text-slate-300 hover:bg-slate-700 hover:text-white'
-                    }`}
+                    className={`ui-tab ${v.id === view.id ? 'ui-tab-active' : ''}`}
                   >
                     {v.label}
                   </button>
                 ))}
               </div>
-              <p className="text-slate-500 text-sm -mt-2">{view.hint}</p>
+              <p className="ui-subtitle -mt-2">{view.hint}</p>
             </>
           )}
 
@@ -428,7 +426,7 @@ export default function AuditPage() {
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
             {!record && !view.allDates && (
               <>
-                <label className="flex flex-col gap-1 text-slate-400 text-xs min-w-0">
+                <label className={LABEL}>
                   From
                   <input
                     type="date"
@@ -438,7 +436,7 @@ export default function AuditPage() {
                     className={FIELD}
                   />
                 </label>
-                <label className="flex flex-col gap-1 text-slate-400 text-xs min-w-0">
+                <label className={LABEL}>
                   To
                   <input
                     type="date"
@@ -450,35 +448,35 @@ export default function AuditPage() {
                 </label>
               </>
             )}
-            <label className="flex flex-col gap-1 text-slate-400 text-xs min-w-0">
+            <label className={LABEL}>
               Staff member
-              <select value={staffId} onChange={e => setStaffId(e.target.value)} className={`${FIELD} cursor-pointer`}>
+              <select value={staffId} onChange={e => setStaffId(e.target.value)} className={PICKER}>
                 <option value="">Anyone</option>
                 {staffOptions.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
               </select>
             </label>
-            <label className="flex flex-col gap-1 text-slate-400 text-xs min-w-0">
+            <label className={LABEL}>
               Till
-              <select value={tillId} onChange={e => setTillId(e.target.value)} className={`${FIELD} cursor-pointer`}>
+              <select value={tillId} onChange={e => setTillId(e.target.value)} className={PICKER}>
                 <option value="">Any till</option>
                 {tillOptions.map(id => <option key={id} value={id}>{tillLabel(id)}</option>)}
               </select>
             </label>
           </div>
 
-          <form onSubmit={submitSearch} role="search" className="flex gap-2">
+          <form onSubmit={submitSearch} role="search" className="flex gap-3">
             <div className="relative flex-1 min-w-0">
-              <Search size={16} aria-hidden="true" className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+              <Search size={20} aria-hidden="true" className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
               <input
                 type="search"
                 value={searchBox}
                 onChange={e => changeSearchBox(e.target.value)}
                 placeholder="Search the log…"
                 aria-label="Search the log"
-                className={`${FIELD} pl-9`}
+                className={`${FIELD} pl-12`}
               />
             </div>
-            <button type="submit" className={BUTTON}>Search</button>
+            <button type="submit" className="ui-btn ui-btn-secondary">Search</button>
           </form>
 
           {showSessions && (
@@ -491,28 +489,28 @@ export default function AuditPage() {
 
           {/* Entries */}
           <div className="flex flex-col gap-4">
-            {loading && <p className="text-slate-400 text-sm p-6 text-center">Loading the log…</p>}
+            {loading && <p className="ui-empty">Loading the log…</p>}
 
             {!loading && page.error && (
-              <div role="alert" className="bg-[#0F172A] rounded-2xl border border-slate-700 p-6 flex flex-col gap-3 items-start">
-                <p className="text-red-300 font-medium">Could not load the log</p>
-                <p className="text-slate-400 text-sm break-words">{page.error.message ?? 'Something went wrong.'}</p>
-                <button onClick={reload} className={BUTTON}>Try again</button>
+              <div role="alert" className="ui-card p-6 flex flex-col gap-3 items-start">
+                <p className="text-red-300 text-lg font-bold">Could not load the log</p>
+                <p className="text-slate-300 text-base break-words">{page.error.message ?? 'Something went wrong.'}</p>
+                <button onClick={reload} className="ui-btn ui-btn-primary">Try again</button>
               </div>
             )}
 
             {/* An empty page is only "nothing" when there is no more to load. */}
             {!loading && !page.error && shown.length === 0 && page.next !== null && (
-              <div className="bg-[#0F172A] rounded-2xl border border-slate-700 p-8 text-center">
-                <p className="text-slate-300 font-medium">Nothing in this stretch of the log</p>
-                <p className="text-slate-500 text-sm mt-1">There is more further back — press “Load more” to keep looking.</p>
+              <div className="ui-card p-8 text-center">
+                <p className="text-white text-lg font-bold">Nothing in this stretch of the log</p>
+                <p className="text-slate-400 text-base mt-1">There is more further back — press “Load more” to keep looking.</p>
               </div>
             )}
 
             {!loading && !page.error && shown.length === 0 && page.next === null && (
-              <div className="bg-[#0F172A] rounded-2xl border border-slate-700 p-8 text-center">
-                <p className="text-slate-300 font-medium">Nothing here</p>
-                <p className="text-slate-500 text-sm mt-1">
+              <div className="ui-card p-8 text-center">
+                <p className="text-white text-lg font-bold">Nothing here</p>
+                <p className="text-slate-400 text-base mt-1">
                   {record
                     ? 'Nothing has been recorded about this yet.'
                     : view.allDates && !search && !staffId && !tillId
@@ -524,7 +522,7 @@ export default function AuditPage() {
 
             {!loading && !page.error && groups.map(group => (
               <section key={group.key} aria-label={dayLabel(group.at, now)} className="flex flex-col gap-2">
-                <h2 className="text-slate-400 text-sm font-semibold">{dayLabel(group.at, now)}</h2>
+                <h2 className="ui-section-title">{dayLabel(group.at, now)}</h2>
                 <ul className="flex flex-col gap-2">
                   {group.entries.map(entry => (
                     <AuditEntry key={entry.seq} entry={entry} ctx={ctx} onAck={ack} onOpenRecord={openRecord} />
@@ -535,15 +533,15 @@ export default function AuditPage() {
 
             {!loading && !page.error && page.next !== null && (
               <div className="flex flex-col items-center gap-2">
-                {moreError && <p role="alert" className="text-red-300 text-sm">Could not load more: {moreError}</p>}
-                <button onClick={loadMore} disabled={loadingMore} className={BUTTON}>
+                {moreError && <p role="alert" className="ui-error text-[15px]">Could not load more: {moreError}</p>}
+                <button onClick={loadMore} disabled={loadingMore} className="ui-btn ui-btn-secondary min-w-[160px]">
                   {loadingMore ? 'Loading…' : 'Load more'}
                 </button>
               </div>
             )}
 
             {!loading && !page.error && (
-              <p className="text-slate-600 text-xs text-center">Opening this page is itself recorded in the log.</p>
+              <p className="text-slate-400 text-[15px] text-center">Opening this page is itself recorded in the log.</p>
             )}
           </div>
         </>

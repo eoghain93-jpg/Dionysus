@@ -11,7 +11,7 @@ vi.mock('../stores/syncStore', () => ({
 
 import { supabase } from './supabase'
 import { db } from './db'
-import { upsertMember, settleTab, fetchMembers, searchMembersByName } from './members'
+import { upsertMember, settleTab, fetchMembers, searchMembersByName, scrubCachedPinHashes, MEMBER_COLUMNS } from './members'
 
 beforeEach(() => supabase.__reset())
 
@@ -174,5 +174,64 @@ describe('staff PIN hashes never reach the till\'s local cache', () => {
     const result = await upsertMember({ id: 's1', name: 'Sam Staff' })
     expect(JSON.stringify(result)).not.toContain('secretsecret')
     expect(JSON.stringify(db.members.put.mock.calls)).not.toContain('secretsecret')
+  })
+
+  it('a new member is cached and returned without a pin_hash too', async () => {
+    supabase.__configure({ members: [{ data: [] }, { data: { ...sam, id: 's2' } }] })
+    const result = await upsertMember({ name: 'Sam Staff' })
+    expect(JSON.stringify(result)).not.toContain('secretsecret')
+    expect(JSON.stringify(db.members.put.mock.calls)).not.toContain('secretsecret')
+  })
+
+  // The browser's offline cache keeps whatever the server sends, so the
+  // hash must not be asked for in the first place.
+  it('member reads name their columns and never ask for pin_hash or *', async () => {
+    supabase.__configure({ members: { data: [mo] } })
+    await fetchMembers()
+    const asked = supabase.__chain('members', 0).select.mock.calls[0][0]
+    expect(asked).toBe(MEMBER_COLUMNS)
+    expect(asked).not.toMatch(/pin_hash|\*/)
+    for (const column of ['id', 'name', 'membership_number', 'tab_balance', 'tab_blocked', 'renewal_date', 'active']) {
+      expect(asked.split(', ')).toContain(column)
+    }
+  })
+
+  it('falls back to * (and still strips the hash) on a database missing a listed column', async () => {
+    supabase.__configure({
+      members: [
+        { data: null, error: { code: '42703', message: 'column members.tab_blocked does not exist' } },
+        { data: [sam] },
+      ],
+    })
+    const result = await fetchMembers()
+    expect(supabase.__chain('members', 1).select).toHaveBeenCalledWith('*')
+    expect(result).toHaveLength(1)
+    expect(JSON.stringify(result)).not.toContain('secretsecret')
+  })
+
+  it('does not retry on any other error', async () => {
+    supabase.__configure({ members: [{ data: null, error: { code: '42501', message: 'permission denied' } }, { data: [sam] }] })
+    await expect(fetchMembers()).rejects.toMatchObject({ code: '42501' })
+  })
+
+  it('start-up clears members answers an older version left in the offline cache', async () => {
+    const removed = []
+    const cache = {
+      keys: async () => [
+        { url: 'https://x.supabase.co/rest/v1/members?select=*' },
+        { url: 'https://x.supabase.co/rest/v1/products?select=*' },
+      ],
+      delete: async request => { removed.push(request.url) },
+    }
+    vi.stubGlobal('caches', { open: vi.fn().mockResolvedValue(cache) })
+    await scrubCachedPinHashes()
+    vi.unstubAllGlobals()
+    expect(removed).toEqual(['https://x.supabase.co/rest/v1/members?select=*'])
+  })
+
+  it('start-up tidy never throws when there is no cache to clear', async () => {
+    vi.stubGlobal('caches', { open: vi.fn().mockRejectedValue(new Error('SecurityError')) })
+    await expect(scrubCachedPinHashes()).resolves.toBeUndefined()
+    vi.unstubAllGlobals()
   })
 })

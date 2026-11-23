@@ -7,6 +7,7 @@ import { useTabAlertStore } from '../stores/tabAlertStore'
 import { lockTill } from '../hooks/useIdleLock'
 import { logEvent } from '../lib/audit/log'
 import { serverUnreachable, markUnreachable, answersSeen } from '../lib/audit/reachability'
+import { getStaffSession, setStaffSession } from '../lib/audit/staffSession'
 import SwitchUserModal from './till/SwitchUserModal'
 import DaveyMode from './ui/DaveyMode'
 
@@ -126,20 +127,16 @@ export default function NavBar() {
     }
     setSigningOut(true)
     const before = answersSeen()
-    try {
-      await Promise.race([
-        (async () => {
-          const { signOutStaff } = await import('../lib/audit/staff')
-          await signOutStaff('sign_out') // never rejects; the server records the sign-out
-          // No answer to that — or nothing was asked, because no server
-          // session was open (after an unchecked carry-on): ask outright.
-          if (answersSeen() === before) await askServer()
-        })(),
-        new Promise(resolve => setTimeout(resolve, SIGN_OUT_WAIT_MS)),
-      ])
-    } catch {
-      // treated below as no answer
-    }
+    const had = getStaffSession()
+    const staffId = useSessionStore.getState().activeStaff?.id
+    const told = (async () => {
+      const { signOutStaff } = await import('../lib/audit/staff')
+      await signOutStaff('sign_out') // never rejects; the server records the sign-out
+      // No answer to that — or nothing was asked, because no server
+      // session was open (after an unchecked carry-on): ask outright.
+      if (answersSeen() === before) await askServer()
+    })().catch(() => {}) // treated below as no answer
+    await Promise.race([told, new Promise(resolve => setTimeout(resolve, SIGN_OUT_WAIT_MS))])
     setSigningOut(false)
     if (answersSeen() === before) {
       // The browser says online but the server did not answer (the usual
@@ -147,6 +144,17 @@ export default function NavBar() {
       // the till also stops auto-locking until the server is back.
       markUnreachable()
       useToastStore.getState().addToast(NO_SERVER_TOAST, 'error')
+      // Staying signed in means keeping the sign-in: the attempt forgets the
+      // session token once it gives up, which would leave this person's
+      // next actions recorded as unverified. If the server's answer turns
+      // up late after all, the session has really ended there, so finish
+      // the sign-out they asked for instead.
+      told.then(() => {
+        const session = useSessionStore.getState()
+        if (session.activeStaff?.id !== staffId || getStaffSession()) return // someone has signed in since
+        if (answersSeen() !== before) session.clearSession()
+        else if (had) setStaffSession(had)
+      })
       return
     }
     useSessionStore.getState().clearSession()
@@ -168,7 +176,7 @@ export default function NavBar() {
             to={to}
             end={to === '/'}
             className={({ isActive }) =>
-              `w-[72px] min-h-[62px] flex flex-col items-center justify-center gap-1 rounded-2xl text-[13px]
+              `w-[72px] min-h-[62px] [@media(max-height:860px)]:min-h-[54px] shrink-0 flex flex-col items-center justify-center gap-1 rounded-2xl text-[13px]
                transition-colors duration-200 cursor-pointer
                ${isActive
                  ? 'bg-blue-600 text-white font-bold'
@@ -183,10 +191,12 @@ export default function NavBar() {
           </NavLink>
         ))}
         {activeStaff && (
-          <div className="mt-auto pt-3 flex flex-col items-center gap-1">
+          // Pinned to the bottom of the rail: on a short screen the links
+          // above scroll, but Lock and Sign out can never be out of reach.
+          <div className="mt-auto sticky bottom-0 -mb-3 pt-3 pb-3 bg-slate-950 flex flex-col items-center gap-1">
             <button
               onClick={openDavey}
-              className="w-[72px] min-h-[56px] flex flex-col items-center justify-center gap-1 rounded-2xl text-[13px] font-semibold
+              className="w-[72px] min-h-[56px] [@media(max-height:860px)]:min-h-[48px] flex flex-col items-center justify-center gap-1 rounded-2xl text-[13px] font-semibold
                 text-slate-400 hover:bg-slate-800 hover:text-white transition-colors duration-200 cursor-pointer
                 focus:outline-none focus:ring-2 focus:ring-blue-500"
               aria-label="Davey mode"
@@ -196,7 +206,7 @@ export default function NavBar() {
             </button>
             <button
               onClick={() => setShowSwitch(true)}
-              className="w-[72px] min-h-[68px] flex flex-col items-center justify-center gap-1 rounded-2xl text-[13px] font-semibold
+              className="w-[72px] min-h-[68px] [@media(max-height:860px)]:min-h-[60px] flex flex-col items-center justify-center gap-1 rounded-2xl text-[13px] font-semibold
                 border border-slate-700 text-slate-100 hover:bg-slate-800 transition-colors duration-200 cursor-pointer
                 focus:outline-none focus:ring-2 focus:ring-blue-500"
               aria-label="Switch user"

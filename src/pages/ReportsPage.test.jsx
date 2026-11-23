@@ -1,4 +1,5 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { useToastStore } from '../hooks/useToast'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { MemoryRouter } from 'react-router-dom'
 import ReportsPage from './ReportsPage'
@@ -119,6 +120,7 @@ describe('ReportsPage — Export CSV', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     supabase.__reset()
+    useToastStore.setState({ toasts: [] })
     // jsdom has no object URLs
     URL.createObjectURL = vi.fn(() => 'blob:orders')
     URL.revokeObjectURL = vi.fn()
@@ -147,6 +149,30 @@ describe('ReportsPage — Export CSV', () => {
     renderPage()
     fireEvent.click(screen.getByRole('button', { name: /export csv/i }))
     await waitFor(() => expect(screen.getByRole('button', { name: /export csv/i })).not.toBeDisabled())
+    expect(click).not.toHaveBeenCalled()
+    expect(logEvent).not.toHaveBeenCalled()
+  })
+
+  it('still exports, without the staff column, from a database that has no staff_id yet', async () => {
+    supabase.__configure({
+      orders: [
+        { data: null, error: { code: '42703', message: 'column orders.staff_id does not exist' } },
+        { data: ORDERS },
+      ],
+    })
+    renderPage()
+    fireEvent.click(screen.getByRole('button', { name: /export csv/i }))
+    await waitFor(() => expect(click).toHaveBeenCalledOnce())
+    expect(supabase.__chain('orders', 1).select.mock.calls[0][0]).not.toMatch(/staff_id/)
+    expect(logEvent).toHaveBeenCalledTimes(1)
+  })
+
+  it('says the export failed, not that there were no orders, when the day cannot be read', async () => {
+    supabase.__configure({ orders: { data: null, error: { code: '57014', message: 'canceling statement due to statement timeout' } } })
+    renderPage()
+    fireEvent.click(screen.getByRole('button', { name: /export csv/i }))
+    await waitFor(() => expect(useToastStore.getState().toasts.at(-1)?.message).toMatch(/could not export/i))
+    expect(useToastStore.getState().toasts.map(t => t.message).join(' ')).not.toMatch(/no orders found/i)
     expect(click).not.toHaveBeenCalled()
     expect(logEvent).not.toHaveBeenCalled()
   })

@@ -199,6 +199,31 @@ describe('TillPage — sale.completed', () => {
   })
 })
 
+describe('TillPage — blocked tab', () => {
+  const blockedMember = { id: 'm1', name: 'Alice', tab_balance: 20, tab_blocked: true }
+
+  it('refuses the tab sale, saves nothing, and logs the attempt', async () => {
+    renderTill({ activeMember: blockedMember })
+    logEvent.mockClear()
+    // not pay(): that waits for the order to clear, and a refused sale stays on the till
+    await act(async () => { fireEvent.click(screen.getAllByRole('button', { name: 'Pay Tab' })[0]) })
+    expect(saveOrder).not.toHaveBeenCalled()
+    expect(useTillStore.getState().orderItems).toHaveLength(2)
+    expect(eventsOfType('tab.sale_refused_blocked')).toEqual([
+      ['tab.sale_refused_blocked', { member_id: 'm1', member_name: 'Alice', total: 19.8 }, { severity: 1 }],
+    ])
+    expect(eventsOfType('sale.completed')).toEqual([])
+  })
+
+  it('logs no refusal when the same member pays by card', async () => {
+    saveOrder.mockResolvedValue('online')
+    renderTill({ activeMember: blockedMember })
+    logEvent.mockClear()
+    await pay('Card')
+    expect(eventsOfType('tab.sale_refused_blocked')).toEqual([])
+  })
+})
+
 describe('TillPage — one for staff', () => {
   it('logs who the drink was rung for', () => {
     renderTill({ orderItems: [] })

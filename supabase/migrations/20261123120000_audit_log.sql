@@ -1540,6 +1540,7 @@ declare
   v_id uuid;
   v_type text;
   v_detail jsonb;
+  v_sev int;
   v_accepted int := 0;
   v_duplicate int := 0;
   v_rejected int := 0;
@@ -1592,7 +1593,17 @@ begin
         e.staff_trust := 'claimed';
       end if;
 
-      if auditlog.write(e, 'event', v_type, least(coalesce((ev ->> 'severity')::int, 0), 2),
+      -- A till may raise its own events to "worth a look" (2) and no
+      -- higher. The one exception is decided here, not by the till:
+      -- carrying on at the lock screen without the PIN being checked is at
+      -- least 2, and serious (3) when that PIN was locked out for wrong
+      -- attempts.
+      v_sev := least(greatest(coalesce((ev ->> 'severity')::int, 0), 0), 2);
+      if v_type = 'till.unlocked_unverified' then
+        v_sev := case when v_detail ->> 'reason' = 'pin_locked' then 3 else 2 end;
+      end if;
+
+      if auditlog.write(e, 'event', v_type, v_sev,
                      null, null, null, null, null, v_detail, v_at, v_id) is null then
         v_duplicate := v_duplicate + 1;
       else

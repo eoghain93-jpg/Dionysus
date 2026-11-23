@@ -8,9 +8,32 @@ function isMissingFunction(error) {
   return !!error && (error.code === 'PGRST202' || /could not find the function/i.test(error.message ?? ''))
 }
 
-// Staff PIN hashes come back with select('*'). Nothing on the till needs
-// them, so they are dropped before a row is cached or handed to the app —
-// they must not sit in the till's local database for anyone to copy.
+// Every members column EXCEPT pin_hash. The till never needs a staff PIN
+// hash (PINs are checked by the server), and anything it fetches is kept by
+// the browser's offline cache, so the hash is simply never asked for.
+// A new members column the till should see must be added here.
+export const MEMBER_COLUMNS = 'id, name, membership_number, phone, email, membership_tier, tab_balance, renewal_date, '
+  + 'favourite_drinks, notes, active, created_at, auth_user_id, last_settled_at, tab_blocked, tab_blocked_at, tab_blocked_by'
+
+// Postgres / PostgREST's answer when a named column does not exist.
+function isMissingColumn(error) {
+  return !!error && (error.code === '42703' || error.code === 'PGRST204' || /column .* does not exist/i.test(error.message ?? ''))
+}
+
+/**
+ * Run a members query asking for MEMBER_COLUMNS. `build(columns)` returns
+ * the query. Against a database that has not had a listed column added yet
+ * (the app can deploy before a migration lands) it is asked again for '*',
+ * and withoutPinHash drops the hash from what comes back.
+ */
+export async function selectMembers(build) {
+  const result = await build(MEMBER_COLUMNS)
+  return isMissingColumn(result?.error) ? build('*') : result
+}
+
+// Belt and braces for the '*' fallback above and for rows cached by older
+// versions: a PIN hash is dropped before a row is cached or handed to the
+// app — it must not sit in the till's local database for anyone to copy.
 function withoutPinHash(row) {
   if (!row || typeof row !== 'object' || !('pin_hash' in row)) return row
   const { pin_hash, ...rest } = row
@@ -25,17 +48,27 @@ export async function scrubCachedPinHashes() {
   try {
     await db.members.toCollection().modify(row => { delete row.pin_hash })
   } catch { /* no local cache, or it cannot be opened: nothing to scrub */ }
+  // The offline cache of server answers (service worker, 'supabase-cache')
+  // kept whole members responses, hashes included, under earlier versions.
+  try {
+    if (typeof caches === 'undefined') return
+    const cache = await caches.open('supabase-cache')
+    const requests = await cache.keys()
+    await Promise.all(requests
+      .filter(request => request.url.includes('/rest/v1/members'))
+      .map(request => cache.delete(request)))
+  } catch { /* no Cache API, or it is unavailable: nothing to clear */ }
 }
 
 export async function fetchMembers() {
   const { isOnline } = useSyncStore.getState()
 
   if (isOnline) {
-    const { data, error } = await supabase
+    const { data, error } = await selectMembers(columns => supabase
       .from('members')
-      .select('*')
+      .select(columns)
       .eq('active', true)
-      .order('name')
+      .order('name'))
     if (error) throw error
     const members = (data ?? []).map(withoutPinHash)
     await db.members.bulkPut(members)
@@ -51,13 +84,13 @@ export async function searchMembersByName(name) {
   // figures in the basket after settlements / new tab orders.
   const { isOnline } = useSyncStore.getState()
   if (isOnline) {
-    const { data } = await supabase
+    const { data } = await selectMembers(columns => supabase
       .from('members')
-      .select('*')
+      .select(columns)
       .eq('active', true)
       .ilike('name', `%${name}%`)
       .order('name')
-      .limit(8)
+      .limit(8))
     const rows = (data ?? []).map(withoutPinHash)
     if (rows.length) await db.members.bulkPut(rows)
     return rows
@@ -71,11 +104,11 @@ export async function findMemberByNumber(membership_number) {
   // Cache is only used as an offline fallback.
   const { isOnline } = useSyncStore.getState()
   if (isOnline) {
-    const { data, error } = await supabase
+    const { data, error } = await selectMembers(columns => supabase
       .from('members')
-      .select('*')
+      .select(columns)
       .eq('membership_number', membership_number)
-      .single()
+      .single())
     if (error) return null
     await db.members.put(withoutPinHash(data))
     return withoutPinHash(data)
@@ -91,7 +124,8 @@ export async function upsertMember(member) {
     // 20260508120000 + 20260513210000). That guarantees the send happens
     // regardless of which client made the change — till, dashboard, raw SQL
     // — and isn't gated on a freshly deployed JS bundle.
-    const { data, error } = await supabase.from('members').update(fields).eq('id', id).select().single()
+    const { data, error } = await selectMembers(columns =>
+      supabase.from('members').update(fields).eq('id', id).select(columns).single())
     if (error) throw error
     await db.members.put(withoutPinHash(data))
     return withoutPinHash(data)
@@ -109,8 +143,10 @@ export async function upsertMember(member) {
       }, 0)
       fields.membership_number = `M${String(maxN + 1).padStart(4, '0')}`
     }
-    const { data, error } = await supabase.from('members').insert(fields).select().single()
+    // Not through selectMembers: a retry would insert the member twice.
+    const { data: inserted, error } = await supabase.from('members').insert(fields).select().single()
     if (error) throw error
+    const data = withoutPinHash(inserted)
     await db.members.put(data)
     if (data.email) {
       // Fire-and-forget: send the magic-link login email AND the wallet

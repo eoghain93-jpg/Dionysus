@@ -193,6 +193,36 @@ describe('NavBar', () => {
     expect(screen.queryByText(/signing out/i)).not.toBeInTheDocument()
   })
 
+  // signOutStaff forgets the token once its request is over, heard or not
+  // (lib/audit/staff.js); these two mocks do the same.
+  it('a called-off sign-out keeps the session: the person is still signed in, and so are their next actions', async () => {
+    mockSignOut.mockImplementation(async () => { setStaffSession(null) }) // no answer, token forgotten
+    mockRpc.mockImplementation(noAnswer)
+    renderNav()
+
+    fireEvent.click(screen.getByRole('button', { name: /^sign out$/i }))
+
+    await waitFor(() => expect(lastToast()).toMatch(/reach the server/i))
+    expect(session().activeStaff).toEqual(ALICE)
+    await waitFor(() => expect(getStaffSession()?.token).toBe('tok-1'))
+  })
+
+  it('finishes the sign-out if the server answers after the till gave up waiting', async () => {
+    vi.useFakeTimers()
+    let answerLate
+    mockSignOut.mockReturnValue(new Promise(resolve => {
+      answerLate = () => { markReached(); setStaffSession(null); resolve() }
+    }))
+    renderNav()
+
+    fireEvent.click(screen.getByRole('button', { name: /^sign out$/i }))
+    await act(async () => { await vi.advanceTimersByTimeAsync(3_000) })
+    expect(session().activeStaff).toEqual(ALICE) // called off
+
+    await act(async () => { answerLate(); await vi.advanceTimersByTimeAsync(0) })
+    expect(session().activeStaff).toBeNull() // the server ended the session, so the till follows
+  })
+
   it('with no server session to end (after an unchecked carry-on) it asks the server outright, and signs out when it answers', async () => {
     setStaffSession(null)
     mockSignOut.mockImplementation(noAnswer) // nothing to tell the server, so nothing was sent

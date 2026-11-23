@@ -214,8 +214,7 @@ export default function LockScreen() {
   const carryOnButton = (
     <button
       onClick={carryOnUnverified}
-      className="w-full bg-amber-600 hover:bg-amber-500 text-white font-semibold py-3 rounded-xl
-        transition-colors cursor-pointer min-h-[44px]"
+      className="ui-btn ui-btn-warn ui-btn-lg w-full py-2 px-4 whitespace-normal text-center leading-tight"
     >
       Carry on without checking the PIN
     </button>
@@ -228,7 +227,7 @@ export default function LockScreen() {
       role="dialog"
       aria-modal="true"
       aria-label="Till locked"
-      className="fixed inset-0 z-[200] bg-slate-900 flex items-center justify-center p-4 overflow-y-auto focus:outline-none"
+      className="fixed inset-0 z-[200] bg-[#121314] flex flex-col md:flex-row overflow-auto focus:outline-none"
     >
       {mode === 'someone_else' ? (
         // A full sign-in: opens the new person's session (ending the previous
@@ -238,98 +237,106 @@ export default function LockScreen() {
           onSignedIn={() => logEvent('till.unlocked', { via: 'sign_in' }, { severity: 0 })}
         />
       ) : (
-        <div className="w-full max-w-sm space-y-5">
-          <div className="text-center space-y-2">
-            <div className="flex items-center justify-center">
-              <Lock size={32} className="text-slate-400" aria-hidden="true" />
+        // Laid out as the staff sign-in is (PinLoginScreen): who it is about
+        // on the left, the PIN and its keypad on the right.
+        <>
+          <section className="md:w-[44%] md:max-w-[560px] shrink-0 bg-slate-900 border-b md:border-b-0 md:border-r border-slate-800
+            px-6 md:px-12 py-6 md:py-12 flex flex-col gap-6 md:overflow-auto">
+            <div className="flex flex-col gap-4">
+              <span className="w-14 h-14 rounded-2xl bg-slate-800 text-slate-300 flex items-center justify-center" aria-hidden="true">
+                <Lock size={28} />
+              </span>
+              <h1 className="text-white text-3xl md:text-[40px] font-extrabold tracking-tight leading-none">Till Locked</h1>
+              <p className="text-slate-300 text-xl leading-snug">
+                Enter PIN for <span className="text-white font-bold">{activeStaff.name}</span> to carry on
+              </p>
             </div>
-            <h1 className="text-white text-2xl font-bold">Till Locked</h1>
-            <p className="text-slate-400 text-sm">
-              Enter PIN for <span className="text-white font-semibold">{activeStaff.name}</span> to carry on
-            </p>
-          </div>
 
-          <div aria-label="PIN display" className="flex justify-center gap-4">
-            {[0, 1, 2, 3].map(i => (
-              <span
-                key={i}
-                data-filled={i < digits.length ? 'true' : 'false'}
-                className={`w-4 h-4 rounded-full transition-colors duration-150 ${i < digits.length ? 'bg-white' : 'bg-slate-600'}`}
-                aria-hidden="true"
-              />
-            ))}
-          </div>
+            {isLocked && (
+              <div role="status" className="ui-banner ui-banner-warn flex-col flex-nowrap items-stretch text-base">
+                <p className="flex items-center gap-2 text-amber-100 font-bold">
+                  <Clock size={18} aria-hidden="true" className="shrink-0" />
+                  PIN locked after too many attempts
+                </p>
+                <p>Try again in {remainingLabel}, or someone else can sign in.</p>
+                <p>
+                  Need to serve now? You can carry on as {activeStaff.name} without the PIN.
+                  {' '}{CARRY_ON_WARNING}
+                </p>
+                {carryOnButton}
+              </div>
+            )}
 
-          {verifying && <p className="text-center text-slate-400 text-sm">Verifying…</p>}
+            {!isLocked && unreachable && (
+              <div role="alert" className="ui-banner ui-banner-warn flex-col flex-nowrap items-stretch text-base">
+                <p className="flex items-center gap-2 text-amber-100 font-bold">
+                  <WifiOff size={18} aria-hidden="true" className="shrink-0" />
+                  Can’t check the PIN — the till can’t reach the server
+                </p>
+                <p>
+                  Try the PIN again, or carry on as {activeStaff.name} without it.
+                  {' '}{CARRY_ON_WARNING}
+                </p>
+                {carryOnButton}
+              </div>
+            )}
 
-          {isLocked && (
-            <div
-              role="status"
-              className="text-amber-300 text-sm text-center bg-amber-400/10 px-4 py-3 rounded-xl space-y-3"
+            <button
+              onClick={chooseSomeoneElse}
+              disabled={verifying}
+              className="ui-btn ui-btn-secondary ui-btn-lg w-full md:mt-auto"
             >
-              <p className="flex items-center justify-center gap-1.5 font-semibold">
-                <Clock size={14} aria-hidden="true" />
-                PIN locked after too many attempts
-              </p>
-              <p>Try again in {remainingLabel}, or someone else can sign in.</p>
-              <p>
-                Need to serve now? You can carry on as {activeStaff.name} without the PIN.
-                {' '}{CARRY_ON_WARNING}
-              </p>
-              {carryOnButton}
+              <Users size={20} aria-hidden="true" />
+              Someone else
+            </button>
+          </section>
+
+          <section className="flex-1 min-w-0 px-6 md:px-16 py-6 md:py-12 flex flex-col gap-5 max-w-2xl md:mx-auto w-full">
+            <div className="flex items-center justify-between gap-4 min-h-[64px]">
+              <div className="min-w-0">
+                <div className="text-white text-2xl font-extrabold break-words">{activeStaff.name}’s PIN</div>
+                <div className="text-slate-400 text-[15px]">Unlocks on the fourth digit</div>
+              </div>
+              <div aria-label="PIN display" className="flex gap-3.5 shrink-0">
+                {[0, 1, 2, 3].map(i => (
+                  <span
+                    key={i}
+                    data-filled={i < digits.length ? 'true' : 'false'}
+                    className={`w-6 h-6 rounded-full border-2 transition-colors duration-150
+                      ${i < digits.length ? 'bg-slate-100 border-slate-100' : 'border-slate-400'}`}
+                    aria-hidden="true"
+                  />
+                ))}
+              </div>
             </div>
-          )}
 
-          {!isLocked && error && (
-            <p role="alert" className="text-red-400 text-sm text-center bg-red-400/10 px-4 py-2 rounded-xl">
-              {error}
-            </p>
-          )}
+            {verifying && <p className="text-slate-400 text-base">Verifying…</p>}
 
-          {!isLocked && unreachable && (
-            <div
-              role="alert"
-              className="text-amber-300 text-sm text-center bg-amber-400/10 px-4 py-3 rounded-xl space-y-3"
-            >
-              <p className="flex items-center justify-center gap-1.5 font-semibold">
-                <WifiOff size={14} aria-hidden="true" />
-                Can’t check the PIN — the till can’t reach the server
+            {!isLocked && error && (
+              <p role="alert" className="ui-banner ui-banner-bad text-base">
+                {error}
               </p>
-              <p>
-                Try the PIN again, or carry on as {activeStaff.name} without it.
-                {' '}{CARRY_ON_WARNING}
-              </p>
-              {carryOnButton}
+            )}
+
+            <div className="grid grid-cols-3 gap-3">
+              {PIN_KEYS.map(key => (
+                <button
+                  key={key}
+                  onClick={() => handleKey(key)}
+                  disabled={verifying || isLocked}
+                  aria-label={key === 'back' ? 'Backspace' : key === 'clear' ? 'Clear PIN' : key}
+                  className="min-h-[84px] md:min-h-[112px] rounded-2xl bg-slate-800 hover:bg-slate-700 active:scale-95
+                    disabled:opacity-40 disabled:cursor-not-allowed text-white text-4xl font-bold
+                    transition-all duration-150 cursor-pointer flex items-center justify-center"
+                >
+                  {key === 'back' && <Delete size={28} aria-hidden="true" />}
+                  {key === 'clear' && <X size={28} aria-hidden="true" />}
+                  {key !== 'back' && key !== 'clear' && key}
+                </button>
+              ))}
             </div>
-          )}
-
-          <div className="grid grid-cols-3 gap-3">
-            {PIN_KEYS.map(key => (
-              <button
-                key={key}
-                onClick={() => handleKey(key)}
-                disabled={verifying || isLocked}
-                aria-label={key === 'back' ? 'Backspace' : key === 'clear' ? 'Clear PIN' : key}
-                className="bg-slate-800 hover:bg-slate-700 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold py-5 rounded-2xl text-2xl transition-all duration-150 cursor-pointer flex items-center justify-center border border-slate-700"
-              >
-                {key === 'back' && <Delete size={22} aria-hidden="true" />}
-                {key === 'clear' && <X size={22} aria-hidden="true" />}
-                {key !== 'back' && key !== 'clear' && key}
-              </button>
-            ))}
-          </div>
-
-          <button
-            onClick={chooseSomeoneElse}
-            disabled={verifying}
-            className="w-full flex items-center justify-center gap-2 min-h-[48px] rounded-xl border border-slate-700
-              text-slate-300 hover:bg-slate-800 hover:text-white transition-colors cursor-pointer text-sm font-medium
-              disabled:opacity-40 disabled:cursor-not-allowed"
-          >
-            <Users size={16} aria-hidden="true" />
-            Someone else
-          </button>
-        </div>
+          </section>
+        </>
       )}
     </div>
   )

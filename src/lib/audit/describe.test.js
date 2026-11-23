@@ -570,6 +570,22 @@ describe('describeEntry — changes to the books (kind: row)', () => {
       expect(d.category).toBe('tabs')
     })
 
+    it('describes a tab being blocked and unblocked in one plain sentence', () => {
+      const blocked = row('members', 'update', {
+        pk: MO, subject: 'Mo Member', via: 'PATCH /members', changed: ['tab_blocked', 'tab_blocked_at', 'tab_blocked_by'],
+        old: { tab_blocked: false, tab_blocked_at: null, tab_blocked_by: null },
+        new: { tab_blocked: true, tab_blocked_at: '2026-11-23T20:02:00.000Z', tab_blocked_by: SAM },
+      })
+      expect(title(blocked)).toBe('Blocked Mo Member’s tab')
+      expect(describeEntry(blocked, { names }).category).toBe('tabs')
+      const unblocked = row('members', 'update', {
+        pk: MO, subject: 'Mo Member', via: 'PATCH /members', changed: ['tab_blocked', 'tab_blocked_at', 'tab_blocked_by'],
+        old: { tab_blocked: true, tab_blocked_at: '2026-11-23T20:02:00.000Z', tab_blocked_by: SAM },
+        new: { tab_blocked: false, tab_blocked_at: null, tab_blocked_by: null },
+      })
+      expect(title(unblocked)).toBe('Unblocked Mo Member’s tab')
+    })
+
     it('marks a balance moved by hand rather than by a sale or a payment', () => {
       const entry = row('members', 'update', {
         pk: MO, subject: 'Mo Member', via: 'POST /rpc/adjust_tab_balance', severity: 1, changed: ['tab_balance'],
@@ -1190,6 +1206,10 @@ describe('describeEntry — what the till app reported (kind: event)', () => {
     ['cart.bundle_quantity_increased', event('cart.bundle_quantity_increased', { product: 'Corona', from: 5, to: 6, unit_price: 3.2 }, { severity: 1 }), 'Raised Corona from 5 to 6 at the deal price (£3.20 each)', 'sales'],
     ['cart.order_voided', event('cart.order_voided', { lines: 2, value: 15.8, member: 'Mo Member', member_id: MO, items: [{ product: 'Guinness', quantity: 2, value: 14.8 }, { product: 'Crisps', quantity: 1, value: 1 }] }, { severity: 1 }), 'Cleared a whole order before payment: 2 lines worth £15.80', 'sales'],
     ['cart.member_attached', event('cart.member_attached', { member_id: MO, member_name: 'Mo Member', method: 'number' }), 'Put Mo Member on the order', 'sales'],
+    ['cart.order_parked', event('cart.order_parked', { park_id: 'park-1', label: 'Order 3', lines: 2, value: 15.8, member: null, member_id: null, items: [{ product: 'Guinness', quantity: 2, value: 14.8 }] }), 'Parked an order “Order 3” without payment: 2 lines worth £15.80', 'sales'],
+    ['cart.order_resumed', event('cart.order_resumed', { park_id: 'park-1', label: 'Order 3', lines: 2, value: 15.8, member: null, member_id: null, items: [] }), 'Brought parked order “Order 3” back onto the till: 2 lines worth £15.80', 'sales'],
+    ['tab.sale_refused_blocked', event('tab.sale_refused_blocked', { member_id: MO, member_name: 'Mo Member', total: 12.5 }, { severity: 1 }), 'Refused to put £12.50 on Mo Member’s tab — the tab is blocked', 'tabs'],
+    ['tab.amount_revealed (overdue total)', event('tab.amount_revealed', { member_id: null, what: 'overdue_total' }), 'Revealed the total owed on overdue tabs', 'tabs'],
     ['cart.member_cleared', event('cart.member_cleared', { member_id: MO, member_name: 'Mo Member', lines_at_member_price: 2 }, { severity: 1 }), 'Took Mo Member off the order', 'sales'],
     ['cart.bundle_added', event('cart.bundle_added', { bundle: 'bottles_5_for_4', lines: 2, value: 16, items: [{ product: 'Corona', quantity: 3 }, { product: 'Peroni', quantity: 2 }] }), 'Added a deal to the order: 5 bottles for the price of 4 (£16.00)', 'sales'],
     ['cart.staff_credit_added', event('cart.staff_credit_added', { product: 'Guinness', for_staff_id: KIM, for_staff_name: 'Kim Newstarter', self_award: false }), 'Rang Guinness as a drink for Kim Newstarter', 'sales'],

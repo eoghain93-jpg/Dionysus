@@ -961,7 +961,8 @@ describe('AuditPage — one entry in full', () => {
     await screen.findByText('Changed Guinness standard price from £7.40 to £6.40')
     await screen.findByRole('button', { name: '3 alerts need a look' })
     for (const button of screen.getAllByRole('button')) {
-      expect(button.className, button.textContent).toMatch(/min-h-\[44px\]/)
+      // .ui-btn and .ui-tab (the redesign's shared button and filter tab) are 48px tall by themselves
+      expect(button.className, button.textContent).toMatch(/min-h-\[(44|48|52|56)px\]|\bui-(btn|tab)\b/)
     }
   })
 })
