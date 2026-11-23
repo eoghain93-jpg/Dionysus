@@ -152,6 +152,7 @@ export default function StaffDrinkModal({ products, onClose, onSaved }) {
               value={productId}
               onChange={e => setProductId(e.target.value)}
               className="sr-only"
+              tabIndex={-1}
             >
               {products.map(p => (
                 <option key={p.id} value={p.id}>{p.name}</option>

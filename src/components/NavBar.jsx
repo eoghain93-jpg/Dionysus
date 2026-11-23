@@ -171,7 +171,21 @@ export default function NavBar() {
             onClick={() => setShowMore(false)}
           />
           <div className="md:hidden fixed bottom-16 right-2 z-50 bg-slate-800 border border-slate-700
-            rounded-2xl shadow-xl overflow-hidden min-w-[160px]">
+            rounded-2xl shadow-xl overflow-hidden min-w-[220px]">
+            {activeStaff && (
+              <button
+                onClick={() => { setShowMore(false); setShowSwitch(true) }}
+                aria-label={`Logged in as ${activeStaff.name}. Tap to switch user.`}
+                className="w-full flex items-center gap-3 px-4 py-4 text-sm font-bold transition-colors duration-150
+                  text-white border-b border-slate-700 hover:bg-slate-700 cursor-pointer"
+              >
+                <span className="w-7 h-7 rounded-full bg-slate-100 text-[#121314] flex items-center justify-center text-xs font-extrabold shrink-0">
+                  {initials(activeStaff.name)}
+                </span>
+                <span className="flex-1 text-left truncate">{activeStaff.name}</span>
+                <span className="text-slate-400 font-semibold">Switch</span>
+              </button>
+            )}
             {moreLinks.map(({ to, label, Icon }) => (
               <NavLink
                 key={to}
@@ -198,18 +212,6 @@ export default function NavBar() {
             )}
           </div>
         </>
-      )}
-
-      {activeStaff && (
-        <button
-          onClick={() => setShowSwitch(true)}
-          aria-label={`Logged in as ${activeStaff.name}. Tap to switch user.`}
-          className="md:hidden fixed top-8 right-3 z-40 w-11 h-11 rounded-full bg-blue-600 hover:bg-blue-500
-            flex items-center justify-center text-white text-sm font-bold shadow-lg cursor-pointer
-            focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#121314]"
-        >
-          {initials(activeStaff.name)}
-        </button>
       )}
 
       {showSwitch && <SwitchUserModal onClose={() => setShowSwitch(false)} />}

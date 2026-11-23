@@ -123,7 +123,7 @@ export default function MemberFormModal({ member, onClose, onSaved }) {
         </div>
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+        <form onSubmit={handleSubmit} className="flex flex-col gap-3">
           {error && (
             <p role="alert" className="ui-banner ui-banner-bad">
               {error}
@@ -248,7 +248,7 @@ export default function MemberFormModal({ member, onClose, onSaved }) {
             </label>
             <textarea
               id="mf-notes"
-              rows={3}
+              rows={2}
               value={form.notes}
               onChange={handleChange('notes')}
               placeholder="Any additional notes…"
