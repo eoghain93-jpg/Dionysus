@@ -172,6 +172,20 @@ describe('fetchTodaysOrders', () => {
     supabase.__configure({ orders: { data: null, error: { message: 'DB error' } } })
     await expect(fetchTodaysOrders()).rejects.toThrow('DB error')
   })
+
+  // The new bundle can reach a till before the database update has landed.
+  it('still lists sales when the database has no staff_id column yet', async () => {
+    supabase.__configure({ orders: [
+      { data: null, error: { code: '42703', message: 'column orders.staff_id does not exist' } },
+      { data: [{ id: 'o1', total_amount: 5.5 }] },
+    ] })
+
+    const result = await fetchTodaysOrders()
+
+    expect(result).toEqual([{ id: 'o1', total_amount: 5.5, staff_name: null }])
+    expect(supabase.__chain('orders', 0).select.mock.calls[0][0]).toContain('staff_id')
+    expect(supabase.__chain('orders', 1).select.mock.calls[0][0]).not.toContain('staff_id')
+  })
 })
 
 describe('correctOrderPaymentMethod', () => {

@@ -182,6 +182,9 @@ create index if not exists log_record_idx on auditlog.log (table_name, row_pk, s
 create index if not exists log_staff_idx on auditlog.log (staff_id, seq desc) where staff_id is not null;
 create index if not exists log_alert_idx on auditlog.log (seq desc) where severity >= 2;
 create index if not exists log_unsealed_idx on auditlog.log (seq) where seal_id is null;
+-- For verification (rows of one seal, in order). Partial, so it is only
+-- ever written when a row is sealed (by cron), never during a sale.
+create index if not exists log_seal_idx on auditlog.log (seal_id, seq) where seal_id is not null;
 create unique index if not exists log_client_event_idx on auditlog.log (client_event_id) where client_event_id is not null;
 
 -- "Checked" marks on alerts. Insert-only: an acknowledgement is itself a
@@ -254,10 +257,26 @@ create trigger log_before_insert
 -- is to disable the trigger, which the nightly self-check reports.
 --
 -- Three narrow updates are allowed, each only from inside the one function
--- that needs it (flagged by a transaction-local setting):
+-- that needs it (flagged by a transaction-local setting) and each checked
+-- here field by field, so the flag alone opens nothing else:
 --   log:            seal_id null -> set, nothing else touched (sealing)
---   log:            personal data blanked, hashes untouched (erasure)
+--   log:            a member row's personal fields blanked, nothing else
+--                   touched, hashes untouched (erasure)
 --   staff_sessions: ended_at / end_reason set once (sign-out)
+-- Blanks the personal fields of a member row image. The ONLY change the
+-- erasure path is allowed to make to a log entry (see append_only).
+create or replace function auditlog.erase_pii(p_row jsonb)
+returns jsonb
+language sql
+immutable
+as $$
+  select case when p_row is null or jsonb_typeof(p_row) <> 'object' then p_row else (
+    select jsonb_object_agg(e.key,
+             case when e.key in ('name', 'phone', 'email', 'notes', 'favourite_drinks')
+                  then '"[erased]"'::jsonb else e.value end)
+      from jsonb_each(p_row) e) end
+$$;
+
 create or replace function auditlog.append_only()
 returns trigger
 language plpgsql
@@ -271,10 +290,17 @@ begin
          and (to_jsonb(new) - 'seal_id') = (to_jsonb(old) - 'seal_id') then
         return new;
       end if;
+      -- Erasure is not a general "edit" door: the trigger itself checks
+      -- that the row is a member row image and that the new content is
+      -- EXACTLY the old content with the personal fields blanked. Setting
+      -- the flag by hand cannot be used to rewrite what an entry says.
       if current_setting('auditlog.erasing', true) = 'on'
+         and old.table_name = 'members' and old.kind in ('row', 'guard')
          and new.erased_at is not null
-         and (to_jsonb(new) - array['old_data', 'new_data', 'detail', 'erased_at'])
-           = (to_jsonb(old) - array['old_data', 'new_data', 'detail', 'erased_at']) then
+         and (to_jsonb(new) - array['old_data', 'new_data', 'erased_at'])
+           = (to_jsonb(old) - array['old_data', 'new_data', 'erased_at'])
+         and new.old_data is not distinct from auditlog.erase_pii(old.old_data)
+         and new.new_data is not distinct from auditlog.erase_pii(old.new_data) then
         return new;
       end if;
     elsif TG_TABLE_NAME = 'staff_sessions' then
@@ -548,6 +574,26 @@ as $$
   end
 $$;
 
+-- Is this request a call to one of the app's own database functions?
+-- Those are trusted code: they may update ledgers. Everything else from an
+-- API caller is "direct" access — a plain table write, and also Supabase's
+-- GraphQL endpoint, which reaches PostgREST as /rpc/graphql and would
+-- otherwise look like a function call while performing arbitrary table
+-- writes. Looked up in pg_proc rather than listed by hand so a function
+-- added later cannot be forgotten (which would make the guards refuse its
+-- legitimate work).
+create or replace function auditlog.via_is_app_function(p_via text)
+returns boolean
+language sql
+stable
+set search_path = pg_catalog
+as $$
+  select exists (
+    select 1 from pg_proc p
+     where p.pronamespace = 'public'::regnamespace
+       and p.proname = substring(p_via from '^[A-Z]+ \S*/rpc/([A-Za-z0-9_]+)$'))
+$$;
+
 -- ── 5. Row capture ───────────────────────────────────────────────────────
 
 -- One generic AFTER trigger on every table. INSERT stores the new row,
@@ -574,7 +620,9 @@ declare
   flags text[] := '{}';
   direct boolean;
   v_late numeric;
+  v_islate boolean := false;
   v_rung text;
+  v_trust text;
 begin
   begin
     if not coalesce((select capture_enabled from auditlog.settings), true) then
@@ -608,7 +656,8 @@ begin
     end if;
 
     c := auditlog.ctx();
-    direct := c.via is not null and c.via not like '%/rpc/%' and c.actor in ('till', 'member', 'anon');
+    direct := c.via is not null and c.actor in ('till', 'member', 'anon')
+              and not auditlog.via_is_app_function(c.via);
 
     -- ── What makes this entry notable ──
     begin
@@ -644,32 +693,63 @@ begin
       elsif TG_TABLE_NAME = 'orders' then
         if TG_OP = 'INSERT' then
           v_late := extract(epoch from (clock_timestamp() - (n ->> 'created_at')::timestamptz));
-          if abs(v_late) > 120 then
+          v_islate := abs(v_late) > 120;
+          if v_islate then
             flags := array_append(flags, 'arrived_late');
             det := det || jsonb_build_object('late_by_seconds', round(v_late));
           end if;
           if c.till_id is not null and n ->> 'till_id' is distinct from c.till_id then
             flags := array_append(flags, 'till_claim_mismatch');
           end if;
+          if v_islate then sev := greatest(sev, 1); end if;
+          -- The app creates sales through create_order_with_items only.
+          if direct then
+            sev := greatest(sev, 2); flags := array_append(flags, 'direct_insert_of_sale');
+          end if;
+
           -- Who rang it, and how sure are we? The order row carries the
-          -- staff id the till claimed. Strongest: it matches the PIN
-          -- session on this very request. Next: a session for that person
-          -- on this device covered the sale time (an offline sale replayed
-          -- later under someone else's sign-in). Otherwise it is a claim.
+          -- staff id the till claimed, and THAT is who this entry is about —
+          -- not whoever happens to be signed in on the request that sent it
+          -- (an offline sale is sent later, often under someone else).
+          --   pin             the claim matches the PIN session on this request
+          --   session_record  a session for that person on this device
+          --                   covered the sale time (a replayed offline sale)
+          --   claimed         nothing here backs the claim
           v_rung := n ->> 'staff_id';
           if v_rung is null then
             flags := array_append(flags, 'no_staff_on_sale');
+            if c.staff_id is not null then
+              det := det || jsonb_build_object('sent_by', c.staff_id, 'sent_by_trust', c.staff_trust);
+              if v_islate then
+                -- A queued sale from before staff were recorded: do not
+                -- headline whoever sent it as the person who rang it.
+                c.staff_id := null; c.staff_trust := 'none'; c.staff_session_id := null;
+              end if;
+            end if;
           elsif c.staff_id is not null and v_rung = c.staff_id::text then
             det := det || jsonb_build_object('rung_by_trust', c.staff_trust);
-          elsif exists (
-            select 1 from auditlog.staff_sessions ss
-             where ss.staff_id::text = v_rung and ss.device = c.auth_uid
-               and ss.started_at <= (n ->> 'created_at')::timestamptz + interval '1 minute'
-               and coalesce(ss.ended_at, now()) >= (n ->> 'created_at')::timestamptz - interval '1 minute') then
-            det := det || jsonb_build_object('rung_by_trust', 'session_record');
           else
-            det := det || jsonb_build_object('rung_by_trust', 'claimed');
-            flags := array_append(flags, 'staff_unverified');
+            if c.staff_id is not null then
+              det := det || jsonb_build_object('sent_by', c.staff_id, 'sent_by_trust', c.staff_trust);
+            end if;
+            if c.staff_id is not null and not v_islate then
+              -- Live, and the till names someone other than the person
+              -- whose PIN session sent it.
+              v_trust := 'claimed';
+              sev := greatest(sev, 2);
+              flags := array_append(flags, 'staff_mismatch');
+            elsif exists (
+              select 1 from auditlog.staff_sessions ss
+               where ss.staff_id::text = v_rung and ss.device = c.auth_uid
+                 and ss.started_at <= (n ->> 'created_at')::timestamptz + interval '1 minute'
+                 and coalesce(ss.ended_at, now()) >= (n ->> 'created_at')::timestamptz - interval '1 minute') then
+              v_trust := 'session_record';
+            else
+              v_trust := 'claimed';
+              flags := array_append(flags, 'staff_unverified');
+            end if;
+            det := det || jsonb_build_object('rung_by_trust', v_trust);
+            c.staff_id := v_rung::uuid; c.staff_trust := v_trust; c.staff_session_id := null;
           end if;
         elsif TG_OP = 'UPDATE' then
           if n ->> 'status' = 'voided' and ch && array['status'] then
@@ -690,6 +770,11 @@ begin
           sev := greatest(sev, 1); flags := array_append(flags, 'pin_changed');
         end if;
         if ch && array['email', 'auth_user_id', 'active'] then sev := greatest(sev, 1); end if;
+        -- A balance moved by the bare adjustment function (a tab adjustment or
+        -- a drink taken off a tab) rather than by a sale or a payment.
+        if ch && array['tab_balance'] and coalesce(c.via, '') like '%/rpc/adjust_tab_balance' then
+          sev := greatest(sev, 1); flags := array_append(flags, 'tab_balance_adjusted');
+        end if;
         -- Balances, PINs and login links are managed by functions. A till
         -- writing them straight into the row is not something the app does.
         if direct and ch && array['tab_balance', 'pin_hash', 'auth_user_id', 'last_settled_at'] then
@@ -803,6 +888,11 @@ begin
       exception when others then
         det := det || jsonb_build_object('enrich_error', sqlerrm);
       end;
+      -- Lines are only ever written by create_order_with_items. A line
+      -- added to a sale any other way from a till is not the app.
+      if c.actor in ('till', 'member', 'anon') and not auditlog.via_is_app_function(coalesce(c.via, '')) then
+        sev := 3; flags := array_append(flags, 'direct_insert_of_sale_line');
+      end if;
 
     else
       select count(*), jsonb_agg(j), min(j ->> 'id'),
@@ -888,7 +978,7 @@ begin
   begin
     if TG_OP = 'DELETE' or v_mode = 'immutable' then
       c := auditlog.ctx();
-      if c.actor in ('till', 'member', 'anon') and coalesce(c.via, '') not like '%/rpc/%' then
+      if c.actor in ('till', 'member', 'anon') and not auditlog.via_is_app_function(coalesce(c.via, '')) then
         v_enforced := coalesce((select guards_enforced from auditlog.settings), true);
         perform auditlog.write(c, 'guard',
           case when v_enforced then 'blocked.' else 'would_block.' end || lower(TG_OP), 3,
@@ -914,6 +1004,93 @@ begin
   end if;
   if TG_OP = 'DELETE' then return OLD; end if;
   return NEW;
+end;
+$$;
+
+-- Which tables are guarded, and how. One list, used to create the guard
+-- triggers and by coverage() to check they are still there.
+--   immutable : rows may be inserted, never updated or deleted from a till
+--   no_delete : rows may be inserted and updated, never deleted from a till
+-- pk is the column a refused attempt is filed under (sale lines are filed
+-- under their order, so a sale's history shows what was tried on its lines).
+create or replace function auditlog.guard_rules()
+returns table (table_name text, mode text, pk text)
+language sql
+immutable
+as $$
+  values
+    ('order_items', 'immutable', 'order_id'),
+    ('stock_movements', 'immutable', 'id'),
+    ('tab_adjustments', 'immutable', 'id'),
+    ('order_corrections', 'immutable', 'id'),
+    ('cashback_transactions', 'immutable', 'id'),
+    ('prize_wins', 'immutable', 'id'),
+    ('guest_signins', 'immutable', 'id'),
+    ('product_price_changes', 'immutable', 'id'),
+    ('tab_payments', 'immutable', 'id'),
+    ('orders', 'no_delete', 'id'),
+    ('members', 'no_delete', 'id'),
+    ('products', 'no_delete', 'id'),
+    ('z_reports', 'no_delete', 'id'),
+    ('staff_drink_credits', 'no_delete', 'id')
+$$;
+
+-- A member's PIN, tab balance, login link and settlement stamp are only
+-- ever changed by functions (staff_set_pin, the tab functions, the invite
+-- and Stripe functions). A till writing them straight into the row is not
+-- the app — and for pin_hash it would be a way to give a colleague a PIN of
+-- your choosing and then sign in as them, "PIN checked".
+--
+-- A direct write to these columns from an API caller is put back to what it
+-- was (the rest of the update still applies) and recorded as serious. With
+-- guards_enforced off it is recorded only. Fails open like every guard.
+create or replace function auditlog.guard_member_fields()
+returns trigger
+language plpgsql
+security definer
+set search_path = auditlog, public, extensions
+as $$
+declare
+  c auditlog.context;
+  v_cols text[] := '{}';
+  v_enforced boolean;
+  v_old jsonb;
+  v_new jsonb;
+begin
+  begin
+    if new.pin_hash is distinct from old.pin_hash then v_cols := array_append(v_cols, 'pin_hash'); end if;
+    if new.tab_balance is distinct from old.tab_balance then v_cols := array_append(v_cols, 'tab_balance'); end if;
+    if new.auth_user_id is distinct from old.auth_user_id then v_cols := array_append(v_cols, 'auth_user_id'); end if;
+    if new.last_settled_at is distinct from old.last_settled_at then v_cols := array_append(v_cols, 'last_settled_at'); end if;
+
+    if array_length(v_cols, 1) > 0 then
+      c := auditlog.ctx();
+      if c.actor in ('till', 'member', 'anon') and not auditlog.via_is_app_function(coalesce(c.via, '')) then
+        v_enforced := coalesce((select guards_enforced from auditlog.settings), true);
+        select jsonb_object_agg(e.key, e.value) into v_old from jsonb_each(to_jsonb(old)) e where e.key = any (v_cols);
+        select jsonb_object_agg(e.key, e.value) into v_new from jsonb_each(to_jsonb(new)) e where e.key = any (v_cols);
+        perform auditlog.write(c, 'guard',
+          case when v_enforced then 'blocked.update' else 'would_block.update' end, 3,
+          'members', old.id::text,
+          auditlog.scrub('members', v_old), auditlog.scrub('members', v_new), v_cols,
+          jsonb_build_object('rule', 'protected_fields',
+            'flags', jsonb_build_array('direct_edit_of_protected_field')));
+        if v_enforced then
+          new.pin_hash := old.pin_hash;
+          new.tab_balance := old.tab_balance;
+          new.auth_user_id := old.auth_user_id;
+          new.last_settled_at := old.last_settled_at;
+        end if;
+      end if;
+    end if;
+  exception when others then
+    begin
+      insert into auditlog.failures (source, error, table_name, op)
+      values ('guard_member_fields', sqlerrm, 'members', TG_OP);
+    exception when others then null;
+    end;
+  end;
+  return new;
 end;
 $$;
 
@@ -959,6 +1136,10 @@ begin
   if m.pin_hash is null then
     return jsonb_build_object('valid', false, 'reason', 'no_pin', 'outcome', 'no_pin', 'name', m.name);
   end if;
+
+  -- One PIN check per person at a time: without this, a burst of parallel
+  -- guesses could all read "no failures yet" before any of them is counted.
+  perform pg_advisory_xact_lock(hashtextextended('auditlog.pin:' || p_member_id::text, 0));
 
   select failed_count, locked_until into a from public.pin_attempts where member_id = p_member_id for update;
   if found then
@@ -1308,7 +1489,7 @@ begin
     raise exception 'p_events must be a JSON array';
   end if;
 
-  for ev in select value from jsonb_array_elements(p_events) limit 500 loop
+  for ev in select value from jsonb_array_elements(p_events) limit 200 loop
     begin
       v_type := ev ->> 'type';
       if v_type is null or v_type !~ '^[a-z][a-z0-9_.]{1,79}$' then
@@ -1325,13 +1506,23 @@ begin
       e := c;
       e.staff_id := null; e.staff_trust := 'none'; e.staff_session_id := null;
       if ev ->> 'session_id' is not null then
+        -- A session id is not a secret. Quoting one only earns "PIN
+        -- checked" when it is the session THIS request proved with its
+        -- token. Any other session of this device (events queued earlier
+        -- and sent after a change of user) must have been open at the
+        -- time the event says it happened, and is labelled as a match
+        -- against the sign-in record, not as PIN checked.
         select ss.id, ss.staff_id, ss.trust into s
           from auditlog.staff_sessions ss
          where ss.id = (ev ->> 'session_id')::uuid and ss.device = c.auth_uid
+           and (v_at is not null or ss.id = c.staff_session_id)
            and (v_at is null or (ss.started_at <= v_at + interval '2 minutes'
                                  and coalesce(ss.ended_at, now()) >= v_at - interval '2 minutes'));
         if found then
-          e.staff_id := s.staff_id; e.staff_trust := s.trust; e.staff_session_id := s.id;
+          e.staff_id := s.staff_id; e.staff_session_id := s.id;
+          e.staff_trust := case when s.id = c.staff_session_id then s.trust
+                                when s.trust = 'pin' then 'session_record'
+                                else 'claimed' end;
         end if;
       end if;
       if e.staff_id is null and ev ->> 'staff_id' is not null then
@@ -1365,9 +1556,14 @@ security definer
 set search_path = public, auditlog, extensions
 as $$
 declare
-  c auditlog.context := auditlog.ctx();
+  c auditlog.context;
   h json;
 begin
+  -- Anyone else gets a bare answer and causes no work (and no rows).
+  if not coalesce(public.is_till_device(auth.uid()), false) then
+    return jsonb_build_object('ok', true, 'actor', 'other');
+  end if;
+  c := auditlog.ctx();
   begin h := nullif(current_setting('request.headers', true), '')::json;
   exception when others then h := null; end;
   return jsonb_build_object(
@@ -1481,11 +1677,18 @@ drop trigger if exists append_only on auditlog.seals;
 create trigger append_only before update or delete on auditlog.seals
   for each row execute function auditlog.seals_guard();
 
--- Recomputes everything from the stored rows and reports the first problems
--- found. ok = true means: every sealed row still hashes to what was
--- recorded when it was written, no sealed row is missing or added, and the
--- chain of seals is unbroken from the first to the last.
-create or replace function auditlog.verify()
+-- Recomputes from the stored rows and reports the first problems found.
+-- ok = true means: every checked row still hashes to what was recorded when
+-- it was written, no sealed row is missing or added, and the chain of seals
+-- is unbroken from the first to the last.
+--
+-- p_since null  = everything (the nightly job).
+-- p_since given = the chain of ALL seals is still walked (cheap: seals
+--                 only), but row contents are re-hashed only for seals made
+--                 since then. This is what "Check now" uses once the log is
+--                 large, so it always answers within the API's time limit;
+--                 the result says which it was ('scope').
+create or replace function auditlog.verify(p_since timestamptz default null)
 returns jsonb
 language plpgsql
 security definer
@@ -1501,33 +1704,38 @@ declare
   v_rows_hash bytea;
   v_rows bigint := 0;
   v_seals int := 0;
+  v_content_seals int := 0;
   v_head record;
   v_unsealed bigint;
 begin
   for s in select * from auditlog.seals order by id loop
     v_seals := v_seals + 1;
 
-    select count(*), sha256(string_agg(row_hash, ''::bytea order by seq)),
-           min(seq) filter (where erased_at is null and row_hash <> auditlog.row_digest(l))
-      into v_n, v_rows_hash, v_bad
-      from auditlog.log l where l.seal_id = s.id;
-    v_rows := v_rows + v_n;
-
-    if v_bad is not null then
-      v_problems := v_problems || jsonb_build_object('seal', s.id, 'problem', 'row_content_changed', 'seq', v_bad);
-    end if;
-    if v_n <> s.row_count then
-      v_problems := v_problems || jsonb_build_object('seal', s.id, 'problem', 'row_count_changed',
-        'expected', s.row_count, 'found', v_n);
-    end if;
-    if v_rows_hash is distinct from s.rows_hash then
-      v_problems := v_problems || jsonb_build_object('seal', s.id, 'problem', 'rows_do_not_match_seal');
-    end if;
     if s.prev_hash is distinct from v_prev and not (v_first and s.prev_hash is null) then
       v_problems := v_problems || jsonb_build_object('seal', s.id, 'problem', 'chain_broken');
     end if;
     if s.hash is distinct from auditlog.seal_digest(s.id, s.first_seq, s.last_seq, s.row_count, s.rows_hash, s.prev_hash) then
       v_problems := v_problems || jsonb_build_object('seal', s.id, 'problem', 'seal_altered');
+    end if;
+
+    if p_since is null or s.sealed_at >= p_since then
+      v_content_seals := v_content_seals + 1;
+      select count(*), sha256(string_agg(row_hash, ''::bytea order by seq)),
+             min(seq) filter (where erased_at is null and row_hash <> auditlog.row_digest(l))
+        into v_n, v_rows_hash, v_bad
+        from auditlog.log l where l.seal_id = s.id;
+      v_rows := v_rows + v_n;
+
+      if v_bad is not null then
+        v_problems := v_problems || jsonb_build_object('seal', s.id, 'problem', 'row_content_changed', 'seq', v_bad);
+      end if;
+      if v_n <> s.row_count then
+        v_problems := v_problems || jsonb_build_object('seal', s.id, 'problem', 'row_count_changed',
+          'expected', s.row_count, 'found', v_n);
+      end if;
+      if v_rows_hash is distinct from s.rows_hash then
+        v_problems := v_problems || jsonb_build_object('seal', s.id, 'problem', 'rows_do_not_match_seal');
+      end if;
     end if;
 
     v_prev := s.hash;
@@ -1549,11 +1757,27 @@ begin
     v_problems := v_problems || jsonb_build_object('problem', 'unsealed_row_content_changed', 'seq', v_bad);
   end if;
 
+  -- An erased entry's content cannot be re-hashed, so it must be accounted
+  -- for another way: it has to be a member row, and there has to be a
+  -- recorded erasure of that member. Anything else is tampering dressed up
+  -- as an erasure.
+  select count(*), min(l.seq) into v_n, v_bad from auditlog.log l
+   where l.erased_at is not null
+     and (l.table_name is distinct from 'members'
+          or not exists (select 1 from auditlog.log e
+                          where e.kind = 'system' and e.action = 'privacy.erased' and e.row_pk = l.row_pk));
+  if v_n > 0 then
+    v_problems := v_problems || jsonb_build_object('problem', 'erased_without_record', 'rows', v_n, 'seq', v_bad);
+  end if;
+
   select id, hash, sealed_at into v_head from auditlog.seals order by id desc limit 1;
 
   return jsonb_build_object(
     'ok', jsonb_array_length(v_problems) = 0,
+    'scope', case when p_since is null then 'everything' else 'recent' end,
+    'since', p_since,
     'seals_checked', v_seals,
+    'seals_rehashed', v_content_seals,
     'rows_checked', v_rows + v_unsealed,
     'unsealed_rows', v_unsealed,
     'problems', v_problems,
@@ -1563,37 +1787,131 @@ begin
 end;
 $$;
 
--- Which tables are (not) covered, and whether any audit trigger has been
--- switched off.
+-- Is every protection still in place? For every trigger this file creates
+-- (capture on each table, per-statement capture on the two ledgers, the
+-- guards, the member-field guard, and the log's own append-only triggers)
+-- reports any that is
+--   missing   : not there (dropped, or a table created since)
+--   disabled  : there but not firing for ordinary sessions (state other
+--               than 'O'/'A' — 'D' disabled, 'R' replica-only)
+--   repointed : there, but no longer calling this file's function
 create or replace function auditlog.coverage()
 returns jsonb
 language sql
 security definer
 set search_path = auditlog, public
 as $$
-  with t as (
+  with pub as (
     select c.oid, c.relname
       from pg_class c join pg_namespace n on n.oid = c.relnamespace
      where n.nspname = 'public' and c.relkind = 'r'
-  ), g as (
-    select t.relname,
-           (select tg.tgenabled from pg_trigger tg
-             where tg.tgrelid = t.oid and tg.tgname = 'zz_audit_capture') as enabled
-      from t
+  ), expected (rel, label, trig, fn) as (
+    select p.oid, p.relname, 'zz_audit_capture', 'capture_row' from pub p
+    union all
+    select p.oid, p.relname || ':truncate', 'zz_audit_truncate', 'capture_truncate' from pub p
+    union all
+    select p.oid, p.relname || ':insert', 'zz_audit_capture_insert', 'capture_insert_bulk'
+      from pub p where p.relname in ('order_items', 'stock_movements')
+    union all
+    select p.oid, p.relname || ':guard', 'aa_audit_guard', 'guard_ledger'
+      from pub p join auditlog.guard_rules() g on g.table_name = p.relname
+    union all
+    select p.oid, 'members:protected_fields', 'aa_audit_guard_fields', 'guard_member_fields'
+      from pub p where p.relname = 'members'
+    union all
+    select c.oid, 'auditlog.' || c.relname || ':' || x.trig, x.trig, x.fn
+      from pg_class c join pg_namespace n on n.oid = c.relnamespace and n.nspname = 'auditlog'
+      join (values ('log', 'append_only', 'append_only'), ('log', 'append_only_truncate', 'append_only'),
+                   ('log', 'log_before_insert', 'log_before_insert'),
+                   ('seals', 'append_only', 'seals_guard'), ('seals', 'append_only_truncate', 'append_only'),
+                   ('acks', 'append_only', 'append_only'), ('acks', 'append_only_truncate', 'append_only'),
+                   ('origins', 'append_only', 'append_only'), ('origins', 'append_only_truncate', 'append_only'),
+                   ('device_ips', 'append_only', 'append_only'), ('device_ips', 'append_only_truncate', 'append_only'),
+                   ('staff_sessions', 'append_only', 'append_only'), ('staff_sessions', 'append_only_truncate', 'append_only'),
+                   ('manifests', 'append_only', 'append_only'), ('manifests', 'append_only_truncate', 'append_only')
+           ) as x (tbl, trig, fn) on x.tbl = c.relname
+  ), state as (
+    select e.label,
+           tg.tgenabled,
+           (select pn.nspname || '.' || pp.proname from pg_proc pp join pg_namespace pn on pn.oid = pp.pronamespace
+             where pp.oid = tg.tgfoid) as calls,
+           e.fn
+      from expected e
+      left join pg_trigger tg on tg.tgrelid = e.rel and tg.tgname = e.trig and not tg.tgisinternal
   )
   select jsonb_build_object(
-    'tables', (select count(*) from g),
-    'missing', coalesce((select jsonb_agg(relname order by relname) from g where enabled is null), '[]'::jsonb)
-      || coalesce((select jsonb_agg(t.relname || ':insert') from t
-                    where t.relname in ('order_items', 'stock_movements')
-                      and not exists (select 1 from pg_trigger tg
-                                       where tg.tgrelid = t.oid and tg.tgname = 'zz_audit_capture_insert'
-                                         and tg.tgenabled <> 'D')), '[]'::jsonb),
-    'disabled', coalesce((select jsonb_agg(relname order by relname) from g where enabled = 'D'), '[]'::jsonb)
-      || coalesce((select jsonb_agg('auditlog.' || c.relname || ':' || tg.tgname)
-                     from pg_trigger tg join pg_class c on c.oid = tg.tgrelid
-                     join pg_namespace n on n.oid = c.relnamespace
-                    where n.nspname = 'auditlog' and not tg.tgisinternal and tg.tgenabled = 'D'), '[]'::jsonb))
+    'tables', (select count(*) from pub),
+    'missing', coalesce((select jsonb_agg(label order by label) from state where tgenabled is null), '[]'::jsonb),
+    'disabled', coalesce((select jsonb_agg(label order by label) from state
+                           where tgenabled is not null and tgenabled not in ('O', 'A')), '[]'::jsonb),
+    'repointed', coalesce((select jsonb_agg(label order by label) from state
+                            where tgenabled is not null and calls is distinct from 'auditlog.' || fn), '[]'::jsonb))
+$$;
+
+-- A fingerprint of the audit layer's own code: every function in schema
+-- auditlog, the public staff_* / audit_* / price-log functions, and every
+-- audit trigger definition. coverage() can see a trigger that is gone or
+-- switched off; it cannot see one whose function has been quietly replaced
+-- with something that does nothing. This can.
+--
+-- The accepted fingerprint is stored (append-only). The nightly check
+-- raises a serious alert when the live code no longer matches it. A
+-- migration that legitimately changes this code must end with
+--   select auditlog.accept_manifest('<why>');
+-- which is itself recorded.
+create table if not exists auditlog.manifests (
+  id bigint generated always as identity primary key,
+  at timestamptz not null default now(),
+  digest text not null,
+  reason text
+);
+
+drop trigger if exists append_only on auditlog.manifests;
+create trigger append_only before update or delete on auditlog.manifests
+  for each row execute function auditlog.append_only();
+drop trigger if exists append_only_truncate on auditlog.manifests;
+create trigger append_only_truncate before truncate on auditlog.manifests
+  for each statement execute function auditlog.append_only();
+
+create or replace function auditlog.manifest()
+returns text
+language sql
+stable
+security definer
+set search_path = auditlog, public
+as $$
+  select md5(coalesce((
+    select string_agg(md5(pg_get_functiondef(p.oid)), ',' order by n.nspname, p.proname, pg_get_function_identity_arguments(p.oid))
+      from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+     where p.prokind = 'f'
+       and (n.nspname = 'auditlog'
+            or (n.nspname = 'public' and (p.proname like 'staff\_%' or p.proname like 'audit\_%'
+                                         or p.proname like 'log\_product\_price\_%')))), '')
+    || '|' || coalesce((
+    select string_agg(md5(pg_get_triggerdef(tg.oid)), ',' order by tg.tgrelid::regclass::text, tg.tgname)
+      from pg_trigger tg
+     where not tg.tgisinternal
+       and (tg.tgname in ('zz_audit_capture', 'zz_audit_capture_insert', 'zz_audit_truncate',
+                          'aa_audit_guard', 'aa_audit_guard_fields')
+            or tg.tgrelid in (select c.oid from pg_class c join pg_namespace n on n.oid = c.relnamespace
+                               where n.nspname = 'auditlog'))), ''))
+$$;
+
+create or replace function auditlog.accept_manifest(p_reason text)
+returns text
+language plpgsql
+security definer
+set search_path = auditlog, public, extensions
+as $$
+declare
+  v text := auditlog.manifest();
+begin
+  insert into auditlog.manifests (digest, reason) values (v, p_reason);
+  perform auditlog.try_write(auditlog.ctx(), 'system', 'manifest.accepted', 2, null, null, null, null, null,
+    jsonb_build_object('digest', v, 'reason', p_reason,
+      'note', 'The audit layer''s own code was (re)accepted as genuine. Expected after a database update that touches it; otherwise worth asking who did this.'));
+  return v;
+end;
 $$;
 
 -- pg_cron entry points.
@@ -1638,9 +1956,14 @@ begin
     case when (v ->> 'ok')::boolean then 0 else 3 end,
     null, null, null, null, null, v);
 
-  if jsonb_array_length(cov -> 'missing') > 0 or jsonb_array_length(cov -> 'disabled') > 0 then
+  if jsonb_array_length(cov -> 'missing') > 0 or jsonb_array_length(cov -> 'disabled') > 0
+     or jsonb_array_length(cov -> 'repointed') > 0 then
     perform auditlog.try_write(c, 'system', 'coverage.gap', 3, null, null, null, null, null, cov
-      || jsonb_build_object('note', 'A table is not being recorded, or an audit trigger has been switched off.'));
+      || jsonb_build_object('note', 'A table is not being recorded, or a protection has been removed, switched off or redirected.'));
+  end if;
+  if auditlog.manifest() is distinct from (select digest from auditlog.manifests order by id desc limit 1) then
+    perform auditlog.try_write(c, 'system', 'coverage.changed', 3, null, null, null, null, null,
+      jsonb_build_object('note', 'The audit layer''s own code no longer matches the accepted version. Expected only after a database update that changes it (which should have re-accepted it) or a database engine upgrade.'));
   end if;
   if v_fail > 0 then
     perform auditlog.try_write(c, 'system', 'capture.failures', 2, null, null, null, null, null,
@@ -1680,6 +2003,11 @@ begin
   if c.staff_id is null then
     raise exception 'Sign in with your PIN to view the log' using errcode = 'insufficient_privilege';
   end if;
+  -- A GET runs in a read-only transaction, where "log viewed" could not be
+  -- written. Looking must leave a trace, so reading that way is refused.
+  if current_setting('transaction_read_only', true) = 'on' then
+    raise exception 'The log must be requested with POST' using errcode = 'insufficient_privilege';
+  end if;
   return c;
 end;
 $$;
@@ -1693,6 +2021,7 @@ $$;
 --   action_prefix   e.g. "cart." or "pin."
 --   actors          ["till","member","service","database","anon"]
 --   flag            entries carrying this flag, e.g. "outside_the_till"
+--   changed         updates that changed this column, e.g. "tab_balance"
 --   min_severity    0..3
 --   unchecked       true = only alerts nobody has marked as checked
 --   q               free text, matched against the whole entry
@@ -1744,10 +2073,17 @@ begin
         'ip', o.ip, 'app_build', o.app_build,
         'client_at', l.client_at,
         'sealed', l.seal_id is not null,
-        'checked', exists (select 1 from auditlog.acks a where a.seq = l.seq)
+        'checked', ack.seq is not null,
+        'checked_at', ack.at,
+        'checked_by', (select m.name from public.members m where m.id = ack.staff_id),
+        -- Someone marking an alert about their own action as checked is
+        -- allowed (the owner works the bar too) but shown for what it is.
+        'checked_by_self', ack.seq is not null and ack.staff_id is not distinct from l.staff_id,
+        'check_note', ack.note
       ) as entry
       from auditlog.log l
       left join auditlog.origins o on o.id = l.origin_id
+      left join auditlog.acks ack on ack.seq = l.seq
       where (f ->> 'from' is null or l.at >= (f ->> 'from')::timestamptz)
         and (f ->> 'to' is null or l.at < (f ->> 'to')::timestamptz)
         and (f ->> 'staff_id' is null or l.staff_id = (f ->> 'staff_id')::uuid)
@@ -1756,15 +2092,24 @@ begin
         and (v_tables is null or l.table_name = any (v_tables))
         and (v_actors is null or l.actor = any (v_actors))
         and (f ->> 'flag' is null or coalesce(l.detail -> 'flags' ? (f ->> 'flag'), false))
+        and (f ->> 'changed' is null or l.changed @> array[f ->> 'changed'])
         and (f ->> 'table' is null or l.table_name = f ->> 'table')
         and (f ->> 'pk' is null or l.row_pk = f ->> 'pk')
         and (f ->> 'action_prefix' is null or l.action like replace(replace(f ->> 'action_prefix', '%', ''), '_', '\_') || '%')
         and (f ->> 'min_severity' is null or l.severity >= (f ->> 'min_severity')::int)
         and (coalesce((f ->> 'unchecked')::boolean, false) = false
-             or (l.severity >= 2 and not exists (select 1 from auditlog.acks a where a.seq = l.seq)))
+             or (l.severity >= 2 and ack.seq is null))
         and (f ->> 'before_seq' is null or l.seq < (f ->> 'before_seq')::bigint)
+        -- Free text also matches the NAMES behind the ids an entry holds
+        -- (the product or member it is about, and who did it): searching
+        -- "Guinness" has to find the price change to Guinness.
         and (v_q is null or (l.action || ' ' || coalesce(l.table_name, '') || ' ' || coalesce(l.old_data::text, '')
-                             || ' ' || coalesce(l.new_data::text, '') || ' ' || coalesce(l.detail::text, ''))
+                             || ' ' || coalesce(l.new_data::text, '') || ' ' || coalesce(l.detail::text, '')
+                             || ' ' || coalesce(case l.table_name
+                                          when 'products' then (select p.name from public.products p where p.id::text = l.row_pk)
+                                          when 'members' then (select m.name from public.members m where m.id::text = l.row_pk)
+                                        end, '')
+                             || ' ' || coalesce((select m.name from public.members m where m.id = l.staff_id), ''))
                             ilike '%' || replace(replace(v_q, '%', '\%'), '_', '\_') || '%')
       order by l.seq desc
       limit v_limit
@@ -1788,7 +2133,9 @@ declare
 begin
   return coalesce((
     select jsonb_agg(jsonb_build_object(
-      'id', s.id, 'staff_id', s.staff_id,
+      -- A stable handle for the page, not the real id (which the event
+      -- intake accepts as a reference to a session).
+      'id', left(md5(s.id::text), 16), 'staff_id', s.staff_id,
       'staff_name', (select m.name from public.members m where m.id = s.staff_id),
       'till_id', s.till_id, 'trust', s.trust,
       'started_at', s.started_at, 'ended_at', s.ended_at, 'end_reason', s.end_reason,
@@ -1833,6 +2180,7 @@ begin
                           where l.severity >= 2 and not exists (select 1 from auditlog.acks a where a.seq = l.seq)),
     'capture_failures_7d', (select count(*) from auditlog.failures where at > now() - interval '7 days'),
     'coverage', auditlog.coverage(),
+    'code_unchanged', auditlog.manifest() is not distinct from (select digest from auditlog.manifests order by id desc limit 1),
     'settings', (select jsonb_build_object('capture_enabled', capture_enabled,
                    'guards_enforced', guards_enforced, 'session_max_hours', session_max_hours)
                    from auditlog.settings),
@@ -1852,7 +2200,13 @@ declare
   v jsonb;
 begin
   perform auditlog.seal();
-  v := auditlog.verify();
+  -- Re-hashing costs about 15 microseconds an entry. Up to ~200,000 entries
+  -- (a couple of years) the whole log fits comfortably inside the API's
+  -- time limit; beyond that, the chain of every seal is still walked but
+  -- only the last 30 days of entries are re-hashed here, and the nightly
+  -- job (no time limit) keeps doing the whole thing.
+  v := auditlog.verify(case when (select coalesce(sum(row_count), 0) from auditlog.seals) > 200000
+                            then now() - interval '30 days' end);
   perform auditlog.try_write(c, 'system',
     case when (v ->> 'ok')::boolean then 'integrity.checked' else 'integrity.FAILED' end,
     case when (v ->> 'ok')::boolean then 0 else 3 end,
@@ -1881,7 +2235,10 @@ begin
   if p_seal_id is not null then
     v_match := exists (select 1 from auditlog.seals s
                         where s.id = p_seal_id and encode(s.hash, 'hex') = lower(coalesce(p_hash, '')));
-    if not v_match then
+    if not v_match and not exists (
+         select 1 from auditlog.log l
+          where l.action = 'integrity.witness_mismatch' and l.auth_uid = c.auth_uid
+            and l.at > now() - interval '1 hour') then
       perform auditlog.try_write(c, 'system', 'integrity.witness_mismatch', 3, null, null, null, null, null,
         jsonb_build_object('seal', p_seal_id, 'remembered_hash', left(p_hash, 64),
           'note', 'A till remembered a seal the database no longer has. History may have been rewritten or the database restored.'));
@@ -1934,32 +2291,35 @@ security definer
 set search_path = auditlog, public, extensions
 as $$
 declare
-  v_keys text[] := array['name', 'phone', 'email', 'notes', 'favourite_drinks'];
   v_n bigint;
 begin
   if coalesce(trim(p_reason), '') = '' then
     raise exception 'a reason is required';
   end if;
+  -- Recorded FIRST: verify() reports any erased entry that has no such
+  -- record, so an erasure cannot be done quietly.
+  perform auditlog.write(auditlog.ctx(), 'system', 'privacy.erased', 2, 'members', p_member_id::text,
+    null, null, null, jsonb_build_object('reason', p_reason));
   perform set_config('auditlog.erasing', 'on', true);
   update auditlog.log l
-     set old_data = (select jsonb_object_agg(e.key, case when e.key = any (v_keys) then '"[erased]"'::jsonb else e.value end)
-                       from jsonb_each(l.old_data) e),
-         new_data = (select jsonb_object_agg(e.key, case when e.key = any (v_keys) then '"[erased]"'::jsonb else e.value end)
-                       from jsonb_each(l.new_data) e),
+     set old_data = auditlog.erase_pii(l.old_data),
+         new_data = auditlog.erase_pii(l.new_data),
          erased_at = now()
-   where l.table_name = 'members' and l.row_pk = p_member_id::text and l.erased_at is null;
+   where l.table_name = 'members' and l.kind in ('row', 'guard')
+     and l.row_pk = p_member_id::text and l.erased_at is null;
   get diagnostics v_n = row_count;
   perform set_config('auditlog.erasing', '', true);
-  perform auditlog.try_write(auditlog.ctx(), 'system', 'privacy.erased', 2, 'members', p_member_id::text,
-    null, null, null, jsonb_build_object('entries', v_n, 'reason', p_reason));
   return v_n;
 end;
 $$;
 
 -- ── 12. Attach, lock down, schedule, record ──────────────────────────────
 
--- Idempotent: safe to re-run after adding a table (the nightly check
--- reports any table that is not covered).
+-- Put the capture triggers on every table that lacks them. Tables already
+-- covered are left completely alone (no lock is taken on them), so this is
+-- safe to run at any time and from any later migration; one table failing
+-- does not stop the rest, and the nightly check reports whatever is still
+-- uncovered. Returns how many tables it attached to.
 create or replace function auditlog.attach_all()
 returns int
 language plpgsql
@@ -1975,63 +2335,88 @@ begin
     select c.oid, c.relname
       from pg_class c join pg_namespace n on n.oid = c.relnamespace
      where n.nspname = 'public' and c.relkind = 'r'
+     order by c.relname
   loop
-    -- Single-column primary key, else 'id'.
-    select a.attname into v_pk
-      from pg_index i join pg_attribute a on a.attrelid = i.indrelid and a.attnum = i.indkey[0]
-     where i.indrelid = t.oid and i.indisprimary and i.indnatts = 1;
-    v_pk := coalesce(v_pk, 'id');
-
-    execute format('drop trigger if exists zz_audit_capture on public.%I', t.relname);
-    execute format('drop trigger if exists zz_audit_capture_insert on public.%I', t.relname);
-    if t.relname in ('order_items', 'stock_movements') then
-      execute format('create trigger zz_audit_capture after update or delete on public.%I
-                      for each row execute function auditlog.capture_row(%L)', t.relname, v_pk);
-      execute format('create trigger zz_audit_capture_insert after insert on public.%I
-                      referencing new table as new_rows
-                      for each statement execute function auditlog.capture_insert_bulk()', t.relname);
-    else
-      execute format('create trigger zz_audit_capture after insert or update or delete on public.%I
-                      for each row execute function auditlog.capture_row(%L)', t.relname, v_pk);
+    if exists (select 1 from pg_trigger g where g.tgrelid = t.oid and g.tgname = 'zz_audit_capture')
+       and exists (select 1 from pg_trigger g where g.tgrelid = t.oid and g.tgname = 'zz_audit_truncate')
+       and (t.relname not in ('order_items', 'stock_movements')
+            or exists (select 1 from pg_trigger g where g.tgrelid = t.oid and g.tgname = 'zz_audit_capture_insert'))
+    then
+      continue;
     end if;
-    execute format('drop trigger if exists zz_audit_truncate on public.%I', t.relname);
-    execute format('create trigger zz_audit_truncate after truncate on public.%I
-                    for each statement execute function auditlog.capture_truncate()', t.relname);
-    v_n := v_n + 1;
+
+    begin
+      -- Single-column primary key, else 'id'. Sale lines are filed under
+      -- their order.
+      select a.attname into v_pk
+        from pg_index i join pg_attribute a on a.attrelid = i.indrelid and a.attnum = i.indkey[0]
+       where i.indrelid = t.oid and i.indisprimary and i.indnatts = 1;
+      v_pk := case when t.relname = 'order_items' then 'order_id' else coalesce(v_pk, 'id') end;
+
+      execute format('drop trigger if exists zz_audit_capture on public.%I', t.relname);
+      execute format('drop trigger if exists zz_audit_capture_insert on public.%I', t.relname);
+      if t.relname in ('order_items', 'stock_movements') then
+        execute format('create trigger zz_audit_capture after update or delete on public.%I
+                        for each row execute function auditlog.capture_row(%L)', t.relname, v_pk);
+        execute format('create trigger zz_audit_capture_insert after insert on public.%I
+                        referencing new table as new_rows
+                        for each statement execute function auditlog.capture_insert_bulk()', t.relname);
+      else
+        execute format('create trigger zz_audit_capture after insert or update or delete on public.%I
+                        for each row execute function auditlog.capture_row(%L)', t.relname, v_pk);
+      end if;
+      execute format('drop trigger if exists zz_audit_truncate on public.%I', t.relname);
+      execute format('create trigger zz_audit_truncate after truncate on public.%I
+                      for each statement execute function auditlog.capture_truncate()', t.relname);
+      v_n := v_n + 1;
+    exception when others then
+      insert into auditlog.failures (source, error, table_name) values ('attach_all', sqlerrm, t.relname);
+    end;
   end loop;
   return v_n;
 end;
 $$;
 
+-- Creating a trigger briefly locks its table. If a till happens to be
+-- mid-sale, wait a few seconds and then fail this migration cleanly (it can
+-- simply be re-run) rather than queue the till's requests behind it.
+set local lock_timeout = '5s';
+
 select auditlog.attach_all();
 
--- Ledgers: written once, never edited or removed from a till.
 do $$
 declare
-  t text;
+  r record;
 begin
-  foreach t in array array['order_items', 'stock_movements', 'tab_adjustments', 'order_corrections',
-                           'cashback_transactions', 'prize_wins', 'guest_signins',
-                           'product_price_changes', 'tab_payments'] loop
-    if to_regclass('public.' || t) is not null then
-      execute format('drop trigger if exists aa_audit_guard on public.%I', t);
-      execute format('create trigger aa_audit_guard before update or delete on public.%I
-                      for each row execute function auditlog.guard_ledger(''immutable'')', t);
+  for r in select * from auditlog.guard_rules() loop
+    if to_regclass('public.' || r.table_name) is not null then
+      execute format('drop trigger if exists aa_audit_guard on public.%I', r.table_name);
+      execute format('create trigger aa_audit_guard before %s on public.%I
+                      for each row execute function auditlog.guard_ledger(%L, %L)',
+                     case r.mode when 'immutable' then 'update or delete' else 'delete' end,
+                     r.table_name, r.mode, r.pk);
     end if;
   end loop;
-  -- Records that are legitimately edited, but must never disappear.
-  foreach t in array array['orders', 'members', 'products', 'z_reports', 'staff_drink_credits'] loop
-    if to_regclass('public.' || t) is not null then
-      execute format('drop trigger if exists aa_audit_guard on public.%I', t);
-      execute format('create trigger aa_audit_guard before delete on public.%I
-                      for each row execute function auditlog.guard_ledger(''no_delete'')', t);
-    end if;
-  end loop;
+
+  if to_regclass('public.members') is not null then
+    drop trigger if exists aa_audit_guard_fields on public.members;
+    create trigger aa_audit_guard_fields
+      before update of pin_hash, tab_balance, auth_user_id, last_settled_at on public.members
+      for each row execute function auditlog.guard_member_fields();
+  end if;
 end $$;
 
--- The price change log now takes its staff member from the PIN session on
--- the request when there is one (server-verified), and only falls back to
--- the id the till passed in products.changed_by.
+-- The price change log (20261122120000), reworked:
+--
+--   * Its staff member now comes from the PIN session on the request when
+--     there is one (server-verified), and only falls back to the id the
+--     till passed in products.changed_by.
+--   * A product's opening row is written AFTER the insert. The original
+--     trigger wrote it BEFORE, which fires even when the insert then does
+--     nothing (INSERT ... ON CONFLICT DO NOTHING on an existing id): a till
+--     could add made-up rows to the price log, naming any staff member,
+--     without changing a product at all.
+--   * A failure here never blocks the product save.
 create or replace function log_product_price_change()
 returns trigger
 language plpgsql
@@ -2042,31 +2427,33 @@ declare
   v_till_id text;
   v_staff uuid;
 begin
-  if TG_OP = 'INSERT'
-     or NEW.standard_price is distinct from OLD.standard_price
+  if TG_OP = 'INSERT' then
+    -- Hand the pass-through to the AFTER INSERT trigger below.
+    perform set_config('auditlog.price_changed_by', coalesce(NEW.changed_by::text, ''), true);
+  elsif NEW.standard_price is distinct from OLD.standard_price
      or NEW.member_price is distinct from OLD.member_price
   then
-    select till_id into v_till_id from till_devices where auth_user_id = auth.uid();
-
     begin
-      v_staff := (auditlog.ctx()).staff_id;
-    exception when others then
-      v_staff := null;
-    end;
+      select till_id into v_till_id from till_devices where auth_user_id = auth.uid();
+      begin
+        v_staff := (auditlog.ctx()).staff_id;
+      exception when others then
+        v_staff := null;
+      end;
 
-    insert into product_price_changes (
-      product_id,
-      old_standard_price, new_standard_price,
-      old_member_price, new_member_price,
-      staff_id, till_id
-    )
-    values (
-      NEW.id,
-      case when TG_OP = 'UPDATE' then OLD.standard_price end, NEW.standard_price,
-      case when TG_OP = 'UPDATE' then OLD.member_price end, NEW.member_price,
-      coalesce(v_staff, (select m.id from members m where m.id = NEW.changed_by)),
-      v_till_id
-    );
+      insert into product_price_changes (
+        product_id, old_standard_price, new_standard_price, old_member_price, new_member_price, staff_id, till_id)
+      values (
+        NEW.id, OLD.standard_price, NEW.standard_price, OLD.member_price, NEW.member_price,
+        coalesce(v_staff, (select m.id from members m where m.id = NEW.changed_by)),
+        v_till_id);
+    exception when others then
+      begin
+        insert into auditlog.failures (source, error, table_name, op)
+        values ('log_product_price_change', sqlerrm, 'products', TG_OP);
+      exception when others then null;
+      end;
+    end;
   end if;
 
   NEW.changed_by := null;
@@ -2074,6 +2461,51 @@ begin
 end;
 $$;
 
+create or replace function log_product_price_opening()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_till_id text;
+  v_staff uuid;
+  v_claim uuid;
+begin
+  begin
+    select till_id into v_till_id from till_devices where auth_user_id = auth.uid();
+    begin
+      v_staff := (auditlog.ctx()).staff_id;
+    exception when others then
+      v_staff := null;
+    end;
+    begin
+      v_claim := nullif(current_setting('auditlog.price_changed_by', true), '')::uuid;
+    exception when others then
+      v_claim := null;
+    end;
+
+    insert into product_price_changes (product_id, new_standard_price, new_member_price, staff_id, till_id)
+    values (NEW.id, NEW.standard_price, NEW.member_price,
+            coalesce(v_staff, (select m.id from members m where m.id = v_claim)),
+            v_till_id);
+  exception when others then
+    begin
+      insert into auditlog.failures (source, error, table_name, op)
+      values ('log_product_price_opening', sqlerrm, 'products', TG_OP);
+    exception when others then null;
+    end;
+  end;
+  return null;
+end;
+$$;
+
+drop trigger if exists products_log_price_opening on products;
+create trigger products_log_price_opening
+  after insert on products
+  for each row execute function log_product_price_opening();
+
+revoke execute on function log_product_price_opening() from public, anon, authenticated;
 revoke execute on function log_product_price_change() from public, anon, authenticated;
 
 -- Nothing in schema auditlog is callable from the API (the schema is not
@@ -2158,6 +2590,7 @@ begin
     execute format('select count(*) from public.%I', t.relname) into v_n;
     v_counts := v_counts || jsonb_build_object(t.relname, v_n);
   end loop;
+  perform auditlog.accept_manifest('installed by migration 20261123120000_audit_log');
   perform auditlog.try_write(c, 'system', 'audit.installed', 1, null, null, null, null, null,
     jsonb_build_object('rows_at_install', v_counts, 'coverage', auditlog.coverage(),
       'note', 'Recording starts here. Nothing before this entry was captured.'));

@@ -262,7 +262,10 @@ select t.ok(t.has_flag(t.get('o'), 'arrived_late') and (t.get('o') -> 'detail' -
 select t.ok(t.has_flag(t.get('o'), 'till_claim_mismatch'), 'till id claimed differs from the device: flagged');
 select t.ok(t.has_flag(t.get('o'), 'staff_unverified') and (t.get('o') -> 'detail' ->> 'rung_by_trust') = 'claimed',
   'a claimed staff id with no matching session is labelled a claim');
-select t.ok((t.get('o') ->> 'staff_id') = :'sam', 'the request itself is still attributed to the signed-in session');
+select t.ok((t.get('o') ->> 'staff_id') = :'kim' and (t.get('o') ->> 'staff_trust') = 'claimed'
+            and (t.get('o') -> 'detail' ->> 'sent_by') = :'sam' and (t.get('o') -> 'detail' ->> 'sent_by_trust') = 'pin',
+  'a late sale is filed under who it says rang it (as a claim), with who was signed in when it was sent kept alongside');
+select t.ok((t.get('o') ->> 'severity')::int = 1, 'a sale that arrived late is notable');
 
 -- Old bundle: no staff at all.
 begin;
@@ -286,7 +289,9 @@ select t.req('till1', 'POST', '/rpc/adjust_tab_balance');
 select adjust_tab_balance(:'mo', 1.00);
 commit;
 select t.ok((select tab_balance from members where id = :'mo') = 11.00, 'adjust_tab_balance works');
-select t.ok(not t.has_flag(t.entry('row', 'update', 'members'), 'direct_edit_of_protected_field'), 'function balance change is not flagged');
+select t.ok(not t.has_flag(t.entry('row', 'update', 'members'), 'direct_edit_of_protected_field'), 'function balance change is not flagged as a direct edit');
+select t.ok(t.has_flag(t.entry('row', 'update', 'members'), 'tab_balance_adjusted')
+            and (t.entry('row', 'update', 'members') ->> 'severity')::int = 1, 'a bare balance adjustment is notable');
 
 begin;
 select t.req('till1', 'POST', '/tab_adjustments');
@@ -406,8 +411,58 @@ begin;
 select t.req('till1', 'PATCH', '/members', :'sam_token');
 update members set tab_balance = 0 where id = :'mo';
 commit;
-select t.ok(t.has_flag(t.entry('row', 'update', 'members'), 'direct_edit_of_protected_field')
-            and (t.entry('row', 'update', 'members') ->> 'severity')::int = 3, 'direct edit of a tab balance: serious alert');
+select t.put('g', t.entry('guard', 'blocked.update', 'members'));
+select t.ok((select tab_balance from members where id = :'mo') = 11.00, 'a till cannot write a tab balance directly');
+select t.ok((t.get('g') ->> 'severity')::int = 3 and (t.get('g') -> 'changed') = '["tab_balance"]'::jsonb
+            and (t.get('g') -> 'new_data' ->> 'tab_balance')::numeric = 0 and (t.get('g') ->> 'staff_id') = :'sam'
+            and (t.get('g') -> 'detail' ->> 'rule') = 'protected_fields', 'the attempt is recorded with what was tried and by whom');
+
+-- The way to sign in as a colleague "PIN checked": give them a PIN you know.
+select pin_hash as sam_real_hash from members where id = :'sam' \gset
+begin;
+select t.req('till1', 'PATCH', '/members', :'sam_token');
+update members set pin_hash = extensions.crypt('9999', extensions.gen_salt('bf', 4)), phone = '07700 900111' where id = :'sam';
+commit;
+select t.ok((select pin_hash from members where id = :'sam') = :'sam_real_hash', 'a till cannot overwrite a PIN');
+select t.ok((select phone from members where id = :'sam') = '07700 900111', 'the rest of that update still applies');
+select t.ok((t.entry('guard', 'blocked.update', 'members') -> 'changed') = '["pin_hash"]'::jsonb
+            and (t.entry('guard', 'blocked.update', 'members') -> 'new_data' ->> 'pin_hash') = '[redacted]',
+  'the PIN overwrite attempt is recorded, redacted');
+begin;
+select t.req('till1', 'POST', '/rpc/staff_sign_in');
+select t.put('forged', staff_sign_in(:'sam', '9999'));
+commit;
+select t.ok((t.get('forged') ->> 'valid')::boolean = false, 'so the made-up PIN does not sign in');
+delete from pin_attempts;
+
+-- Supabase's GraphQL endpoint reaches the database as /rpc/graphql. It is
+-- not one of the app's functions and gets no trust.
+begin;
+select t.req('till1', 'POST', '/rpc/graphql', :'sam_token');
+delete from order_items where order_id = 'c0000000-0000-0000-0000-000000000002';
+update stock_movements set quantity = 99 where type = 'wastage';
+update orders set total_amount = 0.05 where id = 'c0000000-0000-0000-0000-000000000002';
+commit;
+select t.ok((select count(*) from order_items where order_id = 'c0000000-0000-0000-0000-000000000002') = 1
+            and not exists (select 1 from stock_movements where quantity = 99), 'GraphQL cannot delete or edit ledger rows');
+select t.ok((t.entry('guard', 'blocked.delete', 'order_items') ->> 'via') = 'POST /rpc/graphql'
+            and (t.entry('guard', 'blocked.delete', 'order_items') ->> 'row_pk') = 'c0000000-0000-0000-0000-000000000002',
+  'the attempt is filed under the sale it was aimed at');
+select t.ok(t.has_flag(t.entry('row', 'update', 'orders'), 'direct_edit_of_sale'), 'a GraphQL edit of a sale counts as direct');
+
+-- Lines and sales are written by the order function only.
+begin;
+select t.req('till1', 'POST', '/order_items', :'sam_token');
+insert into order_items (order_id, product_id, quantity, unit_price) values ('c0000000-0000-0000-0000-000000000002', :'crisps', 1, 0.01);
+commit;
+select t.ok(t.has_flag(t.entry('row', 'insert', 'order_items'), 'direct_insert_of_sale_line')
+            and (t.entry('row', 'insert', 'order_items') ->> 'severity')::int = 3, 'a line added to a sale directly is serious');
+begin;
+select t.req('till1', 'POST', '/orders', :'sam_token');
+insert into orders (id, payment_method, total_amount, staff_id, created_at) values ('c0000000-0000-0000-0000-0000000000d1', 'cash', 5, :'sam', now());
+commit;
+select t.ok(t.has_flag(t.entry('row', 'insert', 'orders'), 'direct_insert_of_sale')
+            and (t.entry('row', 'insert', 'orders') ->> 'severity')::int = 2, 'a sale inserted directly is an alert');
 begin;
 select t.req('till1', 'PATCH', '/members', :'sam_token');
 update members set membership_tier = 'staff' where id = :'mo';
@@ -516,18 +571,37 @@ insert into stock_movements (product_id, type, quantity, till_id) values (:'cris
 commit;
 select t.ok((t.entry('row', 'insert', 'stock_movements') ->> 'staff_trust') = 'none', 'an ended session no longer attributes anything');
 
--- Now an offline sale Sam rang earlier is corroborated by the session record.
-select (started_at + interval '1 second')::text as sam_time from auditlog.staff_sessions where id = :'sam_session' \gset
+-- An offline sale rung hours ago by someone who WAS signed in on this till
+-- then is corroborated by the sign-in record.
+insert into auditlog.staff_sessions (staff_id, device, till_id, token_hash, trust, started_at, ended_at, end_reason)
+values (:'sam', :'till1', 'till-1', sha256(convert_to('sam-this-morning', 'utf8')), 'pin',
+        now() - interval '3 hours', now() - interval '2 hours', 'sign_out');
 begin;
 select t.req('till1', 'POST', '/rpc/create_order_with_items', :'kim_token');
 select create_order_with_items(
   jsonb_build_object('id', 'c0000000-0000-0000-0000-000000000004', 'staff_id', :'sam', 'payment_method', 'cash',
-    'total_amount', 7.40, 'till_id', 'till-1',
-    'created_at', :'sam_time'::timestamptz),
+    'total_amount', 7.40, 'till_id', 'till-1', 'created_at', now() - interval '150 minutes'),
   jsonb_build_array(jsonb_build_object('product_id', :'guinness', 'quantity', 1, 'unit_price', 7.40)));
 commit;
-select t.ok((t.entry('row', 'insert', 'orders') -> 'detail' ->> 'rung_by_trust') = 'session_record',
+select t.put('o', t.entry('row', 'insert', 'orders'));
+select t.ok((t.get('o') -> 'detail' ->> 'rung_by_trust') = 'session_record' and (t.get('o') ->> 'staff_id') = :'sam'
+            and (t.get('o') ->> 'staff_trust') = 'session_record' and (t.get('o') -> 'detail' ->> 'sent_by') = :'kim',
   'a replayed sale is corroborated when its claimed staff member was signed in on that till at that time');
+
+-- A LIVE sale that names someone other than the person whose PIN session
+-- sent it is not corroborated by anything: a claim, and an alert.
+begin;
+select t.req('till1', 'POST', '/rpc/create_order_with_items', :'kim_token');
+select create_order_with_items(
+  jsonb_build_object('id', 'c0000000-0000-0000-0000-000000000005', 'staff_id', :'sam', 'payment_method', 'cash',
+    'total_amount', 1.00, 'till_id', 'till-1', 'created_at', now()),
+  jsonb_build_array(jsonb_build_object('product_id', :'crisps', 'quantity', 1, 'unit_price', 1.00)));
+commit;
+select t.put('o', t.entry('row', 'insert', 'orders'));
+select t.ok(t.has_flag(t.get('o'), 'staff_mismatch') and (t.get('o') ->> 'severity')::int = 2
+            and (t.get('o') ->> 'staff_trust') = 'claimed' and (t.get('o') ->> 'staff_id') = :'sam'
+            and (t.get('o') -> 'detail' ->> 'sent_by') = :'kim',
+  'a live sale naming someone other than the signed-in person is an alert');
 
 -- PinGate re-check.
 begin;
@@ -851,7 +925,7 @@ begin;
 alter table public.orders disable trigger zz_audit_capture;
 alter table public.order_items disable trigger zz_audit_capture_insert;
 select t.ok(auditlog.coverage() -> 'disabled' ? 'orders', 'a table whose capture is switched off is reported');
-select t.ok(auditlog.coverage() -> 'missing' ? 'order_items:insert', 'switched-off sale line capture is reported');
+select t.ok(auditlog.coverage() -> 'disabled' ? 'order_items:insert', 'switched-off sale line capture is reported');
 rollback;
 
 select t.ok((auditlog.verify() ->> 'ok')::boolean, 'after the rollbacks the log verifies again');
@@ -917,6 +991,158 @@ select t.ok(exists (select 1 from auditlog.log l where l.table_name = 'members' 
 select t.ok((auditlog.verify() ->> 'ok')::boolean, 'the log still verifies after an erasure');
 select t.ok((t.entry('system', 'privacy.erased') -> 'detail' ->> 'reason') = 'erasure request', 'the erasure is itself recorded');
 select t.ok(t.n('system', 'audit.installed') = 1, 'the first entry marks where recording began');
+
+-- ── Fixes from the adversarial review ────────────────────────────────────
+
+-- The price log cannot be padded with made-up rows: an insert that does
+-- nothing writes nothing, and an upsert writes one change, not an "opening".
+select count(*) as price_rows from product_price_changes where product_id = :'crisps' \gset
+begin;
+select t.req('till1', 'POST', '/products', :'kim_token');
+insert into products (id, name, category, standard_price, member_price, changed_by)
+values (:'crisps', 'Crisps', 'food', 0.01, 0.01, :'sam')
+on conflict (id) do nothing;
+commit;
+select t.ok((select count(*) from product_price_changes where product_id = :'crisps') = :price_rows,
+  'an insert that changes nothing adds nothing to the price log');
+begin;
+select t.req('till1', 'POST', '/products', :'kim_token');
+insert into products (id, name, category, standard_price, member_price)
+values (:'crisps', 'Crisps', 'food', 1.10, 1.00)
+on conflict (id) do update set standard_price = excluded.standard_price;
+commit;
+select t.ok((select count(*) from product_price_changes where product_id = :'crisps') = :price_rows + 1
+            and (select old_standard_price from product_price_changes where product_id = :'crisps' order by changed_at desc limit 1) = 1.00
+            and (select staff_id from product_price_changes where product_id = :'crisps' order by changed_at desc limit 1) = :'kim',
+  'an upsert that changes a price logs exactly that change, against the signed-in person');
+begin;
+select t.req('till1', 'POST', '/products', :'kim_token');
+insert into products (id, name, category, standard_price, member_price) values ('b0000000-0000-0000-0000-0000000000aa', 'New Lager', 'draught', 5.00, 4.50);
+commit;
+select t.ok((select count(*) from product_price_changes where product_id = 'b0000000-0000-0000-0000-0000000000aa'
+               and old_standard_price is null and new_standard_price = 5.00 and staff_id = :'kim' and till_id = 'till-1') = 1,
+  'a new product gets one opening row');
+
+-- Event attribution: quoting someone's session id without their token.
+begin;
+select t.req('till1', 'POST', '/rpc/audit_log_events');
+select audit_log_events(jsonb_build_array(
+  jsonb_build_object('id', 'e0000000-0000-0000-0000-0000000000f1', 'type', 'drawer.opened_no_sale', 'session_id', :'kim_session'),
+  jsonb_build_object('id', 'e0000000-0000-0000-0000-0000000000f2', 'type', 'cart.order_voided', 'at', now(), 'session_id', :'kim_session')));
+commit;
+select t.ok((select staff_trust from auditlog.log where client_event_id = 'e0000000-0000-0000-0000-0000000000f1') = 'none',
+  'a session id with no token and no time proves nothing');
+select t.ok((select staff_trust from auditlog.log where client_event_id = 'e0000000-0000-0000-0000-0000000000f2') = 'session_record'
+            and (select staff_id from auditlog.log where client_event_id = 'e0000000-0000-0000-0000-0000000000f2') = :'kim',
+  'a session id without its token is at most a match against the sign-in record, never PIN checked');
+begin;
+select t.req('till1', 'POST', '/rpc/audit_sessions', :'kim_token');
+select t.put('sess2', audit_sessions());
+commit;
+select t.ok(not (t.get('sess2')::text like '%' || :'kim_session' || '%'), 'the viewer does not hand out real session ids');
+
+-- The phone app (or anyone who is not a till) gets nothing from ping.
+select count(*) as origins_before from auditlog.origins \gset
+begin;
+select t.req('member', 'POST', '/rpc/audit_ping', null, '{"x-app-build": "made-up-1"}');
+select t.put('mping', audit_ping());
+commit;
+select t.ok((t.get('mping') ->> 'actor') = 'other' and (select count(*) from auditlog.origins) = :origins_before,
+  'ping from a non-till does no work and stores nothing');
+
+-- A till that keeps reporting a seal mismatch is recorded once an hour.
+select t.n('system', 'integrity.witness_mismatch') as mm \gset
+begin;
+select t.req('till1', 'POST', '/rpc/audit_seal_witness');
+select audit_seal_witness(1, repeat('1', 64));
+select audit_seal_witness(1, repeat('2', 64));
+commit;
+select t.ok(t.n('system', 'integrity.witness_mismatch') = :mm, 'repeat mismatches from one till within the hour are not re-recorded');
+
+-- The viewer: search by NAME, by changed column, who checked what, and no silent reads.
+begin;
+select t.req('till1', 'POST', '/rpc/audit_view', :'kim_token');
+select t.put('s1', audit_view(jsonb_build_object('q', 'guinness', 'tables', jsonb_build_array('products'), 'limit', 500)));
+select t.put('s2', audit_view(jsonb_build_object('q', 'sam staff', 'kinds', jsonb_build_array('row'), 'tables', jsonb_build_array('products'))));
+select t.put('s3', audit_view(jsonb_build_object('changed', 'tab_balance', 'limit', 500)));
+select t.put('s4', audit_view(jsonb_build_object('limit', 500, 'min_severity', 2)));
+commit;
+select t.ok((select count(*) from jsonb_array_elements(t.get('s1') -> 'entries') e where e -> 'changed' ? 'standard_price') >= 2,
+  'searching a product name finds its price changes');
+select t.ok(jsonb_array_length(t.get('s2') -> 'entries') >= 2, 'searching a staff name finds what they did');
+select t.ok((select bool_and(e -> 'changed' ? 'tab_balance') and count(*) >= 3 from jsonb_array_elements(t.get('s3') -> 'entries') e),
+  'changed-column filter');
+select t.ok(exists (select 1 from jsonb_array_elements(t.get('s4') -> 'entries') e
+                     where (e ->> 'checked')::boolean and e ->> 'checked_by' = 'Kim Newstarter' and e ->> 'check_note' = 'looked into it'
+                       and e ? 'checked_by_self'), 'a checked alert shows who checked it, when and why');
+begin;
+select t.req('till1', 'GET', '/rpc/audit_view', :'kim_token');
+set transaction read only;
+select t.refused($$select audit_view()$$) as ro \gset
+commit;
+select t.ok(:'ro'::boolean, 'the log cannot be read in a way that leaves no trace');
+
+-- Erasure is not an edit door.
+select seq as a_product_seq from auditlog.log where table_name = 'products' and seal_id is not null order by seq limit 1 \gset
+select seq as a_member_seq from auditlog.log where table_name = 'members' and row_pk = :'kim' and kind = 'row' order by seq limit 1 \gset
+begin;
+set local auditlog.erasing = 'on';
+select t.ok(t.refused(format($$update auditlog.log set new_data = '{"standard_price": 1}', erased_at = now() where seq = %s$$, :a_product_seq)),
+  'the erasure flag cannot be used to rewrite an entry that is not a member row');
+select t.ok(t.refused(format($$update auditlog.log set new_data = '{"name": "Someone Else"}', erased_at = now() where seq = %s$$, :a_member_seq)),
+  'nor to write anything but blanked personal fields into a member row');
+select t.ok(t.refused(format($$update auditlog.log set detail = '{"flags": []}', erased_at = now() where seq = %s$$, :a_member_seq)),
+  'nor to touch anything else on it');
+update auditlog.log set old_data = auditlog.erase_pii(old_data), new_data = auditlog.erase_pii(new_data), erased_at = now() where seq = :a_member_seq;
+select t.ok(not (auditlog.verify() ->> 'ok')::boolean
+            and exists (select 1 from jsonb_array_elements(auditlog.verify() -> 'problems') p where p ->> 'problem' = 'erased_without_record'),
+  'blanking a member entry by hand, with no recorded erasure, is reported');
+rollback;
+
+-- Every protection is checked, not just the capture triggers.
+begin;
+drop trigger aa_audit_guard on public.orders;
+alter table public.members disable trigger aa_audit_guard_fields;
+alter table public.stock_movements enable replica trigger zz_audit_capture;
+create function public.zz_noop() returns trigger language plpgsql as $f$ begin return null; end $f$;
+drop trigger zz_audit_truncate on public.products;
+create trigger zz_audit_truncate after truncate on public.products for each statement execute function public.zz_noop();
+select t.put('cov', auditlog.coverage());
+select t.ok(t.get('cov') -> 'missing' ? 'orders:guard', 'a dropped guard is reported');
+select t.ok(t.get('cov') -> 'disabled' ? 'members:protected_fields', 'a switched-off field guard is reported');
+select t.ok(t.get('cov') -> 'disabled' ? 'stock_movements', 'a replica-only capture trigger counts as off');
+select t.ok(t.get('cov') -> 'repointed' ? 'products:truncate', 'a trigger pointed at another function is reported');
+rollback;
+
+-- ... including the code behind them being swapped for something inert.
+select t.ok(auditlog.manifest() = (select digest from auditlog.manifests order by id desc limit 1), 'the installed code matches the accepted fingerprint');
+begin;
+create or replace function auditlog.capture_truncate() returns trigger language plpgsql as $f$ begin return null; end $f$;
+select auditlog.nightly();
+select t.ok((t.entry('system', 'coverage.changed') ->> 'severity')::int = 3, 'replacing audit code is reported by the nightly check');
+rollback;
+select t.ok(t.refused($$delete from auditlog.manifests$$) and t.refused($$update auditlog.manifests set digest = 'x'$$), 'accepted fingerprints cannot be edited');
+
+-- The integrity check can be limited to recent seals, and says so.
+select t.ok((auditlog.verify(now() - interval '1 minute') ->> 'scope') = 'recent'
+            and (auditlog.verify(now() - interval '1 minute') ->> 'ok')::boolean
+            and (auditlog.verify() ->> 'scope') = 'everything', 'windowed verification');
+begin;
+alter table auditlog.log disable trigger append_only;
+update auditlog.log set detail = '{"x": 1}' where seq = (select min(seq) from auditlog.log where seal_id = 1);
+select t.ok((auditlog.verify(now() + interval '1 hour') ->> 'ok')::boolean and not (auditlog.verify() ->> 'ok')::boolean,
+  'a windowed check does not re-hash old entries; the full (nightly) check does');
+rollback;
+select t.ok(to_regclass('auditlog.log_seal_idx') is not null, 'the rows of a seal are indexed (verification is one indexed pass per seal)');
+
+-- Re-attaching takes no locks on tables that are already covered, and picks up new ones.
+select t.ok(auditlog.attach_all() = 0, 're-running attach does nothing when everything is covered');
+create table public.zz_new_thing (id uuid primary key default gen_random_uuid(), note text);
+select t.ok(auditlog.coverage() -> 'missing' ? 'zz_new_thing', 'a table created later is reported as not recorded');
+select t.ok(auditlog.attach_all() = 1, 'attach picks up just the new table');
+insert into public.zz_new_thing (note) values ('hello');
+select t.ok(t.n('row', 'insert', 'zz_new_thing') = 1 and auditlog.coverage() -> 'missing' = '[]'::jsonb, 'and it is then recorded');
+drop table public.zz_new_thing;
 
 -- ── Done ─────────────────────────────────────────────────────────────────
 

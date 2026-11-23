@@ -3,6 +3,30 @@ import { db } from './db'
 import { useSyncStore } from '../stores/syncStore'
 import { getTillId } from './till'
 
+// PostgREST's answer when no function with those argument names exists.
+function isMissingFunction(error) {
+  return !!error && (error.code === 'PGRST202' || /could not find the function/i.test(error.message ?? ''))
+}
+
+// Staff PIN hashes come back with select('*'). Nothing on the till needs
+// them, so they are dropped before a row is cached or handed to the app —
+// they must not sit in the till's local database for anyone to copy.
+function withoutPinHash(row) {
+  if (!row || typeof row !== 'object' || !('pin_hash' in row)) return row
+  const { pin_hash, ...rest } = row
+  return { ...rest, has_pin: pin_hash != null }
+}
+
+/**
+ * One-off tidy-up at start-up: remove PIN hashes that earlier versions of
+ * the till cached locally. Never throws.
+ */
+export async function scrubCachedPinHashes() {
+  try {
+    await db.members.toCollection().modify(row => { delete row.pin_hash })
+  } catch { /* no local cache, or it cannot be opened: nothing to scrub */ }
+}
+
 export async function fetchMembers() {
   const { isOnline } = useSyncStore.getState()
 
@@ -13,8 +37,9 @@ export async function fetchMembers() {
       .eq('active', true)
       .order('name')
     if (error) throw error
-    await db.members.bulkPut(data)
-    return data
+    const members = (data ?? []).map(withoutPinHash)
+    await db.members.bulkPut(members)
+    return members
   } else {
     return db.members.where('active').equals(1).sortBy('name')
   }
@@ -33,8 +58,9 @@ export async function searchMembersByName(name) {
       .ilike('name', `%${name}%`)
       .order('name')
       .limit(8)
-    if (data?.length) await db.members.bulkPut(data)
-    return data ?? []
+    const rows = (data ?? []).map(withoutPinHash)
+    if (rows.length) await db.members.bulkPut(rows)
+    return rows
   }
   const lower = name.toLowerCase()
   return db.members.filter(m => m.active && m.name.toLowerCase().includes(lower)).toArray()
@@ -51,8 +77,8 @@ export async function findMemberByNumber(membership_number) {
       .eq('membership_number', membership_number)
       .single()
     if (error) return null
-    await db.members.put(data)
-    return data
+    await db.members.put(withoutPinHash(data))
+    return withoutPinHash(data)
   }
   return await db.members.where('membership_number').equals(membership_number).first()
 }
@@ -67,8 +93,8 @@ export async function upsertMember(member) {
     // — and isn't gated on a freshly deployed JS bundle.
     const { data, error } = await supabase.from('members').update(fields).eq('id', id).select().single()
     if (error) throw error
-    await db.members.put(data)
-    return data
+    await db.members.put(withoutPinHash(data))
+    return withoutPinHash(data)
   } else {
     if (!fields.membership_number) {
       // Use max(M####) + 1, not count + 1 — count is unreliable once any
@@ -111,14 +137,23 @@ export async function settleTab(member_id, amount, payment_method, staff_id) {
   // stamp on a FULL settlement only, and the settlement order insert. The
   // order is flagged as a tab settlement and remembers the previous
   // last_settled_at, so a mistaken settle can be undone from Recent Sales.
-  const { data, error } = await supabase.rpc('settle_tab', {
+  const args = {
     p_member_id: member_id,
     p_amount: amount,
     p_payment_method: payment_method,
     p_till_id: getTillId(),
-    // Who took the payment — stamped on the settlement order.
-    p_staff_id: staff_id ?? null,
-  })
+  }
+  // Who took the payment — stamped on the settlement order.
+  let { data, error } = await supabase.rpc('settle_tab', { ...args, p_staff_id: staff_id ?? null })
+  // This bundle can reach a till before the database update has landed (or
+  // while the API is still reloading its schema): the old settle_tab has no
+  // p_staff_id. "Function not found" means nothing ran, so it is safe to
+  // ask again the old way — a customer must not be left unable to pay.
+  // ONLY for that error: after a timeout or a dropped connection the first
+  // call may have gone through, and a retry would take the payment twice.
+  if (isMissingFunction(error)) {
+    ({ data, error } = await supabase.rpc('settle_tab', args))
+  }
   if (error) throw error
   return Number(data)
 }

@@ -14,6 +14,8 @@ import { supabase } from '../supabase'
 import { logEvent } from './log'
 
 const KEY = 'audit_seal'
+const DISPUTED_KEY = 'audit_seal_disputed'
+const MAX_DISPUTED = 10
 
 /** @returns {{ id: number, hash: string, code: string, at: string } | null} */
 export function rememberedSeal() {
@@ -24,6 +26,30 @@ export function rememberedSeal() {
   } catch {
     return null
   }
+}
+
+/**
+ * Seals this till once held that the database later no longer had: the
+ * till's own evidence that history changed underneath it. Kept until
+ * someone clears the till's storage; shown on the Log page.
+ * @returns {{ id: number, hash: string, code: string, at: string, noticed_at: string }[]}
+ */
+export function disputedSeals() {
+  try {
+    const list = JSON.parse(globalThis.localStorage?.getItem(DISPUTED_KEY) ?? '[]')
+    return Array.isArray(list) ? list : []
+  } catch {
+    return []
+  }
+}
+
+function keepAsDisputed(seal) {
+  try {
+    const list = disputedSeals()
+    if (list.some(d => d.id === seal.id && d.hash === seal.hash)) return
+    list.push({ ...seal, noticed_at: new Date().toISOString() })
+    globalThis.localStorage?.setItem(DISPUTED_KEY, JSON.stringify(list.slice(-MAX_DISPUTED)))
+  } catch { /* storage full or unavailable */ }
 }
 
 /**
@@ -39,17 +65,18 @@ export async function witnessSeal() {
       p_hash: mine?.hash ?? null,
     })
     if (error || !data) return null
-    if (data.match === false) {
-      logEvent('integrity.seal_mismatch_seen', { remembered: mine?.code ?? null }, { severity: 2 })
+    if (data.match === false && mine) {
+      // The database no longer has the seal this till was shown. Keep our
+      // copy aside FIRST — it is the evidence — and only then follow the
+      // database's current chain (so this is raised once, not on every
+      // check-in for ever after a legitimate restore).
+      keepAsDisputed(mine)
+      logEvent('integrity.seal_mismatch_seen', { remembered: mine.code ?? null, remembered_seal: mine.id }, { severity: 2 })
     }
     if (data.head) {
-      // Only ever move forwards: a server that answers with an OLDER seal
-      // than the one we hold must not overwrite our evidence.
-      if (!mine || data.match !== false || data.head.id > mine.id) {
-        globalThis.localStorage?.setItem(KEY, JSON.stringify({
-          id: data.head.id, hash: data.head.hash, code: data.head.code, at: data.head.sealed_at,
-        }))
-      }
+      globalThis.localStorage?.setItem(KEY, JSON.stringify({
+        id: data.head.id, hash: data.head.hash, code: data.head.code, at: data.head.sealed_at,
+      }))
     }
     return data.head ?? null
   } catch {

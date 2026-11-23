@@ -41,6 +41,10 @@ export function initAudit() {
     witnessSeal()
     setInterval(witnessSeal, 15 * 60_000)
 
+    // Earlier versions cached staff PIN hashes in the till's local
+    // database. Remove them. (Loaded lazily: it pulls in the local database.)
+    import('../members').then(m => m.scrubCachedPinHashes()).catch(() => {})
+
     window.addEventListener('online', () => {
       logEvent('connection.restored', {}, { severity: 1 })
       probe()

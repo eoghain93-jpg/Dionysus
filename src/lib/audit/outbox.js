@@ -100,7 +100,15 @@ export function createOutbox({ store, send, isOnline = () => true, now = () => D
     inFlight = (async () => {
       let sent = 0
       try {
-        sent += await drain(store)
+        try {
+          sent += await drain(store)
+        } catch (err) {
+          // The durable queue could not be read or sent. Whatever fell
+          // back to memory must still get its turn before giving up.
+          if (!fallback) throw err
+          sent += await drain(fallback)
+          throw err
+        }
         if (fallback) sent += await drain(fallback)
         failures = 0
       } catch (err) {

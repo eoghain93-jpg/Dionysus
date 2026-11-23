@@ -105,10 +105,32 @@ describe('audit outbox', () => {
     expect(send).toHaveBeenCalledTimes(1)
   })
 
+  it('still delivers what fell back to memory when the durable queue cannot even be read', async () => {
+    // add() fails (so events go to memory) AND oldest() throws (so draining
+    // the durable queue fails): the memory queue must not be stranded behind it.
+    const unreadable = {
+      add: async () => { throw new Error('IndexedDB unavailable') },
+      oldest: async () => { throw new Error('IndexedDB unavailable') },
+      remove: async () => {},
+      count: async () => { throw new Error('IndexedDB unavailable') },
+    }
+    const send = vi.fn(async () => ({}))
+    const outbox = createOutbox({ store: unreadable, send })
+    await outbox.enqueue(ev(1))
+    await outbox.enqueue(ev(2))
+
+    await outbox.flush()
+
+    expect(send).toHaveBeenCalledTimes(1)
+    expect(send.mock.calls[0][0].map(e => e.id)).toEqual(['e00001', 'e00002'])
+    expect(await outbox.pending()).toBe(0)
+  })
+
   it('enqueue never throws, whatever the stores do', async () => {
     const dead = { add: async () => { throw new Error('x') }, oldest: async () => { throw new Error('x') }, remove: async () => {}, count: async () => { throw new Error('x') } }
     const outbox = createOutbox({ store: dead, send: async () => {} })
     await expect(outbox.enqueue(ev(1))).resolves.toBeUndefined()
-    await expect(outbox.flush()).resolves.toBe(0)
+    // ... and neither does flush; the event that fell back to memory is still delivered.
+    await expect(outbox.flush()).resolves.toBe(1)
   })
 })

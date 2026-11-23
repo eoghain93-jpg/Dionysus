@@ -33,16 +33,27 @@ export async function createOrderWithItems(order, items) {
 // Today's paid sales, newest first — the Fix Payment list. Capped at 50:
 // mistakes are caught within a few sales, nobody scrolls to this morning.
 // Trading-day window, so a sale rung at 1am is still fixable at 1:05am.
+// PostgREST / Postgres answers for a column this database does not have yet.
+function isMissingColumn(error) {
+  return !!error && (error.code === '42703' || error.code === 'PGRST204'
+    || /column .* does not exist|could not find the .* column/i.test(error.message ?? ''))
+}
+
 export async function fetchTodaysOrders() {
   const { from, to } = tradingDayRange(tradingTodayISO())
-  const { data, error } = await supabase
+  const query = columns => supabase
     .from('orders')
-    .select('id, created_at, total_amount, payment_method, status, member_id, staff_id, is_tab_settlement, members(name)')
+    .select(columns)
     .eq('status', 'paid')
     .gte('created_at', from)
     .lt('created_at', to)
     .order('created_at', { ascending: false })
     .limit(50)
+  const base = 'id, created_at, total_amount, payment_method, status, member_id, is_tab_settlement, members(name)'
+  let { data, error } = await query(`${base}, staff_id`)
+  // Bundle ahead of the database update: no staff_id column yet. The list
+  // (and Fix Payment with it) must still open.
+  if (isMissingColumn(error)) ({ data, error } = await query(base))
   if (error) throw error
   return attachStaffNames(data ?? [])
 }
