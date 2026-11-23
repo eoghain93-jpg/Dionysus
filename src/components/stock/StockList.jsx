@@ -88,7 +88,7 @@ export default function StockList({ products, onWastage, onRestock, onEdit }) {
                     onClick={() => onWastage(product)}
                     title="Log wastage or spillage"
                     aria-label={`Log wastage or spillage for ${product.name}`}
-                    className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg text-slate-400 hover:text-red-400 hover:bg-red-400/10 transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617]"
+                    className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg text-slate-400 hover:text-red-400 hover:bg-red-400/10 transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#121314]"
                   >
                     <Trash2 size={16} aria-hidden="true" />
                   </button>
@@ -98,7 +98,7 @@ export default function StockList({ products, onWastage, onRestock, onEdit }) {
                     onClick={() => onRestock(product)}
                     title="Restock"
                     aria-label={`Restock ${product.name}`}
-                    className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg text-slate-400 hover:text-green-400 hover:bg-green-400/10 transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617]"
+                    className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg text-slate-400 hover:text-green-400 hover:bg-green-400/10 transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#121314]"
                   >
                     <Plus size={16} aria-hidden="true" />
                   </button>
@@ -108,7 +108,7 @@ export default function StockList({ products, onWastage, onRestock, onEdit }) {
                     onClick={() => onEdit(product)}
                     title="Edit product"
                     aria-label={`Edit ${product.name}`}
-                    className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg text-slate-400 hover:text-blue-400 hover:bg-blue-400/10 transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617]"
+                    className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg text-slate-400 hover:text-blue-400 hover:bg-blue-400/10 transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#121314]"
                   >
                     <Edit2 size={16} aria-hidden="true" />
                   </button>

@@ -95,7 +95,7 @@ export default function RecentSalesModal({ onClose }) {
       aria-modal="true"
       aria-label="Recent sales"
     >
-      <div className="bg-[#0F172A] border border-slate-700 rounded-2xl w-full max-w-md p-5 flex flex-col gap-4 max-h-[85dvh]">
+      <div className="bg-[#191B1D] border border-slate-700 rounded-2xl w-full max-w-md p-5 flex flex-col gap-4 max-h-[85dvh]">
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-white font-bold text-lg">Recent Sales</h2>

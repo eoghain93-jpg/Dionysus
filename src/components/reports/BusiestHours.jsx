@@ -88,7 +88,7 @@ export default function BusiestHours() {
           />
           <Tooltip
             contentStyle={{
-              backgroundColor: '#0F172A',
+              backgroundColor: '#191B1D',
               border: '1px solid #1E293B',
               borderRadius: 8,
               color: '#F8FAFC',

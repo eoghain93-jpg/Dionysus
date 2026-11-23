@@ -101,7 +101,7 @@ export default function MemberFormModal({ member, onClose, onSaved }) {
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        className="w-full max-w-lg bg-[#0F172A] border border-slate-700 rounded-2xl shadow-xl flex flex-col my-auto"
+        className="w-full max-w-lg bg-[#191B1D] border border-slate-700 rounded-2xl shadow-xl flex flex-col my-auto"
       >
         {/* Header */}
         <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-slate-700">
@@ -114,7 +114,7 @@ export default function MemberFormModal({ member, onClose, onSaved }) {
           <button
             onClick={onClose}
             aria-label="Close modal"
-            className="text-slate-400 hover:text-white transition-colors cursor-pointer min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617]"
+            className="text-slate-400 hover:text-white transition-colors cursor-pointer min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#121314]"
           >
             <X size={20} aria-hidden="true" />
           </button>
@@ -141,7 +141,7 @@ export default function MemberFormModal({ member, onClose, onSaved }) {
               value={form.name}
               onChange={handleChange('name')}
               placeholder="Full name"
-              className="bg-[#1E293B] border border-slate-600 rounded-lg px-3 py-2 text-white placeholder-slate-500 min-h-[44px] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617]"
+              className="bg-[#1E293B] border border-slate-600 rounded-lg px-3 py-2 text-white placeholder-slate-500 min-h-[44px] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#121314]"
             />
           </div>
 
@@ -158,7 +158,7 @@ export default function MemberFormModal({ member, onClose, onSaved }) {
               value={form.membership_number}
               onChange={handleChange('membership_number')}
               placeholder="e.g. M0001"
-              className="bg-[#1E293B] border border-slate-600 rounded-lg px-3 py-2 text-white placeholder-slate-500 min-h-[44px] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617]"
+              className="bg-[#1E293B] border border-slate-600 rounded-lg px-3 py-2 text-white placeholder-slate-500 min-h-[44px] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#121314]"
             />
           </div>
 
@@ -174,7 +174,7 @@ export default function MemberFormModal({ member, onClose, onSaved }) {
                 value={form.phone}
                 onChange={handleChange('phone')}
                 placeholder="07700 000000"
-                className="bg-[#1E293B] border border-slate-600 rounded-lg px-3 py-2 text-white placeholder-slate-500 min-h-[44px] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617]"
+                className="bg-[#1E293B] border border-slate-600 rounded-lg px-3 py-2 text-white placeholder-slate-500 min-h-[44px] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#121314]"
               />
             </div>
             <div className="flex flex-col gap-1">
@@ -187,7 +187,7 @@ export default function MemberFormModal({ member, onClose, onSaved }) {
                 value={form.email}
                 onChange={handleChange('email')}
                 placeholder="name@example.com"
-                className="bg-[#1E293B] border border-slate-600 rounded-lg px-3 py-2 text-white placeholder-slate-500 min-h-[44px] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617]"
+                className="bg-[#1E293B] border border-slate-600 rounded-lg px-3 py-2 text-white placeholder-slate-500 min-h-[44px] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#121314]"
               />
             </div>
           </div>
@@ -203,7 +203,7 @@ export default function MemberFormModal({ member, onClose, onSaved }) {
                 required
                 value={form.membership_tier}
                 onChange={handleChange('membership_tier')}
-                className="bg-[#1E293B] border border-slate-600 rounded-lg px-3 py-2 text-white min-h-[44px] capitalize focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617] cursor-pointer"
+                className="bg-[#1E293B] border border-slate-600 rounded-lg px-3 py-2 text-white min-h-[44px] capitalize focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#121314] cursor-pointer"
               >
                 {TIERS.map(t => (
                   <option key={t} value={t} className="capitalize">{t}</option>
@@ -219,7 +219,7 @@ export default function MemberFormModal({ member, onClose, onSaved }) {
                 type="date"
                 value={form.renewal_date}
                 onChange={handleChange('renewal_date')}
-                className="bg-[#1E293B] border border-slate-600 rounded-lg px-3 py-2 text-white placeholder-slate-500 min-h-[44px] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617] cursor-pointer"
+                className="bg-[#1E293B] border border-slate-600 rounded-lg px-3 py-2 text-white placeholder-slate-500 min-h-[44px] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#121314] cursor-pointer"
               />
             </div>
           </div>
@@ -235,7 +235,7 @@ export default function MemberFormModal({ member, onClose, onSaved }) {
               value={form.favourite_drinks}
               onChange={handleChange('favourite_drinks')}
               placeholder="Guinness, Jameson, Coke"
-              className="bg-[#1E293B] border border-slate-600 rounded-lg px-3 py-2 text-white placeholder-slate-500 min-h-[44px] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617]"
+              className="bg-[#1E293B] border border-slate-600 rounded-lg px-3 py-2 text-white placeholder-slate-500 min-h-[44px] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#121314]"
             />
           </div>
 
@@ -250,7 +250,7 @@ export default function MemberFormModal({ member, onClose, onSaved }) {
               value={form.notes}
               onChange={handleChange('notes')}
               placeholder="Any additional notes…"
-              className="bg-[#1E293B] border border-slate-600 rounded-lg px-3 py-2 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617] resize-none"
+              className="bg-[#1E293B] border border-slate-600 rounded-lg px-3 py-2 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#121314] resize-none"
             />
           </div>
 
@@ -259,14 +259,14 @@ export default function MemberFormModal({ member, onClose, onSaved }) {
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 min-h-[44px] rounded-xl border border-slate-600 text-slate-300 hover:bg-slate-700 hover:text-white transition-colors cursor-pointer text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617]"
+              className="flex-1 min-h-[44px] rounded-xl border border-slate-600 text-slate-300 hover:bg-slate-700 hover:text-white transition-colors cursor-pointer text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#121314]"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={saving}
-              className="flex-1 min-h-[44px] rounded-xl bg-[#22C55E] hover:bg-green-400 disabled:opacity-50 disabled:cursor-not-allowed text-slate-900 font-bold text-sm transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617]"
+              className="flex-1 min-h-[44px] rounded-xl bg-[#22C55E] hover:bg-green-400 disabled:opacity-50 disabled:cursor-not-allowed text-slate-900 font-bold text-sm transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#121314]"
             >
               {saving ? 'Saving…' : isEditing ? 'Save Changes' : 'Add Member'}
             </button>

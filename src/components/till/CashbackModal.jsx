@@ -40,7 +40,7 @@ export default function CashbackModal({ onClose, onSaved }) {
       aria-modal="true"
       aria-label="Record Cashback"
     >
-      <div className="bg-[#0F172A] border border-slate-700 rounded-2xl w-full max-w-sm p-5 flex flex-col gap-4">
+      <div className="bg-[#191B1D] border border-slate-700 rounded-2xl w-full max-w-sm p-5 flex flex-col gap-4">
         <div className="flex items-center justify-between">
           <h2 className="text-white font-bold text-lg">Record Cashback</h2>
           <button onClick={onClose} aria-label="Close" className="text-slate-400 hover:text-white cursor-pointer">

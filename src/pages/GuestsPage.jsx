@@ -41,11 +41,11 @@ export default function GuestsPage() {
             onChange={e => changeDate(e.target.value)}
             max={tradingTodayISO()}
             aria-label="Select guest book date"
-            className="bg-[#0F172A] border border-slate-700 rounded-xl px-3 min-h-[44px] text-white text-sm cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617]"
+            className="bg-[#191B1D] border border-slate-700 rounded-xl px-3 min-h-[44px] text-white text-sm cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#121314]"
           />
           <button
             onClick={() => setShowSignIn(true)}
-            className="flex items-center gap-2 px-4 min-h-[44px] rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617]"
+            className="flex items-center gap-2 px-4 min-h-[44px] rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#121314]"
           >
             <UserPlus size={16} aria-hidden="true" />
             Sign in guest
@@ -60,7 +60,7 @@ export default function GuestsPage() {
       ) : guests.length === 0 ? (
         <div className="text-slate-400 text-sm">No guests signed in on {date}</div>
       ) : (
-        <div className="bg-[#0F172A] border border-slate-700 rounded-2xl overflow-hidden">
+        <div className="bg-[#191B1D] border border-slate-700 rounded-2xl overflow-hidden">
           <div className="px-4 py-3 border-b border-slate-700 text-slate-400 text-sm">
             {guests.length} guest{guests.length > 1 ? 's' : ''}
           </div>

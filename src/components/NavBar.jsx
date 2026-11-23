@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { NavLink, useLocation } from 'react-router-dom'
-import { ShoppingCart, Package, Users, BarChart2, Tag, Receipt, ArrowLeftRight, Settings, MoreHorizontal, X, UserPlus } from 'lucide-react'
+import { ShoppingCart, Package, Users, BarChart2, Tag, Receipt, Settings, MoreHorizontal, X, UserPlus } from 'lucide-react'
 import { useSessionStore } from '../stores/sessionStore'
 import { useTabAlertStore } from '../stores/tabAlertStore'
 import SwitchUserModal from './till/SwitchUserModal'
@@ -80,55 +80,50 @@ export default function NavBar() {
   return (
     <>
       {/* Sidebar — tablet/desktop (shows all links) */}
-      <nav className="hidden md:flex flex-col w-20 lg:w-52 bg-slate-900 border-r border-slate-800 p-3 gap-1 shrink-0">
-        <div className="px-1 py-3 hidden lg:flex justify-center">
-          <img src="/fairmile-logo.png" alt="The Fairmile Pub & Kitchen"
-            className="w-28 h-auto" />
-        </div>
+      <nav className="hidden md:flex flex-col items-center w-[88px] bg-slate-950 px-2 pt-4 pb-3 gap-1 shrink-0 overflow-y-auto">
         {allLinks.map(({ to, label, Icon }) => (
           <NavLink
             key={to}
             to={to}
             end={to === '/'}
             className={({ isActive }) =>
-              `flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium
-               transition-colors duration-200 cursor-pointer min-h-[44px]
+              `w-[72px] min-h-[62px] flex flex-col items-center justify-center gap-1 rounded-2xl text-[13px]
+               transition-colors duration-200 cursor-pointer
                ${isActive
-                 ? 'bg-blue-600 text-white'
-                 : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`
+                 ? 'bg-blue-600 text-white font-bold'
+                 : 'text-slate-400 font-semibold hover:bg-slate-800 hover:text-white'}`
             }
           >
             <span className="relative flex">
-              <Icon size={20} aria-hidden="true" />
+              <Icon size={22} aria-hidden="true" />
               {to === '/tabs' && <OverdueBadge count={overdueCount} />}
             </span>
-            <span className="hidden lg:block">{label}</span>
+            <span>{label}</span>
           </NavLink>
         ))}
         {activeStaff && (
-          <div className="mt-auto pt-3 border-t border-slate-800 flex flex-col gap-1">
+          <div className="mt-auto pt-3 flex flex-col items-center gap-1">
             <button
               onClick={() => setShowDavey(true)}
-              className="w-full flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium
+              className="w-[72px] min-h-[56px] flex flex-col items-center justify-center gap-1 rounded-2xl text-[13px] font-semibold
                 text-slate-400 hover:bg-slate-800 hover:text-white transition-colors duration-200 cursor-pointer
                 focus:outline-none focus:ring-2 focus:ring-blue-500"
               aria-label="Davey mode"
             >
               <StripesIcon size={20} />
-              <span className="hidden lg:block">Davey</span>
+              <span>Davey</span>
             </button>
             <button
               onClick={() => setShowSwitch(true)}
-              className="w-full flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium
-                text-slate-400 hover:bg-slate-800 hover:text-white transition-colors duration-200 cursor-pointer
+              className="w-[72px] min-h-[68px] flex flex-col items-center justify-center gap-1 rounded-2xl text-[13px] font-semibold
+                border border-slate-700 text-slate-100 hover:bg-slate-800 transition-colors duration-200 cursor-pointer
                 focus:outline-none focus:ring-2 focus:ring-blue-500"
               aria-label="Switch user"
             >
-              <span className="w-7 h-7 rounded-full bg-blue-600 flex items-center justify-center text-white text-xs font-bold shrink-0">
+              <span className="w-[30px] h-[30px] rounded-full bg-slate-100 text-[#121314] flex items-center justify-center text-[13px] font-extrabold shrink-0">
                 {initials(activeStaff.name)}
               </span>
-              <span className="hidden lg:block truncate flex-1 text-left">{activeStaff.name}</span>
-              <ArrowLeftRight size={14} className="hidden lg:block shrink-0" aria-hidden="true" />
+              <span className="max-w-full px-1 truncate">{activeStaff.name.split(' ')[0]}</span>
             </button>
           </div>
         )}
@@ -211,7 +206,7 @@ export default function NavBar() {
           aria-label={`Logged in as ${activeStaff.name}. Tap to switch user.`}
           className="md:hidden fixed top-8 right-3 z-40 w-11 h-11 rounded-full bg-blue-600 hover:bg-blue-500
             flex items-center justify-center text-white text-sm font-bold shadow-lg cursor-pointer
-            focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617]"
+            focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#121314]"
         >
           {initials(activeStaff.name)}
         </button>

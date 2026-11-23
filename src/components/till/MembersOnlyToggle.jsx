@@ -73,13 +73,13 @@ export default function MembersOnlyToggle() {
       <button
         type="button"
         onClick={requestToggle}
-        className="self-start min-h-[36px] px-3 rounded-lg bg-slate-800 hover:bg-slate-700
-          border border-slate-700 text-slate-400 text-xs font-medium cursor-pointer
-          transition-colors flex items-center gap-1.5
-          focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617]"
+        className="min-h-[48px] px-4 rounded-xl bg-transparent hover:bg-slate-800
+          border border-slate-700 text-slate-100 text-[15px] font-bold cursor-pointer whitespace-nowrap
+          transition-colors flex items-center gap-2
+          focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#121314]"
       >
-        <Users size={14} aria-hidden="true" />
-        Start members-only event mode
+        <Users size={18} aria-hidden="true" />
+        Members-only event mode
       </button>
       {pendingChange && <ConfirmModal pendingChange={pendingChange} onConfirm={confirmChange} onCancel={cancelChange} />}
     </>
@@ -97,7 +97,7 @@ function ConfirmModal({ pendingChange, onConfirm, onCancel }) {
       onClick={onCancel}
     >
       <div
-        className="bg-[#0F172A] border border-slate-700 rounded-2xl w-full max-w-sm p-5 flex flex-col gap-4"
+        className="bg-[#191B1D] border border-slate-700 rounded-2xl w-full max-w-sm p-5 flex flex-col gap-4"
         onClick={e => e.stopPropagation()}
       >
         <h2 id="members-mode-confirm-title" className="text-white text-lg font-bold">

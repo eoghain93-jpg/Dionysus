@@ -77,13 +77,13 @@ export default function ReportsPage() {
             onChange={e => setDate(e.target.value)}
             max={todayISO()}
             aria-label="Select report date"
-            className="bg-[#0F172A] border border-slate-700 rounded-xl px-3 min-h-[44px] text-white text-sm cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617]"
+            className="bg-[#191B1D] border border-slate-700 rounded-xl px-3 min-h-[44px] text-white text-sm cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#121314]"
           />
           {/* Export CSV */}
           <button
             onClick={handleExportCSV}
             disabled={exporting}
-            className="flex items-center gap-2 px-4 min-h-[44px] rounded-xl bg-[#1E293B] hover:bg-slate-700 border border-slate-600 text-white text-sm font-semibold transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617]"
+            className="flex items-center gap-2 px-4 min-h-[44px] rounded-xl bg-[#1E293B] hover:bg-slate-700 border border-slate-600 text-white text-sm font-semibold transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#121314]"
           >
             <Download size={16} aria-hidden="true" />
             {exporting ? 'Exporting…' : 'Export CSV'}
@@ -91,7 +91,7 @@ export default function ReportsPage() {
           {/* Stocktake — opens dedicated page with date range, table, CSV download, email */}
           <Link
             to="/stocktake"
-            className="flex items-center gap-2 px-4 min-h-[44px] rounded-xl bg-[#1E293B] hover:bg-slate-700 border border-slate-600 text-white text-sm font-semibold transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617]"
+            className="flex items-center gap-2 px-4 min-h-[44px] rounded-xl bg-[#1E293B] hover:bg-slate-700 border border-slate-600 text-white text-sm font-semibold transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#121314]"
           >
             <Package size={16} aria-hidden="true" />
             Stocktake
@@ -99,7 +99,7 @@ export default function ReportsPage() {
           {/* Monthly report — month picker, daily takings, totals, CSV + email for the accountant */}
           <Link
             to="/monthly-report"
-            className="flex items-center gap-2 px-4 min-h-[44px] rounded-xl bg-[#1E293B] hover:bg-slate-700 border border-slate-600 text-white text-sm font-semibold transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617]"
+            className="flex items-center gap-2 px-4 min-h-[44px] rounded-xl bg-[#1E293B] hover:bg-slate-700 border border-slate-600 text-white text-sm font-semibold transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#121314]"
           >
             <Calendar size={16} aria-hidden="true" />
             Monthly
@@ -107,7 +107,7 @@ export default function ReportsPage() {
           {/* Z Report */}
           <button
             onClick={() => setShowPinGate(true)}
-            className="flex items-center gap-2 px-4 min-h-[44px] rounded-xl bg-red-900/60 hover:bg-red-800 border border-red-700/60 text-white text-sm font-semibold transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 focus:ring-offset-[#020617]"
+            className="flex items-center gap-2 px-4 min-h-[44px] rounded-xl bg-red-900/60 hover:bg-red-800 border border-red-700/60 text-white text-sm font-semibold transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 focus:ring-offset-[#121314]"
           >
             <FileText size={16} aria-hidden="true" />
             Z Report
@@ -142,7 +142,7 @@ export default function ReportsPage() {
           </h2>
           <span className="text-slate-500 text-sm ml-1">Last 7 days</span>
         </div>
-        <div className="bg-[#0F172A] border border-slate-700 rounded-2xl p-4">
+        <div className="bg-[#191B1D] border border-slate-700 rounded-2xl p-4">
           <BusiestHours />
         </div>
       </section>
@@ -159,7 +159,7 @@ export default function ReportsPage() {
           </h2>
           <span className="text-slate-500 text-sm ml-1">Last 7 days by revenue</span>
         </div>
-        <div className="bg-[#0F172A] border border-slate-700 rounded-2xl p-4">
+        <div className="bg-[#191B1D] border border-slate-700 rounded-2xl p-4">
           <TopProducts />
         </div>
       </section>

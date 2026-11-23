@@ -77,7 +77,7 @@ export default function StocktakePage() {
       </div>
 
       {/* Controls */}
-      <div className="bg-[#0F172A] rounded-2xl border border-slate-700 p-4 flex flex-wrap items-end gap-3">
+      <div className="bg-[#191B1D] rounded-2xl border border-slate-700 p-4 flex flex-wrap items-end gap-3">
         <div>
           <label htmlFor="stk-start" className="block text-slate-400 text-xs mb-1">From</label>
           <input
@@ -143,7 +143,7 @@ export default function StocktakePage() {
 
       {/* Table */}
       {data && (
-        <div className="flex-1 bg-[#0F172A] rounded-2xl border border-slate-700 overflow-auto">
+        <div className="flex-1 bg-[#191B1D] rounded-2xl border border-slate-700 overflow-auto">
           <table className="w-full text-sm">
             <thead className="bg-slate-800 sticky top-0">
               <tr className="text-slate-400 text-xs uppercase tracking-wide">
@@ -195,7 +195,7 @@ function SummaryCard({ label, value, accent }) {
     orange: 'text-orange-400',
   }[accent] ?? 'text-white'
   return (
-    <div className="bg-[#0F172A] border border-slate-700 rounded-2xl p-4">
+    <div className="bg-[#191B1D] border border-slate-700 rounded-2xl p-4">
       <p className="text-slate-400 text-xs uppercase tracking-wide">{label}</p>
       <p className={`text-2xl font-bold mt-1 ${ring}`}>{value}</p>
     </div>

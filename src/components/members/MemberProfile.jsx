@@ -113,7 +113,7 @@ export default function MemberProfile({ member, onClose, onEdit, onSettleTab }) 
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        className="w-full max-w-lg bg-[#0F172A] border border-slate-700 rounded-2xl shadow-xl flex flex-col my-auto"
+        className="w-full max-w-lg bg-[#191B1D] border border-slate-700 rounded-2xl shadow-xl flex flex-col my-auto"
       >
         {/* Header */}
         <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-slate-700">
@@ -127,7 +127,7 @@ export default function MemberProfile({ member, onClose, onEdit, onSettleTab }) 
             ref={closeRef}
             onClick={onClose}
             aria-label="Close profile"
-            className="text-slate-400 hover:text-white transition-colors cursor-pointer min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617]"
+            className="text-slate-400 hover:text-white transition-colors cursor-pointer min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#121314]"
           >
             <X size={20} aria-hidden="true" />
           </button>
@@ -251,7 +251,7 @@ export default function MemberProfile({ member, onClose, onEdit, onSettleTab }) 
           {hasTab && (
             <button
               onClick={() => setSettleModalOpen(true)}
-              className="flex items-center gap-2 px-4 min-h-[44px] rounded-xl bg-[#3B82F6] hover:bg-blue-400 text-white font-bold text-sm transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617]"
+              className="flex items-center gap-2 px-4 min-h-[44px] rounded-xl bg-[#3B82F6] hover:bg-blue-400 text-white font-bold text-sm transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#121314]"
             >
               <CreditCard size={16} aria-hidden="true" />
               Settle Tab
@@ -261,7 +261,7 @@ export default function MemberProfile({ member, onClose, onEdit, onSettleTab }) 
               owe something, so this is the only way to open a tab from £0. */}
           <button
             onClick={() => setAdjustModalOpen(true)}
-            className="flex items-center gap-2 px-4 min-h-[44px] rounded-xl bg-slate-700 hover:bg-slate-600 text-white font-semibold text-sm transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617]"
+            className="flex items-center gap-2 px-4 min-h-[44px] rounded-xl bg-slate-700 hover:bg-slate-600 text-white font-semibold text-sm transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#121314]"
           >
             <Edit2 size={16} aria-hidden="true" />
             Adjust Tab
@@ -269,7 +269,7 @@ export default function MemberProfile({ member, onClose, onEdit, onSettleTab }) 
           <button
             onClick={handleToggleBlock}
             disabled={savingBlock}
-            className={`flex items-center gap-2 px-4 min-h-[44px] rounded-xl font-semibold text-sm transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-default focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617] ${
+            className={`flex items-center gap-2 px-4 min-h-[44px] rounded-xl font-semibold text-sm transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-default focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#121314] ${
               tabBlocked
                 ? 'bg-slate-700 hover:bg-slate-600 text-white'
                 : 'bg-red-900 hover:bg-red-800 text-red-100'
@@ -290,7 +290,7 @@ export default function MemberProfile({ member, onClose, onEdit, onSettleTab }) 
           )}
           <button
             onClick={() => onEdit(member)}
-            className="flex-1 min-h-[44px] rounded-xl border border-slate-600 text-slate-300 hover:bg-slate-700 hover:text-white transition-colors cursor-pointer text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617]"
+            className="flex-1 min-h-[44px] rounded-xl border border-slate-600 text-slate-300 hover:bg-slate-700 hover:text-white transition-colors cursor-pointer text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#121314]"
           >
             Edit Member
           </button>

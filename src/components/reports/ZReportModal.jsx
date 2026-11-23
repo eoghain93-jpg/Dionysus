@@ -220,7 +220,7 @@ export default function ZReportModal({ date, onClose, onDayClose }) {
       aria-modal="true"
       aria-label={`Z Report for ${date}`}
     >
-      <div className="bg-[#0F172A] border border-slate-700 rounded-2xl w-full max-w-2xl my-4 flex flex-col">
+      <div className="bg-[#191B1D] border border-slate-700 rounded-2xl w-full max-w-2xl my-4 flex flex-col">
 
         {/* Header */}
         <div className="flex items-center justify-between p-5 border-b border-slate-700">
@@ -524,7 +524,7 @@ export default function ZReportModal({ date, onClose, onDayClose }) {
           <div className="flex items-center justify-end gap-3 p-5 border-t border-slate-700">
             <button
               onClick={handleExportCSV}
-              className="flex items-center gap-2 px-4 min-h-[44px] rounded-xl bg-slate-700 hover:bg-slate-600 border border-slate-600 text-white text-sm font-semibold transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617]"
+              className="flex items-center gap-2 px-4 min-h-[44px] rounded-xl bg-slate-700 hover:bg-slate-600 border border-slate-600 text-white text-sm font-semibold transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#121314]"
             >
               <Download size={15} aria-hidden="true" />
               Export CSV
@@ -532,7 +532,7 @@ export default function ZReportModal({ date, onClose, onDayClose }) {
             <button
               onClick={handleCloseDay}
               disabled={closing}
-              className="flex items-center gap-2 px-4 min-h-[44px] rounded-xl bg-red-800 hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-semibold transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 focus:ring-offset-[#020617]"
+              className="flex items-center gap-2 px-4 min-h-[44px] rounded-xl bg-red-800 hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-semibold transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 focus:ring-offset-[#121314]"
             >
               <Lock size={15} aria-hidden="true" />
               {closing ? 'Closing…' : 'Close Day'}

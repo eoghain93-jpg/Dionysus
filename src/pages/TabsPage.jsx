@@ -182,7 +182,7 @@ export default function TabsPage() {
               onClick={handlePrint}
               disabled={printing}
               aria-label="Print tabs"
-              className="shrink-0 px-3 min-h-[36px] rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-300 font-bold text-xs transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-default focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617]"
+              className="shrink-0 px-3 min-h-[36px] rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-300 font-bold text-xs transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-default focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#121314]"
             >
               {printing ? 'Printing…' : 'Print'}
             </button>
@@ -217,7 +217,7 @@ export default function TabsPage() {
           <button
             onClick={() => setOverdueOnly(v => !v)}
             aria-pressed={showOverdueOnly}
-            className="shrink-0 px-3 min-h-[36px] rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-900 font-bold text-xs transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617]"
+            className="shrink-0 px-3 min-h-[36px] rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-900 font-bold text-xs transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#121314]"
           >
             {showOverdueOnly ? 'Show all tabs' : 'Show overdue only'}
           </button>
@@ -225,7 +225,7 @@ export default function TabsPage() {
       )}
 
       {/* Content */}
-      <div className="flex-1 bg-[#0F172A] rounded-2xl border border-slate-700 overflow-auto">
+      <div className="flex-1 bg-[#191B1D] rounded-2xl border border-slate-700 overflow-auto">
         {loading ? (
           <p className="text-slate-400 text-sm p-6 text-center">Loading open tabs…</p>
         ) : error ? (
@@ -244,7 +244,7 @@ export default function TabsPage() {
                   <div className="flex items-center gap-3 px-4 py-3">
                     <button
                       onClick={() => toggleExpand(member.id)}
-                      className="flex-1 flex items-center gap-3 text-left focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617]"
+                      className="flex-1 flex items-center gap-3 text-left focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#121314]"
                       aria-expanded={isExpanded}
                     >
                       <ChevronRight
@@ -279,7 +279,7 @@ export default function TabsPage() {
                     <button
                       onClick={() => setSettlingMember(member)}
                       aria-label={`Settle tab for ${member.name}`}
-                      className="shrink-0 px-3 min-h-[36px] rounded-lg bg-[#22C55E] hover:bg-green-400 text-slate-900 font-bold text-xs transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617]"
+                      className="shrink-0 px-3 min-h-[36px] rounded-lg bg-[#22C55E] hover:bg-green-400 text-slate-900 font-bold text-xs transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#121314]"
                     >
                       Settle
                     </button>
@@ -298,7 +298,7 @@ export default function TabsPage() {
                           onClick={() => handleToggleBlock(member)}
                           disabled={blockingId === member.id}
                           aria-label={`${member.tab_blocked ? 'Unblock' : 'Block'} tab for ${member.name}`}
-                          className={`shrink-0 px-3 min-h-[36px] rounded-lg font-bold text-xs transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-default focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617] ${
+                          className={`shrink-0 px-3 min-h-[36px] rounded-lg font-bold text-xs transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-default focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#121314] ${
                             member.tab_blocked
                               ? 'bg-slate-700 hover:bg-slate-600 text-slate-300'
                               : 'bg-red-900 hover:bg-red-800 text-red-100'
@@ -310,14 +310,14 @@ export default function TabsPage() {
                           onClick={() => handlePrintStatement(member)}
                           disabled={printingStatementId === member.id}
                           aria-label={`Print tab statement for ${member.name}`}
-                          className="shrink-0 px-3 min-h-[36px] rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-300 font-bold text-xs transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-default focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617]"
+                          className="shrink-0 px-3 min-h-[36px] rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-300 font-bold text-xs transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-default focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#121314]"
                         >
                           {printingStatementId === member.id ? 'Printing…' : 'Print'}
                         </button>
                         <button
                           onClick={() => setAdjustingMember(member)}
                           aria-label={`Adjust tab for ${member.name}`}
-                          className="shrink-0 px-3 min-h-[36px] rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-300 font-bold text-xs transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617]"
+                          className="shrink-0 px-3 min-h-[36px] rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-300 font-bold text-xs transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#121314]"
                         >
                           Adjust
                         </button>

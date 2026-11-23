@@ -64,7 +64,7 @@ export default function DailySummary({ date }) {
   return (
     <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
       {/* Total Revenue */}
-      <div className="col-span-2 sm:col-span-3 lg:col-span-2 bg-[#0F172A] border border-slate-700 rounded-2xl p-4 flex flex-col gap-1">
+      <div className="col-span-2 sm:col-span-3 lg:col-span-2 bg-[#191B1D] border border-slate-700 rounded-2xl p-4 flex flex-col gap-1">
         <span className="text-slate-400 text-xs uppercase tracking-wide">Total Revenue</span>
         <span
           className="text-3xl font-bold text-[#22C55E]"
@@ -75,7 +75,7 @@ export default function DailySummary({ date }) {
       </div>
 
       {/* Transaction Count */}
-      <div className="bg-[#0F172A] border border-slate-700 rounded-2xl p-4 flex flex-col gap-1">
+      <div className="bg-[#191B1D] border border-slate-700 rounded-2xl p-4 flex flex-col gap-1">
         <span className="text-slate-400 text-xs uppercase tracking-wide">Transactions</span>
         <span
           className="text-2xl font-bold text-white"
@@ -86,7 +86,7 @@ export default function DailySummary({ date }) {
       </div>
 
       {/* Void Count */}
-      <div className="bg-[#0F172A] border border-slate-700 rounded-2xl p-4 flex flex-col gap-1">
+      <div className="bg-[#191B1D] border border-slate-700 rounded-2xl p-4 flex flex-col gap-1">
         <span className="text-slate-400 text-xs uppercase tracking-wide">Voids</span>
         <span
           className="text-2xl font-bold text-white"
@@ -97,7 +97,7 @@ export default function DailySummary({ date }) {
       </div>
 
       {/* Payment breakdown */}
-      <div className="col-span-2 sm:col-span-3 lg:col-span-2 bg-[#0F172A] border border-slate-700 rounded-2xl p-4 flex flex-col gap-2">
+      <div className="col-span-2 sm:col-span-3 lg:col-span-2 bg-[#191B1D] border border-slate-700 rounded-2xl p-4 flex flex-col gap-2">
         <span className="text-slate-400 text-xs uppercase tracking-wide">Payment Breakdown</span>
         <div className="flex flex-col gap-1.5">
           <div className="flex items-center justify-between gap-2">

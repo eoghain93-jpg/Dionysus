@@ -68,7 +68,7 @@ export default function ShotBundleModal({ products, onClose }) {
       aria-modal="true"
       aria-labelledby="shot-bundle-title"
     >
-      <div className="bg-[#0F172A] border border-slate-700 rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col">
+      <div className="bg-[#191B1D] border border-slate-700 rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between px-5 pt-5 pb-3 border-b border-slate-700">
           <div>

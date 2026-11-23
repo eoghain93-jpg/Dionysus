@@ -92,7 +92,7 @@ export default function ProductFormModal({ product, onClose, onSaved }) {
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        className="w-full max-w-lg bg-[#0F172A] border border-slate-700 rounded-2xl shadow-xl flex flex-col my-auto"
+        className="w-full max-w-lg bg-[#191B1D] border border-slate-700 rounded-2xl shadow-xl flex flex-col my-auto"
       >
         {/* Header */}
         <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-slate-700">
@@ -105,7 +105,7 @@ export default function ProductFormModal({ product, onClose, onSaved }) {
           <button
             onClick={onClose}
             aria-label="Close modal"
-            className="text-slate-400 hover:text-white transition-colors cursor-pointer min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617]"
+            className="text-slate-400 hover:text-white transition-colors cursor-pointer min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#121314]"
           >
             <X size={20} aria-hidden="true" />
           </button>
@@ -132,7 +132,7 @@ export default function ProductFormModal({ product, onClose, onSaved }) {
               value={form.name}
               onChange={handleChange('name')}
               placeholder="Product name"
-              className="bg-[#1E293B] border border-slate-600 rounded-lg px-3 py-2 text-white placeholder-slate-500 min-h-[44px] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617]"
+              className="bg-[#1E293B] border border-slate-600 rounded-lg px-3 py-2 text-white placeholder-slate-500 min-h-[44px] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#121314]"
             />
           </div>
 
@@ -147,7 +147,7 @@ export default function ProductFormModal({ product, onClose, onSaved }) {
                 required
                 value={form.category}
                 onChange={handleChange('category')}
-                className="bg-[#1E293B] border border-slate-600 rounded-lg px-3 py-2 text-white min-h-[44px] capitalize focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617] cursor-pointer"
+                className="bg-[#1E293B] border border-slate-600 rounded-lg px-3 py-2 text-white min-h-[44px] capitalize focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#121314] cursor-pointer"
               >
                 {CATEGORIES.map(c => (
                   <option key={c} value={c} className="capitalize">{c}</option>
@@ -164,7 +164,7 @@ export default function ProductFormModal({ product, onClose, onSaved }) {
                 required
                 value={form.unit}
                 onChange={handleChange('unit')}
-                className="bg-[#1E293B] border border-slate-600 rounded-lg px-3 py-2 text-white min-h-[44px] capitalize focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617] cursor-pointer"
+                className="bg-[#1E293B] border border-slate-600 rounded-lg px-3 py-2 text-white min-h-[44px] capitalize focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#121314] cursor-pointer"
               >
                 {UNITS.map(u => (
                   <option key={u} value={u} className="capitalize">{u}</option>
@@ -188,7 +188,7 @@ export default function ProductFormModal({ product, onClose, onSaved }) {
                 value={form.standard_price}
                 onChange={handleChange('standard_price')}
                 placeholder="0.00"
-                className="bg-[#1E293B] border border-slate-600 rounded-lg px-3 py-2 text-white placeholder-slate-500 min-h-[44px] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617]"
+                className="bg-[#1E293B] border border-slate-600 rounded-lg px-3 py-2 text-white placeholder-slate-500 min-h-[44px] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#121314]"
               />
             </div>
 
@@ -205,7 +205,7 @@ export default function ProductFormModal({ product, onClose, onSaved }) {
                 value={form.member_price}
                 onChange={handleChange('member_price')}
                 placeholder="0.00"
-                className="bg-[#1E293B] border border-slate-600 rounded-lg px-3 py-2 text-white placeholder-slate-500 min-h-[44px] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617]"
+                className="bg-[#1E293B] border border-slate-600 rounded-lg px-3 py-2 text-white placeholder-slate-500 min-h-[44px] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#121314]"
               />
             </div>
           </div>
@@ -225,7 +225,7 @@ export default function ProductFormModal({ product, onClose, onSaved }) {
                 value={form.stock_quantity}
                 onChange={handleChange('stock_quantity')}
                 placeholder="0"
-                className="bg-[#1E293B] border border-slate-600 rounded-lg px-3 py-2 text-white placeholder-slate-500 min-h-[44px] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617]"
+                className="bg-[#1E293B] border border-slate-600 rounded-lg px-3 py-2 text-white placeholder-slate-500 min-h-[44px] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#121314]"
               />
             </div>
 
@@ -242,7 +242,7 @@ export default function ProductFormModal({ product, onClose, onSaved }) {
                 value={form.par_level}
                 onChange={handleChange('par_level')}
                 placeholder="0"
-                className="bg-[#1E293B] border border-slate-600 rounded-lg px-3 py-2 text-white placeholder-slate-500 min-h-[44px] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617]"
+                className="bg-[#1E293B] border border-slate-600 rounded-lg px-3 py-2 text-white placeholder-slate-500 min-h-[44px] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#121314]"
               />
             </div>
           </div>
@@ -260,7 +260,7 @@ export default function ProductFormModal({ product, onClose, onSaved }) {
               value={form.cost_price}
               onChange={handleChange('cost_price')}
               placeholder="0.00"
-              className="bg-[#1E293B] border border-slate-600 rounded-lg px-3 py-2 text-white placeholder-slate-500 min-h-[44px] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617]"
+              className="bg-[#1E293B] border border-slate-600 rounded-lg px-3 py-2 text-white placeholder-slate-500 min-h-[44px] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#121314]"
             />
           </div>
 
@@ -275,7 +275,7 @@ export default function ProductFormModal({ product, onClose, onSaved }) {
               value={form.supplier_id}
               onChange={handleChange('supplier_id')}
               placeholder="Supplier UUID or reference"
-              className="bg-[#1E293B] border border-slate-600 rounded-lg px-3 py-2 text-white placeholder-slate-500 min-h-[44px] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617]"
+              className="bg-[#1E293B] border border-slate-600 rounded-lg px-3 py-2 text-white placeholder-slate-500 min-h-[44px] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#121314]"
             />
           </div>
 
@@ -300,7 +300,7 @@ export default function ProductFormModal({ product, onClose, onSaved }) {
                   value={form.image_url}
                   onChange={handleChange('image_url')}
                   placeholder="https://img.logo.dev/guinness.com?token=…"
-                  className="bg-[#1E293B] border border-slate-600 rounded-lg px-3 py-2 text-white placeholder-slate-500 text-sm min-h-[44px] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617]"
+                  className="bg-[#1E293B] border border-slate-600 rounded-lg px-3 py-2 text-white placeholder-slate-500 text-sm min-h-[44px] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#121314]"
                 />
                 {form.image_url && (
                   <button
@@ -320,14 +320,14 @@ export default function ProductFormModal({ product, onClose, onSaved }) {
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 min-h-[44px] rounded-xl border border-slate-600 text-slate-300 hover:bg-slate-700 hover:text-white transition-colors cursor-pointer text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617]"
+              className="flex-1 min-h-[44px] rounded-xl border border-slate-600 text-slate-300 hover:bg-slate-700 hover:text-white transition-colors cursor-pointer text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#121314]"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={saving}
-              className="flex-1 min-h-[44px] rounded-xl bg-[#22C55E] hover:bg-green-400 disabled:opacity-50 disabled:cursor-not-allowed text-slate-900 font-bold text-sm transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617]"
+              className="flex-1 min-h-[44px] rounded-xl bg-[#22C55E] hover:bg-green-400 disabled:opacity-50 disabled:cursor-not-allowed text-slate-900 font-bold text-sm transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#121314]"
             >
               {saving ? 'Saving…' : isEditing ? 'Save Changes' : 'Add Product'}
             </button>

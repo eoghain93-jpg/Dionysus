@@ -139,7 +139,7 @@ export default function PromoFormModal({ promo, products = [], onClose, onSaved 
     }
   }
 
-  const inputCls = "bg-[#1E293B] border border-slate-600 rounded-lg px-3 py-2 text-white placeholder-slate-500 min-h-[44px] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617] w-full"
+  const inputCls = "bg-[#1E293B] border border-slate-600 rounded-lg px-3 py-2 text-white placeholder-slate-500 min-h-[44px] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#121314] w-full"
   const labelCls = "text-sm font-medium text-slate-300"
 
   return (
@@ -152,7 +152,7 @@ export default function PromoFormModal({ promo, products = [], onClose, onSaved 
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        className="w-full max-w-lg bg-[#0F172A] border border-slate-700 rounded-2xl shadow-xl flex flex-col my-auto"
+        className="w-full max-w-lg bg-[#191B1D] border border-slate-700 rounded-2xl shadow-xl flex flex-col my-auto"
       >
         {/* Header */}
         <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-slate-700">
@@ -165,7 +165,7 @@ export default function PromoFormModal({ promo, products = [], onClose, onSaved 
           <button
             onClick={onClose}
             aria-label="Close modal"
-            className="text-slate-400 hover:text-white transition-colors cursor-pointer min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617]"
+            className="text-slate-400 hover:text-white transition-colors cursor-pointer min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#121314]"
           >
             <X size={20} aria-hidden="true" />
           </button>
@@ -251,7 +251,7 @@ export default function PromoFormModal({ promo, products = [], onClose, onSaved 
                       type="button"
                       onClick={() => toggleDay(i)}
                       className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer
-                        focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617]
+                        focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#121314]
                         ${daysOfWeek.includes(i)
                           ? 'bg-blue-600 text-white'
                           : 'bg-slate-700 text-slate-400 hover:bg-slate-600'}`}
@@ -320,7 +320,7 @@ export default function PromoFormModal({ promo, products = [], onClose, onSaved 
                     value={item.product_id}
                     onChange={e => updateItem(index, 'product_id', e.target.value)}
                     required
-                    className="bg-[#1E293B] border border-slate-600 rounded-lg px-2 py-2 text-white text-sm min-h-[40px] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617] cursor-pointer"
+                    className="bg-[#1E293B] border border-slate-600 rounded-lg px-2 py-2 text-white text-sm min-h-[40px] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#121314] cursor-pointer"
                     aria-label={`Product ${index + 1}`}
                   >
                     <option value="">Select product…</option>
@@ -334,7 +334,7 @@ export default function PromoFormModal({ promo, products = [], onClose, onSaved 
                   <select
                     value={item.discount_type}
                     onChange={e => updateItem(index, 'discount_type', e.target.value)}
-                    className="bg-[#1E293B] border border-slate-600 rounded-lg px-2 py-2 text-white text-sm min-h-[40px] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617] cursor-pointer"
+                    className="bg-[#1E293B] border border-slate-600 rounded-lg px-2 py-2 text-white text-sm min-h-[40px] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#121314] cursor-pointer"
                     aria-label={`Discount type ${index + 1}`}
                   >
                     <option value="percentage">%</option>
@@ -351,7 +351,7 @@ export default function PromoFormModal({ promo, products = [], onClose, onSaved 
                     onChange={e => updateItem(index, 'discount_value', e.target.value)}
                     required
                     placeholder="10"
-                    className="bg-[#1E293B] border border-slate-600 rounded-lg px-2 py-2 text-white text-sm min-h-[40px] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617]"
+                    className="bg-[#1E293B] border border-slate-600 rounded-lg px-2 py-2 text-white text-sm min-h-[40px] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#121314]"
                     aria-label={`Discount value ${index + 1}`}
                   />
                 </div>
@@ -392,7 +392,7 @@ export default function PromoFormModal({ promo, products = [], onClose, onSaved 
                   <select
                     value={item.category}
                     onChange={e => updateCategoryItem(index, 'category', e.target.value)}
-                    className="bg-[#1E293B] border border-slate-600 rounded-lg px-2 py-2 text-white text-sm min-h-[40px] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617] cursor-pointer"
+                    className="bg-[#1E293B] border border-slate-600 rounded-lg px-2 py-2 text-white text-sm min-h-[40px] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#121314] cursor-pointer"
                     aria-label={`Category ${index + 1}`}
                   >
                     {CATEGORIES.map(cat => (
@@ -405,7 +405,7 @@ export default function PromoFormModal({ promo, products = [], onClose, onSaved 
                   <select
                     value={item.discount_type}
                     onChange={e => updateCategoryItem(index, 'discount_type', e.target.value)}
-                    className="bg-[#1E293B] border border-slate-600 rounded-lg px-2 py-2 text-white text-sm min-h-[40px] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617] cursor-pointer"
+                    className="bg-[#1E293B] border border-slate-600 rounded-lg px-2 py-2 text-white text-sm min-h-[40px] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#121314] cursor-pointer"
                     aria-label={`Category discount type ${index + 1}`}
                   >
                     <option value="percentage">%</option>
@@ -422,7 +422,7 @@ export default function PromoFormModal({ promo, products = [], onClose, onSaved 
                     onChange={e => updateCategoryItem(index, 'discount_value', e.target.value)}
                     required
                     placeholder="10"
-                    className="bg-[#1E293B] border border-slate-600 rounded-lg px-2 py-2 text-white text-sm min-h-[40px] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617]"
+                    className="bg-[#1E293B] border border-slate-600 rounded-lg px-2 py-2 text-white text-sm min-h-[40px] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#121314]"
                     aria-label={`Category discount value ${index + 1}`}
                   />
                 </div>
@@ -444,14 +444,14 @@ export default function PromoFormModal({ promo, products = [], onClose, onSaved 
               type="button"
               onClick={onClose}
               disabled={saving}
-              className="flex-1 min-h-[44px] rounded-xl border border-slate-600 text-slate-300 hover:bg-slate-700 hover:text-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-pointer text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617]"
+              className="flex-1 min-h-[44px] rounded-xl border border-slate-600 text-slate-300 hover:bg-slate-700 hover:text-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-pointer text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#121314]"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={saving}
-              className="flex-1 min-h-[44px] rounded-xl bg-[#22C55E] hover:bg-green-400 disabled:opacity-50 disabled:cursor-not-allowed text-slate-900 font-bold text-sm transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617]"
+              className="flex-1 min-h-[44px] rounded-xl bg-[#22C55E] hover:bg-green-400 disabled:opacity-50 disabled:cursor-not-allowed text-slate-900 font-bold text-sm transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#121314]"
             >
               {saving ? 'Saving…' : isEditing ? 'Save Changes' : 'Add Promotion'}
             </button>

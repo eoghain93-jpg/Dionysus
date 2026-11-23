@@ -151,7 +151,7 @@ export default function SettleTabModal({ member, onClose, onSettled }) {
         aria-modal="true"
         aria-labelledby={titleId}
         tabIndex={-1}
-        className="w-full max-w-sm bg-[#0F172A] border border-slate-700 rounded-2xl shadow-xl flex flex-col focus:outline-none"
+        className="w-full max-w-sm bg-[#191B1D] border border-slate-700 rounded-2xl shadow-xl flex flex-col focus:outline-none"
       >
         {/* Header */}
         <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-slate-700">
@@ -164,7 +164,7 @@ export default function SettleTabModal({ member, onClose, onSettled }) {
           <button
             onClick={() => { if (!lockedClosed) onClose() }}
             aria-label="Close settle tab modal"
-            className="text-slate-400 hover:text-white transition-colors cursor-pointer min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617]"
+            className="text-slate-400 hover:text-white transition-colors cursor-pointer min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#121314]"
           >
             <X size={20} aria-hidden="true" />
           </button>
@@ -187,7 +187,7 @@ export default function SettleTabModal({ member, onClose, onSettled }) {
               </p>
               <button
                 onClick={() => choose('partial')}
-                className="flex items-center justify-between gap-2 min-h-[56px] px-4 rounded-xl bg-slate-800 border border-slate-600 hover:border-blue-500 hover:bg-slate-700 text-white transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617]"
+                className="flex items-center justify-between gap-2 min-h-[56px] px-4 rounded-xl bg-slate-800 border border-slate-600 hover:border-blue-500 hover:bg-slate-700 text-white transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#121314]"
               >
                 <span className="flex flex-col items-start">
                   <span className="font-bold text-sm">Part payment</span>
@@ -197,7 +197,7 @@ export default function SettleTabModal({ member, onClose, onSettled }) {
               </button>
               <button
                 onClick={() => choose('full')}
-                className="flex items-center justify-between gap-2 min-h-[56px] px-4 rounded-xl bg-slate-800 border border-amber-500/40 hover:border-amber-400 hover:bg-slate-700 text-white transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-amber-400 focus:ring-offset-2 focus:ring-offset-[#020617]"
+                className="flex items-center justify-between gap-2 min-h-[56px] px-4 rounded-xl bg-slate-800 border border-amber-500/40 hover:border-amber-400 hover:bg-slate-700 text-white transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-amber-400 focus:ring-offset-2 focus:ring-offset-[#121314]"
               >
                 <span className="flex flex-col items-start">
                   <span className="font-bold text-sm">Full balance</span>
@@ -211,7 +211,7 @@ export default function SettleTabModal({ member, onClose, onSettled }) {
               <button
                 type="button"
                 onClick={onClose}
-                className="min-h-[44px] rounded-xl border border-slate-600 text-slate-300 hover:bg-slate-700 hover:text-white transition-colors cursor-pointer text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617]"
+                className="min-h-[44px] rounded-xl border border-slate-600 text-slate-300 hover:bg-slate-700 hover:text-white transition-colors cursor-pointer text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#121314]"
               >
                 Cancel
               </button>
@@ -259,7 +259,7 @@ export default function SettleTabModal({ member, onClose, onSettled }) {
                 <button
                   onClick={() => handleSettle('cash')}
                   disabled={settling}
-                  className="flex items-center justify-center gap-2 min-h-[44px] rounded-xl bg-[#22C55E] hover:bg-green-400 disabled:opacity-50 disabled:cursor-not-allowed text-slate-900 font-bold text-sm transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617]"
+                  className="flex items-center justify-center gap-2 min-h-[44px] rounded-xl bg-[#22C55E] hover:bg-green-400 disabled:opacity-50 disabled:cursor-not-allowed text-slate-900 font-bold text-sm transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#121314]"
                 >
                   <Banknote size={18} aria-hidden="true" />
                   Settle by Cash
@@ -267,7 +267,7 @@ export default function SettleTabModal({ member, onClose, onSettled }) {
                 <button
                   onClick={() => handleSettle('card')}
                   disabled={settling}
-                  className="flex items-center justify-center gap-2 min-h-[44px] rounded-xl bg-[#3B82F6] hover:bg-blue-400 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold text-sm transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617]"
+                  className="flex items-center justify-center gap-2 min-h-[44px] rounded-xl bg-[#3B82F6] hover:bg-blue-400 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold text-sm transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#121314]"
                 >
                   <CreditCard size={18} aria-hidden="true" />
                   Settle by Card
@@ -276,7 +276,7 @@ export default function SettleTabModal({ member, onClose, onSettled }) {
                   type="button"
                   onClick={goBack}
                   disabled={settling}
-                  className="min-h-[44px] rounded-xl border border-slate-600 text-slate-300 hover:bg-slate-700 hover:text-white transition-colors cursor-pointer text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617] disabled:opacity-50"
+                  className="min-h-[44px] rounded-xl border border-slate-600 text-slate-300 hover:bg-slate-700 hover:text-white transition-colors cursor-pointer text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#121314] disabled:opacity-50"
                 >
                   Back
                 </button>

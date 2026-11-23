@@ -66,6 +66,9 @@ export function resolveSalePrice({ product, memberPrice, promo }) {
   return { price, promo_price_applied, member_price_applied }
 }
 
+const newParkId = () =>
+  (globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.round(Math.random() * 1e9)}`)
+
 export const useTillStore = create((set, get) => ({
   orderItems: [],
   activeMember: null,
@@ -78,6 +81,12 @@ export const useTillStore = create((set, get) => ({
   // How long the active member's tab has gone unpaid ({ days, overdue }),
   // looked up by TillPage when a member with a tab is put on the sale.
   activeMemberTab: null,
+  // Orders set aside mid-sale ({ id, label, items, member, memberTab }).
+  parkedOrders: [],
+  parkSeq: 1,
+  // The last completed sale ({ items, member, total, paymentMethod }), kept
+  // for the "Sale complete" note and the "Same again" button.
+  lastSale: null,
 
   setActiveMember: (member) => set({ activeMember: member, activeMemberTab: null }),
   clearMember: () => set({ activeMember: null, activeMemberTab: null }),
@@ -270,6 +279,88 @@ export const useTillStore = create((set, get) => ({
             : i
         )
       }))
+    }
+  },
+
+  /**
+   * Take ONE unit back off the plain line for a product — the undo for a
+   * grid tap. Only the plain line: bundle and staff-credit lines for the same
+   * product are separate sales and are left alone.
+   */
+  removeOne: (productId) =>
+    set(state => {
+      const isPlain = i => i.product_id === productId && !i.line_id && !i.bundle_price_applied
+      return {
+        orderItems: state.orderItems
+          .map(i => isPlain(i)
+            ? { ...i, quantity: i.quantity - 1, subtotal: (i.quantity - 1) * i.unit_price }
+            : i)
+          .filter(i => i.quantity > 0),
+      }
+    }),
+
+  /**
+   * Set the current order aside (customer gone to find their wallet) so the
+   * next customer can be served. The order keeps its lines, prices and member
+   * exactly as they were, and comes back with resumeOrder.
+   */
+  parkOrder: () => {
+    const { orderItems, activeMember, activeMemberTab, parkedOrders, parkSeq } = get()
+    if (orderItems.length === 0) return
+    set({
+      parkedOrders: [...parkedOrders, {
+        id: newParkId(),
+        label: activeMember ? activeMember.name.split(' ')[0] : `Order ${parkSeq}`,
+        items: orderItems,
+        member: activeMember,
+        memberTab: activeMemberTab,
+      }],
+      parkSeq: activeMember ? parkSeq : parkSeq + 1,
+      orderItems: [],
+      activeMember: null,
+      activeMemberTab: null,
+    })
+  },
+
+  /**
+   * Bring a parked order back onto the till. Whatever is on the till right
+   * now is parked in its place, so nothing is ever thrown away by a swap.
+   */
+  resumeOrder: (id) => {
+    const parked = get().parkedOrders.find(p => p.id === id)
+    if (!parked) return
+    get().parkOrder()
+    set(state => ({
+      parkedOrders: state.parkedOrders.filter(p => p.id !== id),
+      orderItems: parked.items,
+      activeMember: parked.member,
+      activeMemberTab: parked.memberTab,
+    }))
+  },
+
+  setLastSale: (lastSale) => set({ lastSale }),
+
+  /**
+   * "Same again": rebuild the last completed sale as a new order. Plain lines
+   * go back through addItem so they are priced as of NOW (a promo may have
+   * started or ended since); bundle lines keep their deal price. Drinks bought
+   * for staff are not repeated — that is a fresh decision each round.
+   */
+  repeatLastSale: (products, now = new Date()) => {
+    const { lastSale } = get()
+    if (!lastSale) return
+    set({ orderItems: [], activeMember: lastSale.member ?? null, activeMemberTab: null })
+    for (const item of lastSale.items) {
+      if (item.staff_credit_for) continue
+      if (item.bundle_price_applied) {
+        set(state => ({
+          orderItems: [...state.orderItems, item.line_id ? { ...item, line_id: `bundle:${newParkId()}` } : item],
+        }))
+        continue
+      }
+      const product = products.find(p => p.id === item.product_id)
+      if (!product) continue
+      for (let n = 0; n < item.quantity; n++) get().addItem(product, now)
     }
   },
 

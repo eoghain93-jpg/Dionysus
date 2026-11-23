@@ -63,7 +63,7 @@ export default function GuestSignInModal({ initialMember = null, onClose, onSave
       aria-modal="true"
       aria-label="Sign In Guest"
     >
-      <div className="bg-[#0F172A] border border-slate-700 rounded-2xl w-full max-w-sm p-5 flex flex-col gap-4 max-h-[90dvh] overflow-auto">
+      <div className="bg-[#191B1D] border border-slate-700 rounded-2xl w-full max-w-sm p-5 flex flex-col gap-4 max-h-[90dvh] overflow-auto">
         <div className="flex items-center justify-between">
           <h2 className="text-white font-bold text-lg">Sign In Guest</h2>
           <button onClick={onClose} aria-label="Close" className="text-slate-400 hover:text-white cursor-pointer">

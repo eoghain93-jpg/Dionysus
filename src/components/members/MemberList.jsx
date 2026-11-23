@@ -40,7 +40,7 @@ export default function MemberList({ members, onSelect, onEdit }) {
             {/* Clickable main area */}
             <button
               onClick={() => onSelect(member)}
-              className="flex-1 flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4 text-left cursor-pointer min-h-[44px] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617] rounded"
+              className="flex-1 flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4 text-left cursor-pointer min-h-[44px] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#121314] rounded"
               aria-label={`View profile for ${member.name}`}
             >
               {/* Name + membership number */}
@@ -85,7 +85,7 @@ export default function MemberList({ members, onSelect, onEdit }) {
             <button
               onClick={e => { e.stopPropagation(); onEdit(member) }}
               aria-label={`Edit ${member.name}`}
-              className="text-slate-400 hover:text-white transition-colors cursor-pointer min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617] shrink-0"
+              className="text-slate-400 hover:text-white transition-colors cursor-pointer min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#121314] shrink-0"
             >
               <Pencil size={16} aria-hidden="true" />
             </button>

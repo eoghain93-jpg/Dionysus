@@ -50,7 +50,7 @@ export default function AdjustTabModal({ member, onClose, onAdjusted }) {
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        className="w-full max-w-sm bg-[#0F172A] border border-slate-700 rounded-2xl shadow-xl flex flex-col"
+        className="w-full max-w-sm bg-[#191B1D] border border-slate-700 rounded-2xl shadow-xl flex flex-col"
       >
         <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-slate-700">
           <h2

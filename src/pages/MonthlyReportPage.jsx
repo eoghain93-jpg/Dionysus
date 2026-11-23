@@ -82,7 +82,7 @@ export default function MonthlyReportPage() {
       </div>
 
       {/* Controls */}
-      <div className="bg-[#0F172A] rounded-2xl border border-slate-700 p-4 flex flex-wrap items-end gap-3">
+      <div className="bg-[#191B1D] rounded-2xl border border-slate-700 p-4 flex flex-wrap items-end gap-3">
         <div>
           <label htmlFor="mr-month" className="block text-slate-400 text-xs mb-1">Month</label>
           <input
@@ -149,7 +149,7 @@ export default function MonthlyReportPage() {
 
       {/* Daily table */}
       {data && (
-        <div className="bg-[#0F172A] rounded-2xl border border-slate-700 overflow-auto">
+        <div className="bg-[#191B1D] rounded-2xl border border-slate-700 overflow-auto">
           <table className="w-full text-sm">
             <thead className="bg-slate-800 sticky top-0">
               <tr className="text-slate-400 text-xs uppercase tracking-wide">
@@ -188,7 +188,7 @@ export default function MonthlyReportPage() {
 
       {/* Product sales */}
       {data && data.topProducts.length > 0 && (
-        <div className="bg-[#0F172A] rounded-2xl border border-slate-700 overflow-auto">
+        <div className="bg-[#191B1D] rounded-2xl border border-slate-700 overflow-auto">
           <table className="w-full text-sm">
             <thead className="bg-slate-800 sticky top-0">
               <tr className="text-slate-400 text-xs uppercase tracking-wide">
@@ -229,7 +229,7 @@ function SummaryCard({ label, value, accent, wide }) {
     orange: 'text-orange-400',
   }[accent] ?? 'text-white'
   return (
-    <div className={`bg-[#0F172A] border border-slate-700 rounded-2xl p-4 ${wide ? 'col-span-2 sm:col-span-1' : ''}`}>
+    <div className={`bg-[#191B1D] border border-slate-700 rounded-2xl p-4 ${wide ? 'col-span-2 sm:col-span-1' : ''}`}>
       <p className="text-slate-400 text-xs uppercase tracking-wide">{label}</p>
       <p className={`text-2xl font-bold mt-1 tabular-nums ${colour}`} data-testid={`mr-${label.toLowerCase().replace(/[^a-z]+/g, '-')}`}>{value}</p>
     </div>

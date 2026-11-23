@@ -41,7 +41,7 @@ export default function PromoList({ promos, onToggle, onEdit }) {
             aria-checked={promo.active}
             aria-label={`${promo.active ? 'Deactivate' : 'Activate'} ${promo.name}`}
             onClick={() => onToggle(promo)}
-            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors shrink-0 cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617]
+            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors shrink-0 cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#121314]
               ${promo.active ? 'bg-[#22C55E]' : 'bg-slate-600'}`}
           >
             <span
@@ -63,7 +63,7 @@ export default function PromoList({ promos, onToggle, onEdit }) {
           <button
             onClick={() => onEdit(promo)}
             aria-label={`Edit ${promo.name}`}
-            className="text-slate-400 hover:text-white transition-colors cursor-pointer min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617]"
+            className="text-slate-400 hover:text-white transition-colors cursor-pointer min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#121314]"
           >
             <Edit2 size={16} aria-hidden="true" />
             <span className="sr-only">Edit</span>

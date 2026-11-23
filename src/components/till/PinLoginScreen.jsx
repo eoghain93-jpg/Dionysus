@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Delete, X, Lock, Clock } from 'lucide-react'
+import { Delete, X, Clock } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { useSessionStore } from '../../stores/sessionStore'
 import { useLockoutCountdown } from '../../hooks/useLockoutCountdown'
@@ -93,8 +93,12 @@ export default function PinLoginScreen() {
 
   const selectedMember = staffList.find(s => s.id === selectedId) ?? null
 
+  function initials(name) {
+    return name?.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase() ?? '?'
+  }
+
   return (
-    <div className="fixed inset-0 bg-slate-900 flex items-center justify-center z-50 p-4">
+    <div className="fixed inset-0 bg-[#121314] flex flex-col md:flex-row z-50 overflow-auto">
       {showSetPin && selectedMember && (
         <SetPinModal
           member={selectedMember}
@@ -105,67 +109,82 @@ export default function PinLoginScreen() {
           }}
         />
       )}
-      <div className="w-full max-w-sm space-y-6">
-        <div className="text-center space-y-2">
-          <div className="flex items-center justify-center">
-            <Lock size={32} className="text-slate-400" aria-hidden="true" />
-          </div>
-          <h1 className="text-white text-2xl font-bold">Staff Login</h1>
-          <p className="text-slate-400 text-sm">Select your name and enter your PIN</p>
-        </div>
 
+      <section className="md:w-[44%] md:max-w-[560px] shrink-0 bg-slate-900 border-b md:border-b-0 md:border-r border-slate-800
+        px-6 md:px-12 py-6 md:py-12 flex flex-col gap-6 md:overflow-auto">
+        <h1 className="text-white text-3xl md:text-[40px] font-extrabold tracking-tight leading-none">
+          Who&rsquo;s on the bar?
+        </h1>
         {loadingStaff ? (
-          <div className="text-slate-400 text-sm text-center">Loading staff…</div>
+          <div className="text-slate-400 text-base">Loading staff…</div>
         ) : fetchError ? (
-          <p role="alert" className="text-red-400 text-sm text-center bg-red-400/10 px-4 py-2 rounded-xl">
+          <p role="alert" className="text-red-300 text-base bg-red-400/10 px-4 py-3 rounded-xl">
             {fetchError}
           </p>
         ) : staffList.length === 0 ? (
-          <p className="text-slate-400 text-sm text-center">
+          <p className="text-slate-400 text-base">
             No staff members found. Add a staff member in the Members page.
           </p>
         ) : (
-          <div className="space-y-1">
-            <label htmlFor="pin-staff-select" className="block text-sm font-medium text-slate-300">
-              Staff Member
-            </label>
-            <select
-              id="pin-staff-select"
-              value={selectedId}
-              onChange={e => { setSelectedId(e.target.value); setDigits(''); setError(null) }}
-              className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 text-white min-h-[44px] focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
-              aria-label="Staff Member"
-            >
-              <option value="">— Select staff member —</option>
-              {staffList.map(s => (
-                <option key={s.id} value={s.id}>{s.name}</option>
-              ))}
-            </select>
+          <div role="group" aria-label="Staff member" className="grid grid-cols-2 gap-3">
+            {staffList.map(s => {
+              const active = s.id === selectedId
+              return (
+                <button
+                  key={s.id}
+                  onClick={() => { setSelectedId(s.id); setDigits(''); setError(null) }}
+                  aria-pressed={active}
+                  className={`min-h-[76px] px-4 rounded-2xl border-[1.5px] text-left text-white flex items-center gap-3.5
+                    cursor-pointer transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400
+                    ${active ? 'bg-blue-950 border-blue-300' : 'bg-slate-800 border-slate-800 hover:bg-slate-700'}`}
+                >
+                  <span
+                    aria-hidden="true"
+                    className={`w-11 h-11 shrink-0 rounded-full text-white text-base font-extrabold flex items-center justify-center
+                      ${active ? 'bg-blue-600' : 'bg-slate-600'}`}
+                  >
+                    {initials(s.name)}
+                  </span>
+                  <span className="text-xl font-bold truncate">{s.name}</span>
+                </button>
+              )
+            })}
           </div>
         )}
+      </section>
 
-        <div aria-label="PIN display" className="flex justify-center gap-4">
-          {[0, 1, 2, 3].map(i => (
-            <span
-              key={i}
-              data-filled={i < digits.length ? 'true' : 'false'}
-              className={`w-4 h-4 rounded-full transition-colors duration-150 ${i < digits.length ? 'bg-white' : 'bg-slate-600'}`}
-              aria-hidden="true"
-            />
-          ))}
+      <section className="flex-1 min-w-0 px-6 md:px-16 py-6 md:py-12 flex flex-col gap-5 max-w-2xl md:mx-auto w-full">
+        <div className="flex items-center justify-between gap-4 min-h-[64px]">
+          <div>
+            <div className="text-white text-2xl font-extrabold">
+              {selectedMember ? `${selectedMember.name}’s PIN` : 'Pick your name first'}
+            </div>
+            <div className="text-slate-400 text-[15px]">Signs you in on the fourth digit</div>
+          </div>
+          <div aria-label="PIN display" className="flex gap-3.5">
+            {[0, 1, 2, 3].map(i => (
+              <span
+                key={i}
+                data-filled={i < digits.length ? 'true' : 'false'}
+                className={`w-6 h-6 rounded-full border-2 transition-colors duration-150
+                  ${i < digits.length ? 'bg-slate-100 border-slate-100' : 'border-slate-400'}`}
+                aria-hidden="true"
+              />
+            ))}
+          </div>
         </div>
 
-        {verifying && <p className="text-center text-slate-400 text-sm">Verifying…</p>}
+        {verifying && <p className="text-slate-400 text-base">Verifying…</p>}
 
         {/* Locked — calm countdown, not an error: the lock protects the PIN
             and resolves itself; staff just need to know when */}
         {isLocked && (
           <div
             role="status"
-            className="text-amber-300 text-sm text-center bg-amber-400/10 px-4 py-3 rounded-xl space-y-1"
+            className="text-amber-300 text-base bg-amber-400/10 px-4 py-3 rounded-xl space-y-1"
           >
-            <p className="flex items-center justify-center gap-1.5 font-semibold">
-              <Clock size={14} aria-hidden="true" />
+            <p className="flex items-center gap-1.5 font-bold">
+              <Clock size={16} aria-hidden="true" />
               PIN locked after too many attempts
             </p>
             <p>Try again in {remainingLabel}. Another staff member can log in meanwhile.</p>
@@ -173,7 +192,7 @@ export default function PinLoginScreen() {
         )}
 
         {!isLocked && error && (
-          <p role="alert" className="text-red-400 text-sm text-center bg-red-400/10 px-4 py-2 rounded-xl">
+          <p role="alert" className="text-red-300 text-base font-semibold bg-red-400/10 px-4 py-3 rounded-xl">
             {error}
           </p>
         )}
@@ -185,15 +204,17 @@ export default function PinLoginScreen() {
               onClick={() => handleKey(key)}
               disabled={verifying || isLocked}
               aria-label={key === 'back' ? 'Backspace' : key === 'clear' ? 'Clear PIN' : key}
-              className="bg-slate-800 hover:bg-slate-700 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold py-5 rounded-2xl text-2xl transition-all duration-150 cursor-pointer flex items-center justify-center border border-slate-700"
+              className="min-h-[84px] md:min-h-[112px] rounded-2xl bg-slate-800 hover:bg-slate-700 active:scale-95
+                disabled:opacity-40 disabled:cursor-not-allowed text-white text-4xl font-bold
+                transition-all duration-150 cursor-pointer flex items-center justify-center"
             >
-              {key === 'back' && <Delete size={22} aria-hidden="true" />}
-              {key === 'clear' && <X size={22} aria-hidden="true" />}
+              {key === 'back' && <Delete size={28} aria-hidden="true" />}
+              {key === 'clear' && <X size={28} aria-hidden="true" />}
               {key !== 'back' && key !== 'clear' && key}
             </button>
           ))}
         </div>
-      </div>
+      </section>
     </div>
   )
 }
