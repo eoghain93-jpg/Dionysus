@@ -313,7 +313,7 @@ describe('OrderPanel order controls', () => {
     const onSameAgain = vi.fn()
     useTillStore.setState({
       orderItems: [], activeMember: member,
-      lastSale: { items: [item], member: null, total: 5.5, paymentMethod: 'card' },
+      lastSale: { items: [item], member, total: 5.5, paymentMethod: 'card' },
     })
     render(
       <OrderPanel
@@ -328,5 +328,23 @@ describe('OrderPanel order controls', () => {
     expect(screen.getByText(/£5\.50 by card/)).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Same again' }))
     expect(onSameAgain).toHaveBeenCalled()
+  })
+
+  it('drops the last sale once a different member is on the order', () => {
+    const lastSale = { items: [item], member, total: 5.5, paymentMethod: 'tab' }
+    useTillStore.setState({ orderItems: [], activeMember: null, lastSale })
+    render(<OrderPanel onCheckout={vi.fn()} onSameAgain={vi.fn()} onFixPayment={vi.fn()} />)
+    expect(screen.getByText('Sale complete')).toBeInTheDocument()
+
+    act(() => useTillStore.setState({ activeMember: { id: 'm2', name: 'Bob', tab_balance: 0 } }))
+    expect(screen.queryByText('Sale complete')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Same again' })).not.toBeInTheDocument()
+    expect(screen.getByText(/nothing on the order yet/i)).toBeInTheDocument()
+
+    // A walk-in sale's note goes too when a member is found for the next one.
+    act(() => useTillStore.setState({ activeMember: null, lastSale: { ...lastSale, member: null } }))
+    expect(screen.getByText('Sale complete')).toBeInTheDocument()
+    act(() => useTillStore.setState({ activeMember: member }))
+    expect(screen.queryByText('Sale complete')).not.toBeInTheDocument()
   })
 })

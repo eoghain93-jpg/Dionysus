@@ -62,6 +62,11 @@ export default function OrderPanel({
   const tabBlocked = !!activeMember?.tab_blocked
   const hasItems = orderItems.length > 0
   const itemCount = orderItems.reduce((sum, i) => sum + i.quantity, 0)
+  // The "Sale complete" note belongs to the customer just served. Once someone
+  // else is put on the sale it goes: left up, it shows the last person's name
+  // under the new one, and "Same again" would swap the sale back to them.
+  const showLastSale = !hasItems && !!lastSale
+    && (!activeMember || activeMember.id === lastSale.member?.id)
 
   // Void takes two taps. The first arms it; it disarms on its own, and
   // whenever the order changes, so a stray touch can never wipe an order.
@@ -307,7 +312,7 @@ export default function OrderPanel({
       )}
 
       <div className="flex-1 overflow-auto px-4 py-3 flex flex-col gap-2 min-h-[120px]">
-        {!hasItems && lastSale ? (
+        {showLastSale ? (
           <div role="status" className="m-auto flex flex-col items-center gap-2.5 text-center">
             <span aria-hidden="true" className="w-14 h-14 rounded-full bg-emerald-700 flex items-center justify-center">
               <Check size={28} strokeWidth={3} className="text-white" />
