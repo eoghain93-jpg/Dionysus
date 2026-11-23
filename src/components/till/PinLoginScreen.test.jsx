@@ -1,18 +1,29 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react'
 import PinLoginScreen from './PinLoginScreen'
+import { supabase } from '../../lib/supabase'
 import { useSessionStore } from '../../stores/sessionStore'
 
-const { mockInvoke, mockFrom } = vi.hoisted(() => ({
-  mockInvoke: vi.fn(),
+const { mockSignIn, mockSetPin, mockFrom } = vi.hoisted(() => ({
+  mockSignIn: vi.fn(),
+  mockSetPin: vi.fn(),
   mockFrom: vi.fn(),
 }))
 
+// The staff list still comes straight from the members table ...
 vi.mock('../../lib/supabase', () => ({
   supabase: {
     from: mockFrom,
-    functions: { invoke: mockInvoke },
+    functions: { invoke: vi.fn() },
   },
+}))
+
+// ... but the PIN is checked by signInStaff (database first, verify-pin as
+// the fallback), which resolves with the verify-pin response shape and
+// rejects only when the server cannot be reached.
+vi.mock('../../lib/audit/staff', () => ({
+  signInStaff: mockSignIn,
+  setStaffPin: mockSetPin,
 }))
 
 const STAFF = [
@@ -109,11 +120,8 @@ describe('PinLoginScreen', () => {
     expect(display.querySelectorAll('[data-filled="true"]')).toHaveLength(4)
   })
 
-  it('auto-submits when 4 digits are entered with a staff member selected', async () => {
-    mockInvoke.mockResolvedValue({
-      data: { valid: true, member: { id: 'staff-1', name: 'Alice' } },
-      error: null,
-    })
+  it('auto-submits to signInStaff when 4 digits are entered with a staff member selected', async () => {
+    mockSignIn.mockResolvedValue({ valid: true, member: { id: 'staff-1', name: 'Alice' } })
     render(<PinLoginScreen />)
     const select = await screen.findByRole('button', { name: 'Alice' })
     fireEvent.click(select)
@@ -121,10 +129,17 @@ describe('PinLoginScreen', () => {
       fireEvent.click(screen.getByRole('button', { name: d }))
     )
     await waitFor(() => {
-      expect(mockInvoke).toHaveBeenCalledWith('verify-pin', {
-        body: { member_id: 'staff-1', pin: '1234' },
-      })
+      expect(mockSignIn).toHaveBeenCalledWith('staff-1', '1234')
     })
+    expect(mockSignIn).toHaveBeenCalledTimes(1)
+  })
+
+  it('never calls the verify-pin edge function itself', async () => {
+    mockSignIn.mockResolvedValue({ valid: true, member: { id: 'staff-1', name: 'Alice' } })
+    render(<PinLoginScreen />)
+    await selectStaffAndEnterPin()
+    await waitFor(() => expect(mockSignIn).toHaveBeenCalled())
+    expect(supabase.functions.invoke).not.toHaveBeenCalled()
   })
 
   it('does not submit if no staff member is selected', async () => {
@@ -133,14 +148,11 @@ describe('PinLoginScreen', () => {
     ;['1', '2', '3', '4'].forEach(d =>
       fireEvent.click(screen.getByRole('button', { name: d }))
     )
-    expect(mockInvoke).not.toHaveBeenCalled()
+    expect(mockSignIn).not.toHaveBeenCalled()
   })
 
   it('on valid PIN calls setActiveStaff and clears digits', async () => {
-    mockInvoke.mockResolvedValue({
-      data: { valid: true, member: { id: 'staff-1', name: 'Alice' } },
-      error: null,
-    })
+    mockSignIn.mockResolvedValue({ valid: true, member: { id: 'staff-1', name: 'Alice' } })
     render(<PinLoginScreen />)
     const select = await screen.findByRole('button', { name: 'Alice' })
     fireEvent.click(select)
@@ -153,7 +165,7 @@ describe('PinLoginScreen', () => {
   })
 
   it('on invalid PIN shows error message and clears digits', async () => {
-    mockInvoke.mockResolvedValue({ data: { valid: false }, error: null })
+    mockSignIn.mockResolvedValue({ valid: false, attemptsRemaining: 4 })
     render(<PinLoginScreen />)
     const select = await screen.findByRole('button', { name: 'Alice' })
     fireEvent.click(select)
@@ -165,8 +177,8 @@ describe('PinLoginScreen', () => {
     expect(display.querySelectorAll('[data-filled="false"]')).toHaveLength(4)
   })
 
-  it('on network error shows generic error message', async () => {
-    mockInvoke.mockResolvedValue({ data: null, error: { message: 'Network error' } })
+  it('shows a generic error when the server cannot be reached (signInStaff rejects)', async () => {
+    mockSignIn.mockRejectedValue(new Error('Failed to fetch'))
     render(<PinLoginScreen />)
     const select = await screen.findByRole('button', { name: 'Alice' })
     fireEvent.click(select)
@@ -177,7 +189,7 @@ describe('PinLoginScreen', () => {
   })
 
   it('shows a loading indicator while verifying', async () => {
-    mockInvoke.mockReturnValue(new Promise(() => {}))
+    mockSignIn.mockReturnValue(new Promise(() => {}))
     render(<PinLoginScreen />)
     const select = await screen.findByRole('button', { name: 'Alice' })
     fireEvent.click(select)
@@ -205,10 +217,7 @@ describe('PinLoginScreen', () => {
 
   // ── Lockout ────────────────────────────────────────────────────────────────
   it('shows a calm countdown message when the PIN is locked', async () => {
-    mockInvoke.mockResolvedValue({
-      data: { valid: false, reason: 'locked', retryAfterSeconds: 900 },
-      error: null,
-    })
+    mockSignIn.mockResolvedValue({ valid: false, reason: 'locked', retryAfterSeconds: 900 })
     render(<PinLoginScreen />)
     await selectStaffAndEnterPin()
     const status = await screen.findByRole('status')
@@ -218,14 +227,90 @@ describe('PinLoginScreen', () => {
   })
 
   it('disables the numpad while locked and does not log anyone in', async () => {
-    mockInvoke.mockResolvedValue({
-      data: { valid: false, reason: 'locked', retryAfterSeconds: 900 },
-      error: null,
-    })
+    mockSignIn.mockResolvedValue({ valid: false, reason: 'locked', retryAfterSeconds: 900 })
     render(<PinLoginScreen />)
     await selectStaffAndEnterPin()
     await screen.findByRole('status')
     expect(screen.getByRole('button', { name: '5' })).toBeDisabled()
     expect(useSessionStore.getState().activeStaff).toBeNull()
+  })
+
+  it('does not sign anyone in on a wrong PIN', async () => {
+    mockSignIn.mockResolvedValue({ valid: false, attemptsRemaining: 2 })
+    render(<PinLoginScreen />)
+    await selectStaffAndEnterPin('9999')
+    await screen.findByRole('alert')
+    expect(useSessionStore.getState().activeStaff).toBeNull()
+  })
+
+  // ── First PIN ──────────────────────────────────────────────────────────────
+  it('offers to set a PIN when the person has none yet (no_pin)', async () => {
+    mockSignIn.mockResolvedValue({ valid: false, reason: 'no_pin' })
+    render(<PinLoginScreen />)
+    await selectStaffAndEnterPin()
+    expect(await screen.findByRole('dialog')).toHaveTextContent(/set pin — alice/i)
+    expect(useSessionStore.getState().activeStaff).toBeNull()
+  })
+
+  it('sets the first PIN through setStaffPin, then returns to the login', async () => {
+    mockSignIn.mockResolvedValue({ valid: false, reason: 'no_pin' })
+    mockSetPin.mockResolvedValue({ success: true })
+    render(<PinLoginScreen />)
+    await selectStaffAndEnterPin()
+
+    const dialog = within(await screen.findByRole('dialog'))
+    const enter = pin => { for (const d of pin) fireEvent.click(dialog.getByRole('button', { name: d })) }
+    enter('4821')
+    await dialog.findByText(/confirm new pin/i)
+    enter('4821')
+
+    await waitFor(() => expect(mockSetPin).toHaveBeenCalledWith('staff-1', '4821', undefined))
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument(), { timeout: 2500 })
+    // setting a PIN does not sign anyone in: they now enter it
+    expect(useSessionStore.getState().activeStaff).toBeNull()
+  })
+
+  // ── Used from the lock screen ("Someone else") ─────────────────────────────
+  it('shows no Back button on its own', async () => {
+    render(<PinLoginScreen />)
+    await screen.findByRole('group', { name: /staff member/i })
+    expect(screen.queryByRole('button', { name: /^back$/i })).not.toBeInTheDocument()
+  })
+
+  it('shows a Back button when onBack is given', async () => {
+    const onBack = vi.fn()
+    render(<PinLoginScreen onBack={onBack} />)
+    fireEvent.click(await screen.findByRole('button', { name: /^back$/i }))
+    expect(onBack).toHaveBeenCalledOnce()
+  })
+
+  it('calls onSignedIn after a successful sign-in only', async () => {
+    const onSignedIn = vi.fn()
+    mockSignIn.mockResolvedValueOnce({ valid: false })
+    const { unmount } = render(<PinLoginScreen onSignedIn={onSignedIn} />)
+    await selectStaffAndEnterPin('9999')
+    await screen.findByRole('alert')
+    expect(onSignedIn).not.toHaveBeenCalled()
+    unmount()
+
+    mockSignIn.mockResolvedValueOnce({ valid: true, member: { id: 'staff-1', name: 'Alice' } })
+    render(<PinLoginScreen onSignedIn={onSignedIn} />)
+    await selectStaffAndEnterPin('1234')
+    await waitFor(() => expect(onSignedIn).toHaveBeenCalledWith({ id: 'staff-1', name: 'Alice' }))
+  })
+
+  it('sends the PIN once even if the parent re-renders with a new callback mid-check', async () => {
+    let resolve
+    mockSignIn.mockReturnValue(new Promise(r => { resolve = r }))
+    const { rerender } = render(<PinLoginScreen onSignedIn={() => {}} />)
+    await selectStaffAndEnterPin()
+    await screen.findByText(/verifying/i)
+
+    rerender(<PinLoginScreen onSignedIn={() => {}} />)
+    rerender(<PinLoginScreen onSignedIn={() => {}} />)
+
+    expect(mockSignIn).toHaveBeenCalledTimes(1)
+    resolve({ valid: false })
+    await screen.findByRole('alert')
   })
 })

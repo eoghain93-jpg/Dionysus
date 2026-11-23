@@ -26,7 +26,9 @@ serve(async (req) => {
 
   const supabase = createClient(
     Deno.env.get('SUPABASE_URL')!,
-    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
+    // Names this function in the audit log (auditlog.ctx reads the header).
+    { global: { headers: { 'x-audit-actor': 'stripe-webhook' } } },
   )
 
   if (session.metadata?.type === 'membership') {

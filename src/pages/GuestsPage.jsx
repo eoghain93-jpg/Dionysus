@@ -3,6 +3,7 @@ import { UserPlus } from '../lib/icons'
 import { fetchGuestsForDate } from '../lib/guests'
 import { tradingTodayISO } from '../lib/tradingDay'
 import GuestSignInModal from '../components/guests/GuestSignInModal'
+import { logEvent } from '../lib/audit/log'
 
 /**
  * GuestsPage — the guest book. Lists non-members signed in on a trading
@@ -19,7 +20,12 @@ export default function GuestsPage() {
   useEffect(() => {
     let cancelled = false
     fetchGuestsForDate(date)
-      .then(rows => { if (!cancelled) { setGuests(rows); setError(null) } })
+      .then(rows => {
+        if (cancelled) return
+        setGuests(rows)
+        setError(null)
+        logEvent('guests.viewed', { date, guests: rows.length })
+      })
       .catch(err => { if (!cancelled) setError(err.message ?? 'Failed to load guests') })
       .finally(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }

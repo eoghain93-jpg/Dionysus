@@ -25,17 +25,23 @@ export async function fetchProducts() {
 
 export async function upsertProduct(product) {
   const { id, ...fields } = product
-  if (id) {
-    const { data, error } = await supabase.from('products').update(fields).eq('id', id).select().single()
-    if (error) throw error
-    await db.products.put(data)
-    return data
-  } else {
-    const { data, error } = await supabase.from('products').insert(fields).select().single()
-    if (error) throw error
-    await db.products.put(data)
-    return data
+  const write = f => (id
+    ? supabase.from('products').update(f).eq('id', id).select().single()
+    : supabase.from('products').insert(f).select().single())
+
+  let { data, error } = await write(fields)
+  // Bundle ahead of the database update: products has no changed_by column
+  // yet, and the whole save is refused (nothing was written). Save without
+  // it rather than block a price change; who changed it is then not
+  // recorded, exactly as before the update.
+  if (error && 'changed_by' in fields
+      && (error.code === 'PGRST204' || error.code === '42703' || /changed_by/i.test(error.message ?? ''))) {
+    const { changed_by: _changedBy, ...rest } = fields
+    ;({ data, error } = await write(rest))
   }
+  if (error) throw error
+  await db.products.put(data)
+  return data
 }
 
 export async function logStockMovement({ product_id, type, quantity, notes, till_id = getTillId() }) {

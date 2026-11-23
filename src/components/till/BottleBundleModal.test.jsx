@@ -2,6 +2,9 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import BottleBundleModal from './BottleBundleModal'
 import { useTillStore } from '../../stores/tillStore'
+import { logEvent } from '../../lib/audit/log'
+
+vi.mock('../../lib/audit/log', () => ({ logEvent: vi.fn() }))
 
 // A products list mirroring the live Bottle category, including the look-alikes
 // the deal must NOT include.
@@ -17,6 +20,7 @@ const products = [
 
 beforeEach(() => {
   useTillStore.setState({ orderItems: [], activeMember: null, membersOnlyMode: false })
+  logEvent.mockClear()
 })
 
 describe('BottleBundleModal eligibility', () => {
@@ -65,5 +69,43 @@ describe('BottleBundleModal deal flow', () => {
     for (let i = 0; i < 5; i++) fireEvent.click(tile)
     // price of 4 off member price: 4 × £4.75 = £19.00
     expect(screen.getByRole('button', { name: /Add to Order — £19\.00/ })).toBeEnabled()
+  })
+})
+
+describe('BottleBundleModal audit', () => {
+  it('logs cart.bundle_added once the bottles are on the order', () => {
+    render(<BottleBundleModal products={products} onClose={vi.fn()} />)
+    for (let i = 0; i < 3; i++) fireEvent.click(screen.getByRole('button', { name: /San Miguel/ }))
+    for (let i = 0; i < 2; i++) fireEvent.click(screen.getByRole('button', { name: /Budweiser/ }))
+    expect(logEvent).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole('button', { name: /Add to Order — £21\.00/ }))
+    expect(useTillStore.getState().orderItems).toHaveLength(2)
+    expect(logEvent.mock.calls).toEqual([
+      ['cart.bundle_added', {
+        bundle: 'bottles_5_for_4',
+        lines: 2,
+        value: 21,
+        items: [{ product: 'San Miguel', quantity: 3 }, { product: 'Budweiser', quantity: 2 }],
+        member_prices: false,
+      }],
+    ])
+  })
+
+  it('says when the deal was worked out from member prices', () => {
+    useTillStore.setState({ activeMember: { id: 'm', name: 'M' } })
+    render(<BottleBundleModal products={products} onClose={vi.fn()} />)
+    for (let i = 0; i < 5; i++) fireEvent.click(screen.getByRole('button', { name: /San Miguel/ }))
+    fireEvent.click(screen.getByRole('button', { name: /Add to Order — £19\.00/ }))
+    expect(logEvent.mock.calls[0][1]).toMatchObject({ value: 19, member_prices: true })
+  })
+
+  it('logs nothing when the modal is closed without adding', () => {
+    const onClose = vi.fn()
+    render(<BottleBundleModal products={products} onClose={onClose} />)
+    fireEvent.click(screen.getByRole('button', { name: /San Miguel/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    expect(onClose).toHaveBeenCalled()
+    expect(logEvent).not.toHaveBeenCalled()
   })
 })

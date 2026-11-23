@@ -4,6 +4,7 @@ import { Search, UserPlus } from '../lib/icons'
 import MemberList from '../components/members/MemberList'
 import MemberProfile from '../components/members/MemberProfile'
 import MemberFormModal from '../components/members/MemberFormModal'
+import { logEvent } from '../lib/audit/log'
 
 export default function MembersPage() {
   const [members, setMembers] = useState([])
@@ -44,6 +45,12 @@ export default function MembersPage() {
       m.email?.toLowerCase().includes(q)
     )
   })
+
+  function openProfile(member) {
+    setProfileMember(member)
+    // Contact details, notes, tab and purchase history are now on screen.
+    logEvent('member.profile_viewed', { member_id: member.id })
+  }
 
   function openAdd() {
     setFormModal(null)
@@ -124,7 +131,7 @@ export default function MembersPage() {
         ) : (
           <MemberList
             members={filtered}
-            onSelect={setProfileMember}
+            onSelect={openProfile}
             onEdit={openEdit}
           />
         )}

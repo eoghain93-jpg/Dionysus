@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback } from 'react'
 import { fetchProducts } from '../lib/products'
-import { Plus, Search } from '../lib/icons'
+import { Plus, Search, Clock } from '../lib/icons'
 import StockList from '../components/stock/StockList'
 import StockMovementModal from '../components/stock/StockMovementModal'
 import ProductFormModal from '../components/stock/ProductFormModal'
+import PriceChangesModal from '../components/stock/PriceChangesModal'
 
 const CATEGORIES = ['all', 'draught', 'bottle', 'spirit', 'soft', 'food', 'other']
 
@@ -16,6 +17,7 @@ export default function StockPage() {
   // Modal state
   const [movementModal, setMovementModal] = useState(null) // { product, type }
   const [productModal, setProductModal] = useState(undefined) // undefined = closed, null = add, object = edit
+  const [showPriceChanges, setShowPriceChanges] = useState(false)
 
   const loadProducts = useCallback(() => {
     setLoading(true)
@@ -61,6 +63,13 @@ export default function StockPage() {
       {/* Page header */}
       <div className="ui-page-header">
         <h1 className="ui-title">Stock</h1>
+        <button
+          onClick={() => setShowPriceChanges(true)}
+          className="ml-auto flex items-center gap-2 px-4 min-h-[44px] rounded-xl border border-slate-600 text-slate-300 hover:bg-slate-700 hover:text-white text-sm font-medium transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617]"
+        >
+          <Clock size={16} aria-hidden="true" />
+          Price changes
+        </button>
         <button
           onClick={() => setProductModal(null)}
           className="ui-btn ui-btn-primary"
@@ -126,6 +135,8 @@ export default function StockPage() {
           }}
         />
       )}
+
+      {showPriceChanges && <PriceChangesModal onClose={() => setShowPriceChanges(false)} />}
 
       {/* Product form modal (add / edit) */}
       {productModal !== undefined && (

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Banknote, CreditCard, Receipt, Plus, Minus, ChevronDown, Clock, Lock, Check } from 'lucide-react'
 import { useTillStore } from '../../stores/tillStore'
+import { logEvent } from '../../lib/audit/log'
 import CashPaymentModal from './CashPaymentModal'
 import BlurredAmount from '../ui/BlurredAmount'
 
@@ -11,6 +12,31 @@ const PAYMENT_LABELS = { cash: 'cash', card: 'by card', tab: 'on tab' }
 
 function initials(name) {
   return name?.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase() ?? '?'
+}
+
+const money = n => Number(Number(n).toFixed(2))
+
+// What an auditor needs to know about a line that left the order.
+function lineDetail(line) {
+  return {
+    product: line.name,
+    quantity: line.quantity,
+    unit_price: line.unit_price,
+    value: money(line.quantity * line.unit_price),
+    ...(line.bundle_price_applied ? { bundle: true } : {}),
+    ...(line.staff_credit_for ? { for_staff: line.staff_credit_name } : {}),
+  }
+}
+
+// A whole order, as it stood when it was voided or set aside.
+function orderDetail(lines, member) {
+  return {
+    lines: lines.length,
+    value: money(lines.reduce((sum, l) => sum + l.subtotal, 0)),
+    member: member?.name ?? null,
+    member_id: member?.id ?? null,
+    items: lines.slice(0, 30).map(l => ({ product: l.name, quantity: l.quantity, value: money(l.subtotal) })),
+  }
 }
 
 /**
@@ -59,10 +85,89 @@ export default function OrderPanel({
     finally { setPaying(false) }
   }
 
+  // ── Audit ───────────────────────────────────────────────────────────────
+  // Order edits never reach the database (the cart lives in memory), so each
+  // one is logged here. The store keys lines on line_id ?? product_id and a
+  // shot-bundle line shares its key with a plain line for the same product,
+  // so one tap can change two lines: read the affected lines BEFORE the
+  // store action and log what actually happened to each.
+  const linesFor = key =>
+    useTillStore.getState().orderItems.filter(i => (i.line_id ?? i.product_id) === key)
+
+  function handleQuantity(lineKey, to) {
+    const lines = linesFor(lineKey)
+    updateQuantity(lineKey, to)
+    lines.forEach(l => {
+      if (to <= 0) {
+        logEvent('cart.line_removed', lineDetail(l), { severity: 1 })
+      } else if (to < l.quantity) {
+        logEvent('cart.quantity_reduced', {
+          product: l.name,
+          from: l.quantity,
+          to,
+          value_removed: money((l.quantity - to) * l.unit_price),
+          ...(l.bundle_price_applied ? { bundle: true } : {}),
+          ...(l.staff_credit_for ? { for_staff: l.staff_credit_name } : {}),
+        }, { severity: 1 })
+      } else if (to > l.quantity && l.bundle_price_applied) {
+        // More units at the deal price than the deal allows.
+        logEvent('cart.bundle_quantity_increased', {
+          product: l.name, from: l.quantity, to, unit_price: l.unit_price,
+        }, { severity: 1 })
+      }
+    })
+  }
+
+  // Void takes two taps (see above); only the second one voids and is logged.
   function handleVoid() {
     if (!voidArmed) { setVoidArmed(true); return }
     setVoidArmed(false)
+    const { orderItems: lines, activeMember: member } = useTillStore.getState()
     clearOrder()
+    if (lines.length === 0) return
+    logEvent('cart.order_voided', orderDetail(lines, member), { severity: 1 })
+  }
+
+  // A parked order lives only in this till's memory until it is resumed and
+  // paid, so the log is the only record of what was set aside — and of a
+  // parked order that never comes back.
+  function handlePark() {
+    const { orderItems: lines, activeMember: member } = useTillStore.getState()
+    if (lines.length === 0) return
+    parkOrder()
+    const parked = useTillStore.getState().parkedOrders.at(-1)
+    logEvent('cart.order_parked', { park_id: parked?.id ?? null, label: parked?.label ?? null, ...orderDetail(lines, member) })
+  }
+
+  function handleResume(id) {
+    const before = useTillStore.getState()
+    const parked = before.parkedOrders.find(p => p.id === id)
+    if (!parked) return
+    const { orderItems: lines, activeMember: member } = before
+    resumeOrder(id)
+    // Whatever was on the till is parked in its place by the store.
+    if (lines.length > 0) {
+      const swapped = useTillStore.getState().parkedOrders.at(-1)
+      logEvent('cart.order_parked', {
+        park_id: swapped?.id ?? null, label: swapped?.label ?? null, swapped_for: id, ...orderDetail(lines, member),
+      })
+    }
+    logEvent('cart.order_resumed', { park_id: id, label: parked.label, ...orderDetail(parked.items, parked.member) })
+  }
+
+  function handleClearMember() {
+    const { orderItems: lines, activeMember: member, membersOnlyMode } = useTillStore.getState()
+    clearMember()
+    if (!member) return
+    // Nothing is repriced when a member is cleared: lines already rung keep
+    // the member price, and the sale then completes with no member on it.
+    const kept = lines.filter(l => l.member_price_applied).length
+    logEvent('cart.member_cleared', {
+      member_id: member.id,
+      member_name: member.name,
+      lines_at_member_price: kept,
+      ...(membersOnlyMode ? { members_only_mode: true } : {}),
+    }, { severity: kept > 0 ? 1 : 0 })
   }
 
   return (
@@ -78,7 +183,7 @@ export default function OrderPanel({
           {hasItems && (
             <>
               <button
-                onClick={parkOrder}
+                onClick={handlePark}
                 className="min-h-[44px] px-3.5 rounded-xl border border-slate-700 text-slate-100 text-sm font-bold
                   hover:bg-slate-800 transition-colors cursor-pointer"
               >
@@ -117,7 +222,7 @@ export default function OrderPanel({
             return (
               <button
                 key={parked.id}
-                onClick={() => resumeOrder(parked.id)}
+                onClick={() => handleResume(parked.id)}
                 aria-label={`Resume parked order ${parked.label}, £${parkedTotal.toFixed(2)}`}
                 className="min-h-[44px] px-3.5 rounded-full border border-slate-700 bg-slate-800 text-slate-100
                   text-sm font-bold whitespace-nowrap hover:bg-slate-700 transition-colors cursor-pointer"
@@ -145,14 +250,20 @@ export default function OrderPanel({
               {Number(activeMember.tab_balance) > 0 && (
                 <div className="text-blue-300 text-sm mt-0.5 flex items-center gap-1">
                   <span>Tab:</span>
-                  <BlurredAmount className="text-blue-300">
-                    £{Number(activeMember.tab_balance).toFixed(2)}
-                  </BlurredAmount>
+                  {/* Capture phase: BlurredAmount stops the click from bubbling. */}
+                  <span
+                    className="contents"
+                    onClickCapture={() => logEvent('tab.amount_revealed', { member_id: activeMember.id })}
+                  >
+                    <BlurredAmount className="text-blue-300">
+                      £{Number(activeMember.tab_balance).toFixed(2)}
+                    </BlurredAmount>
+                  </span>
                 </div>
               )}
             </div>
             <button
-              onClick={clearMember}
+              onClick={handleClearMember}
               aria-label="Clear member"
               className="min-h-[44px] px-3 rounded-xl text-slate-100 text-sm font-bold
                 hover:bg-blue-900 transition-colors cursor-pointer"
@@ -239,7 +350,7 @@ export default function OrderPanel({
             return (
               <div key={lineKey} className="flex items-center gap-2 bg-slate-800 rounded-2xl pl-1.5 pr-3 py-1.5">
                 <button
-                  onClick={() => updateQuantity(lineKey, item.quantity - 1)}
+                  onClick={() => handleQuantity(lineKey, item.quantity - 1)}
                   aria-label={item.quantity === 1 ? `Remove ${item.name}` : 'Decrease quantity'}
                   className="w-11 h-11 shrink-0 rounded-xl bg-slate-700 hover:bg-slate-600 active:scale-95
                     text-white flex items-center justify-center transition-all duration-150 cursor-pointer"
@@ -248,7 +359,7 @@ export default function OrderPanel({
                 </button>
                 <span className="w-6 text-center text-white text-lg font-extrabold">{item.quantity}</span>
                 <button
-                  onClick={() => updateQuantity(lineKey, item.quantity + 1)}
+                  onClick={() => handleQuantity(lineKey, item.quantity + 1)}
                   aria-label="Increase quantity"
                   className="w-11 h-11 shrink-0 rounded-xl bg-slate-700 hover:bg-slate-600 active:scale-95
                     text-white flex items-center justify-center transition-all duration-150 cursor-pointer"

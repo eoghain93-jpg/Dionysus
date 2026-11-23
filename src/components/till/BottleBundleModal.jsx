@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { X, RotateCcw } from 'lucide-react'
 import { useTillStore, bottleBundlePricing } from '../../stores/tillStore'
 import { isBottleBundleEligible } from '../../lib/bottleBundle'
+import { logEvent } from '../../lib/audit/log'
 
 const BUNDLE_QTY = 5
 
@@ -42,6 +43,13 @@ export default function BottleBundleModal({ products, onClose }) {
   function handleConfirm() {
     addBottleBundle(selected)
     onClose()
+    logEvent('cart.bundle_added', {
+      bundle: 'bottles_5_for_4',
+      lines: summary.length,
+      value: dealTotal,
+      items: summary.map(s => ({ product: s.name, quantity: s.qty })),
+      member_prices: useMember,
+    })
   }
 
   // Collapse duplicates of the same product for the summary chips.

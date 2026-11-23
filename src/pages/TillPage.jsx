@@ -9,7 +9,8 @@ import { fetchTabAges, isTabBlocked } from '../lib/tabs'
 import { fetchPopularProductIds, fetchMemberUsual, planUsual } from '../lib/favourites'
 import { SHOT_BUNDLE_QTY, SHOT_BUNDLE_TOTAL, isShotBundleEligible } from '../lib/shotBundle'
 import { findMemberByNumber } from '../lib/members'
-import { printReceipt } from '../lib/starPrinter'
+import { printReceipt, getPrinterIp } from '../lib/starPrinter'
+import { logEvent } from '../lib/audit/log'
 import { useToastStore } from '../hooks/useToast'
 import { useTillStore } from '../stores/tillStore'
 import { useSyncStore } from '../stores/syncStore'
@@ -74,7 +75,12 @@ export default function TillPage() {
   // Auto-clear event-wide members pricing on staff change so the next staff
   // member doesn't unknowingly inherit a previous shift's pricing mode.
   useEffect(() => {
-    if (!activeStaff) setMembersOnlyMode(false)
+    if (activeStaff) return
+    // The log saw the mode go on; it must also see it go off by itself.
+    if (useTillStore.getState().membersOnlyMode) {
+      logEvent('pricing.members_only_mode_off', { reason: 'staff_signed_out' }, { severity: 1 })
+    }
+    setMembersOnlyMode(false)
   }, [activeStaff?.id, setMembersOnlyMode])
 
   useEffect(() => {
@@ -162,6 +168,11 @@ export default function TillPage() {
       if (blocked) {
         useTillStore.setState({ activeMember: { ...currentMember, tab_blocked: true } })
         useToastStore.getState().addToast(`${currentMember.name}'s tab is blocked — take cash or card`, 'error')
+        // Nothing is written to the database for a refused sale, so this is
+        // the only record that someone tried to put drinks on a blocked tab.
+        logEvent('tab.sale_refused_blocked', {
+          member_id: currentMember.id, member_name: currentMember.name, total: Number(total.toFixed(2)),
+        }, { severity: 1 })
         return
       }
     }
@@ -171,6 +182,8 @@ export default function TillPage() {
       // so an offline order replayed by sync can never duplicate.
       id: newOrderId(),
       member_id: currentMember?.id ?? null,
+      // Who rang it: the staff member signed in at this till right now.
+      staff_id: useSessionStore.getState().activeStaff?.id ?? null,
       payment_method: paymentMethod,
       total_amount: total,
       status: 'paid',
@@ -198,17 +211,39 @@ export default function TillPage() {
       useToastStore.getState().addToast('Order save failed — check sync', 'error')
     }
 
+    // printed: a receipt actually went to the printer (with no printer IP
+    // the job is silently skipped, and so is the drawer kick).
+    let printed = false
     try {
       await printReceipt({ orderId: order.id, total, paymentMethod, createdAt: order.created_at })
+      printed = !!getPrinterIp()
     } catch (err) {
       console.error('Print failed:', err)
       useToastStore.getState().addToast('Print failed — check printer connection', 'error')
+      logEvent('receipt.print_failed', { what: 'receipt', message: String(err?.message ?? err).slice(0, 300), order_id: order.id }, { severity: 1 })
     }
 
     // Kept for the "Sale complete" note and the "Same again" button.
     useTillStore.getState().setLastSale({ items: currentItems, member: currentMember, total, paymentMethod })
     setUndo(null)
     clearOrder()
+
+    // Logged last, once the till is ready for the next customer. The order
+    // row says what was sold; this says how the sale ended up (stored online,
+    // queued on this till, or not stored at all) and whether a receipt came
+    // out. A sale that could not be stored anywhere has no row and never
+    // will, so its lines travel with the event.
+    logEvent('sale.completed', {
+      order_id: order.id,
+      total: Number(total.toFixed(2)),
+      method: paymentMethod,
+      lines: items.length,
+      saved,
+      printed,
+      ...(saved === 'failed'
+        ? { member_id: order.member_id, items: items.slice(0, 40).map(i => ({ product_id: i.product_id, quantity: i.quantity, unit_price: i.unit_price })) }
+        : {}),
+    }, { severity: saved === 'failed' ? 2 : saved === 'online' ? 0 : 1 })
   }, [isOnline, clearOrder])
 
   if (!activeStaff) { return <PinLoginScreen /> }
@@ -243,7 +278,7 @@ export default function TillPage() {
     { label: 'Cashback', Icon: Banknote, onClick: () => setShowCashback(true) },
     { label: 'Prize win', Icon: Trophy, onClick: () => setShowPrizeWin(true) },
     { label: 'Sign in guest', Icon: UserPlus, onClick: () => setShowGuestSignIn(true) },
-    { label: 'Fix payment', Icon: RotateCcw, onClick: () => setShowRecentSales(true) },
+    { label: 'Fix payment', Icon: RotateCcw, onClick: () => { setShowRecentSales(true); logEvent('sales.recent_viewed') } },
   ]
 
   const usualLines = usual
@@ -271,6 +306,9 @@ export default function TillPage() {
 
   function handleUndo() {
     useTillStore.getState().removeOne(undo.id)
+    // Taking back the tile just tapped is still a drink coming off an order
+    // before payment, so it is recorded like the minus button is.
+    logEvent('cart.item_undone', { product: undo.name, product_id: undo.id })
     setUndo(null)
   }
 
@@ -297,7 +335,7 @@ export default function TillPage() {
     usual: usualLines,
     onAddUsual: handleAddUsual,
     onSameAgain: handleSameAgain,
-    onFixPayment: () => setShowRecentSales(true),
+    onFixPayment: () => { setShowRecentSales(true); logEvent('sales.recent_viewed') },
     // On tablet and up the Undo prompt lives in the order panel, so it never
     // covers a tile; phones (no side panel) get a floating one instead.
     undo,
@@ -426,6 +464,12 @@ export default function TillPage() {
           onAdd={(product, staffMember) => {
             useTillStore.getState().addStaffCreditItem(product, staffMember)
             setShowOneForStaff(false)
+            // The credit itself is a row once the sale is paid; the line can
+            // still be taken off before then, so note who it was rung for.
+            const self = staffMember.id === useSessionStore.getState().activeStaff?.id
+            logEvent('cart.staff_credit_added', {
+              product: product.name, for_staff_id: staffMember.id, for_staff_name: staffMember.name, self_award: self,
+            }, { severity: self ? 1 : 0 })
           }}
           onClose={() => setShowOneForStaff(false)}
         />

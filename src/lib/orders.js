@@ -33,18 +33,45 @@ export async function createOrderWithItems(order, items) {
 // Today's paid sales, newest first — the Fix Payment list. Capped at 50:
 // mistakes are caught within a few sales, nobody scrolls to this morning.
 // Trading-day window, so a sale rung at 1am is still fixable at 1:05am.
+// PostgREST / Postgres answers for a column this database does not have yet.
+function isMissingColumn(error) {
+  return !!error && (error.code === '42703' || error.code === 'PGRST204'
+    || /column .* does not exist|could not find the .* column/i.test(error.message ?? ''))
+}
+
 export async function fetchTodaysOrders() {
   const { from, to } = tradingDayRange(tradingTodayISO())
-  const { data, error } = await supabase
+  const query = columns => supabase
     .from('orders')
-    .select('id, created_at, total_amount, payment_method, status, member_id, is_tab_settlement, members(name)')
+    .select(columns)
     .eq('status', 'paid')
     .gte('created_at', from)
     .lt('created_at', to)
     .order('created_at', { ascending: false })
     .limit(50)
+  const base = 'id, created_at, total_amount, payment_method, status, member_id, is_tab_settlement, members(name)'
+  let { data, error } = await query(`${base}, staff_id`)
+  // Bundle ahead of the database update: no staff_id column yet. The list
+  // (and Fix Payment with it) must still open.
+  if (isMissingColumn(error)) ({ data, error } = await query(base))
   if (error) throw error
-  return data ?? []
+  return attachStaffNames(data ?? [])
+}
+
+// orders.staff_id has no foreign key (a second orders->members FK would make
+// every members(...) embed on orders ambiguous), so staff names are looked
+// up by id here. Adds staff_name to each order; null when the order has no
+// staff_id (rung before staff were recorded) or the lookup fails — a
+// missing name must never stop the sales list or an export from loading.
+export async function attachStaffNames(orders) {
+  const ids = [...new Set(orders.map(o => o.staff_id).filter(Boolean))]
+  const names = {}
+  if (ids.length > 0) {
+    const { data, error } = await supabase.from('members').select('id, name').in('id', ids)
+    if (error) console.error('Staff name lookup failed:', error)
+    for (const m of data ?? []) names[m.id] = m.name
+  }
+  return orders.map(o => ({ ...o, staff_name: names[o.staff_id] ?? null }))
 }
 
 // Switch a paid order between cash and card via the

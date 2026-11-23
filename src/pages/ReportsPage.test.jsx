@@ -1,7 +1,10 @@
-import { render, screen, fireEvent } from '@testing-library/react'
-import { describe, it, expect, vi } from 'vitest'
+import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { useToastStore } from '../hooks/useToast'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { MemoryRouter } from 'react-router-dom'
 import ReportsPage from './ReportsPage'
+import { supabase } from '../lib/supabase'
+import { logEvent } from '../lib/audit/log'
 
 // The page renders a <Link to="/stocktake">, so it needs router context
 const renderPage = () => render(<ReportsPage />, { wrapper: MemoryRouter })
@@ -27,8 +30,8 @@ vi.mock('../components/reports/ZReportModal', () => ({
 
 // Mock PinGate — immediately calls onConfirm so we can test the full flow
 vi.mock('../components/till/PinGate', () => ({
-  default: ({ onConfirm, onCancel }) => (
-    <div data-testid="pin-gate">
+  default: ({ onConfirm, onCancel, purpose }) => (
+    <div data-testid="pin-gate" data-purpose={purpose}>
       <button onClick={onConfirm}>Enter PIN</button>
       <button onClick={onCancel}>Cancel PIN</button>
     </div>
@@ -41,6 +44,10 @@ vi.mock('../lib/supabase', async () => {
   return { supabase: createSupabaseMock() }
 })
 
+vi.mock('../lib/audit/log', () => ({ logEvent: vi.fn() }))
+// Staff-name lookup is its own unit; pass the orders straight through
+vi.mock('../lib/orders', () => ({ attachStaffNames: vi.fn(async orders => orders) }))
+
 describe('ReportsPage — Z Report button', () => {
   it('renders a Z Report button', () => {
     renderPage()
@@ -51,6 +58,12 @@ describe('ReportsPage — Z Report button', () => {
     renderPage()
     fireEvent.click(screen.getByRole('button', { name: /z report/i }))
     expect(screen.getByTestId('pin-gate')).toBeInTheDocument()
+  })
+
+  it('tells the PinGate what the PIN is for (recorded with the check)', () => {
+    renderPage()
+    fireEvent.click(screen.getByRole('button', { name: /z report/i }))
+    expect(screen.getByTestId('pin-gate')).toHaveAttribute('data-purpose', 'z_report')
   })
 
   it('PinGate is not shown initially', () => {
@@ -94,5 +107,80 @@ describe('ReportsPage — ZReportModal flow', () => {
     openModal()
     fireEvent.click(screen.getByRole('button', { name: /day closed/i }))
     expect(screen.queryByTestId('z-report-modal')).not.toBeInTheDocument()
+  })
+})
+
+describe('ReportsPage — Export CSV', () => {
+  const ORDERS = [
+    { id: 'o1', created_at: '2026-03-30T20:00:00Z', total_amount: 7.4, payment_method: 'cash', status: 'paid', till_id: 'till-1', members: null },
+    { id: 'o2', created_at: '2026-03-30T20:05:00Z', total_amount: 12, payment_method: 'card', status: 'paid', till_id: 'till-2', members: { name: 'Alice', membership_number: 'M0001' } },
+  ]
+  let click
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    supabase.__reset()
+    useToastStore.setState({ toasts: [] })
+    // jsdom has no object URLs
+    URL.createObjectURL = vi.fn(() => 'blob:orders')
+    URL.revokeObjectURL = vi.fn()
+    click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
+  })
+
+  afterEach(() => {
+    click.mockRestore()
+    delete URL.createObjectURL
+    delete URL.revokeObjectURL
+  })
+
+  it('logs report.exported with the date and how many orders left the till', async () => {
+    supabase.__configure({ orders: { data: ORDERS } })
+    renderPage()
+    const date = screen.getByLabelText(/select report date/i).value
+    fireEvent.click(screen.getByRole('button', { name: /export csv/i }))
+    await waitFor(() => expect(click).toHaveBeenCalledOnce())
+    expect(logEvent.mock.calls).toEqual([
+      ['report.exported', { report: 'daily', date, rows: 2 }, { severity: 1 }],
+    ])
+  })
+
+  it('logs nothing when there was nothing to export', async () => {
+    supabase.__configure({ orders: { data: [] } })
+    renderPage()
+    fireEvent.click(screen.getByRole('button', { name: /export csv/i }))
+    await waitFor(() => expect(screen.getByRole('button', { name: /export csv/i })).not.toBeDisabled())
+    expect(click).not.toHaveBeenCalled()
+    expect(logEvent).not.toHaveBeenCalled()
+  })
+
+  it('still exports, without the staff column, from a database that has no staff_id yet', async () => {
+    supabase.__configure({
+      orders: [
+        { data: null, error: { code: '42703', message: 'column orders.staff_id does not exist' } },
+        { data: ORDERS },
+      ],
+    })
+    renderPage()
+    fireEvent.click(screen.getByRole('button', { name: /export csv/i }))
+    await waitFor(() => expect(click).toHaveBeenCalledOnce())
+    expect(supabase.__chain('orders', 1).select.mock.calls[0][0]).not.toMatch(/staff_id/)
+    expect(logEvent).toHaveBeenCalledTimes(1)
+  })
+
+  it('says the export failed, not that there were no orders, when the day cannot be read', async () => {
+    supabase.__configure({ orders: { data: null, error: { code: '57014', message: 'canceling statement due to statement timeout' } } })
+    renderPage()
+    fireEvent.click(screen.getByRole('button', { name: /export csv/i }))
+    await waitFor(() => expect(useToastStore.getState().toasts.at(-1)?.message).toMatch(/could not export/i))
+    expect(useToastStore.getState().toasts.map(t => t.message).join(' ')).not.toMatch(/no orders found/i)
+    expect(click).not.toHaveBeenCalled()
+    expect(logEvent).not.toHaveBeenCalled()
+  })
+
+  it('logs nothing for opening the Z report gate (the PIN check is recorded by the database)', () => {
+    renderPage()
+    fireEvent.click(screen.getByRole('button', { name: /z report/i }))
+    fireEvent.click(screen.getByRole('button', { name: /enter pin/i }))
+    expect(logEvent).not.toHaveBeenCalled()
   })
 })

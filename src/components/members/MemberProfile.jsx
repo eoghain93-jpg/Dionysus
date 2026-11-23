@@ -9,6 +9,7 @@ import AdjustTabModal from './AdjustTabModal'
 import SetPinModal from './SetPinModal'
 import { isRenewalDueSoon } from './MemberList'
 import BlurredAmount from '../ui/BlurredAmount'
+import { logEvent } from '../../lib/audit/log'
 
 /**
  * Full member profile overlay/panel.
@@ -186,9 +187,14 @@ export default function MemberProfile({ member, onClose, onEdit, onSettleTab }) 
             <div>
               <p className={fieldLabel}>Tab Balance</p>
               {hasTab ? (
-                <BlurredAmount className="text-blue-300 text-[22px] leading-tight font-extrabold">
-                  {formatCurrency(member.tab_balance)}
-                </BlurredAmount>
+                <span
+                  className="contents"
+                  onClickCapture={() => logEvent('tab.amount_revealed', { member_id: member.id })}
+                >
+                  <BlurredAmount className="text-blue-300 text-[22px] leading-tight font-extrabold">
+                    {formatCurrency(member.tab_balance)}
+                  </BlurredAmount>
+                </span>
               ) : (
                 <p className="text-slate-400">None</p>
               )}

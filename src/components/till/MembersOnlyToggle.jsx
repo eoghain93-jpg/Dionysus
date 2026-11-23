@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Users } from 'lucide-react'
 import { useTillStore } from '../../stores/tillStore'
+import { logEvent } from '../../lib/audit/log'
 
 /**
  * MembersOnlyToggle — global event-mode switch.
@@ -24,6 +25,13 @@ export default function MembersOnlyToggle() {
 
   function confirmChange() {
     setMembersOnlyMode(pendingChange === 'on')
+    // Member prices for everyone, with no member named on any sale: the
+    // log is the only record of when this was on, and who turned it on.
+    logEvent(
+      pendingChange === 'on' ? 'pricing.members_only_mode_on' : 'pricing.members_only_mode_off',
+      {},
+      { severity: 1 },
+    )
     setPendingChange(null)
   }
 

@@ -136,12 +136,55 @@ describe('fetchTodaysOrders', () => {
     expect(chain.lt).toHaveBeenCalledWith('created_at', to)
     expect(chain.order).toHaveBeenCalledWith('created_at', { ascending: false })
     expect(chain.limit).toHaveBeenCalledWith(50)
-    expect(result).toEqual(rows)
+    expect(result).toEqual([{ ...rows[0], staff_name: null }])
+  })
+
+  it('adds the name of the staff member who rang each sale', async () => {
+    supabase.__configure({
+      orders: { data: [
+        { id: 'o1', staff_id: 'staff-1' },
+        { id: 'o2', staff_id: 'staff-1' },
+        { id: 'o3', staff_id: null },
+      ] },
+      members: { data: [{ id: 'staff-1', name: 'Sam Staff' }] },
+    })
+
+    const result = await fetchTodaysOrders()
+
+    // one lookup for the distinct staff ids, not one per order
+    expect(supabase.__chain('members').in).toHaveBeenCalledWith('id', ['staff-1'])
+    expect(result.map(o => o.staff_name)).toEqual(['Sam Staff', 'Sam Staff', null])
+  })
+
+  it('still returns the sales when the staff name lookup fails', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    supabase.__configure({
+      orders: { data: [{ id: 'o1', staff_id: 'staff-1' }] },
+      members: { data: null, error: { message: 'boom' } },
+    })
+
+    const result = await fetchTodaysOrders()
+
+    expect(result).toEqual([{ id: 'o1', staff_id: 'staff-1', staff_name: null }])
   })
 
   it('throws on error', async () => {
     supabase.__configure({ orders: { data: null, error: { message: 'DB error' } } })
     await expect(fetchTodaysOrders()).rejects.toThrow('DB error')
+  })
+
+  // The new bundle can reach a till before the database update has landed.
+  it('still lists sales when the database has no staff_id column yet', async () => {
+    supabase.__configure({ orders: [
+      { data: null, error: { code: '42703', message: 'column orders.staff_id does not exist' } },
+      { data: [{ id: 'o1', total_amount: 5.5 }] },
+    ] })
+
+    const result = await fetchTodaysOrders()
+
+    expect(result).toEqual([{ id: 'o1', total_amount: 5.5, staff_name: null }])
+    expect(supabase.__chain('orders', 0).select.mock.calls[0][0]).toContain('staff_id')
+    expect(supabase.__chain('orders', 1).select.mock.calls[0][0]).not.toContain('staff_id')
   })
 })
 

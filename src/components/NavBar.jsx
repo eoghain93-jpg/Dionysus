@@ -1,8 +1,13 @@
 import { useState, useEffect } from 'react'
 import { NavLink, useLocation } from 'react-router-dom'
-import { ShoppingCart, Package, Users, BarChart2, Tag, Receipt, Settings, MoreHorizontal, X, UserPlus } from 'lucide-react'
+import { ShoppingCart, Package, Users, BarChart2, Tag, Receipt, Settings, MoreHorizontal, X, UserPlus, ScrollText, Lock, LogOut } from 'lucide-react'
 import { useSessionStore } from '../stores/sessionStore'
+import { useToastStore } from '../hooks/useToast'
 import { useTabAlertStore } from '../stores/tabAlertStore'
+import { lockTill } from '../hooks/useIdleLock'
+import { logEvent } from '../lib/audit/log'
+import { serverUnreachable, markUnreachable, answersSeen } from '../lib/audit/reachability'
+import { getStaffSession, setStaffSession } from '../lib/audit/staffSession'
 import SwitchUserModal from './till/SwitchUserModal'
 import DaveyMode from './ui/DaveyMode'
 
@@ -14,6 +19,7 @@ const allLinks = [
   { to: '/reports', label: 'Reports', Icon: BarChart2 },
   { to: '/promos', label: 'Promos', Icon: Tag },
   { to: '/guests', label: 'Guests', Icon: UserPlus },
+  { to: '/log', label: 'Log', Icon: ScrollText },
   { to: '/settings', label: 'Settings', Icon: Settings },
 ]
 
@@ -54,11 +60,32 @@ function StripesIcon({ size }) {
   )
 }
 
+// Signing out tells the server first, and only goes ahead once the server has
+// answered: a signed-out till needs the server to sign anyone back in, so
+// signing out into a dead connection would leave a login nobody can pass.
+// A slow connection must not hold the till either: after this long with no
+// answer the sign-out is called off and the person is told to use Lock.
+const SIGN_OUT_WAIT_MS = 3000
+
+const NO_SERVER_TOAST = 'Can’t reach the server — nobody could sign back in. Use Lock instead.'
+
+// Ask the database anything. The answer itself is not used: the fetch wrapper
+// notes that the server answered (lib/audit/reachability.js), and a database
+// that has no audit_ping yet still answers. Loaded on demand so the nav bar
+// never drags the Supabase client into a module that has no need of it.
+async function askServer() {
+  try {
+    const { supabase } = await import('../lib/supabase')
+    await supabase.rpc('audit_ping')
+  } catch { /* no answer */ }
+}
+
 export default function NavBar() {
   const { activeStaff } = useSessionStore()
   const [showSwitch, setShowSwitch] = useState(false)
   const [showMore, setShowMore] = useState(false)
   const [showDavey, setShowDavey] = useState(false)
+  const [signingOut, setSigningOut] = useState(false)
   const location = useLocation()
   const overdueCount = useTabAlertStore(s => s.overdueCount)
   const refreshTabAlerts = useTabAlertStore(s => s.refresh)
@@ -70,6 +97,68 @@ export default function NavBar() {
     const timer = setInterval(refreshTabAlerts, TAB_ALERT_REFRESH_MS)
     return () => clearInterval(timer)
   }, [location.pathname, refreshTabAlerts])
+
+  function openDavey() {
+    logEvent('app.davey_mode')
+    setShowDavey(true)
+  }
+
+  // Lock: the till keeps the open order and shows whose it is; their PIN
+  // carries on. It ends their server session (see useIdleLock.lockTill).
+  function handleLock() {
+    setShowMore(false)
+    lockTill('manual')
+  }
+
+  async function handleSignOut() {
+    if (signingOut) return
+    setShowMore(false)
+    // Nobody can sign back in without the server (a PIN cannot be checked),
+    // so signing out now would leave the till unusable. Lock still works:
+    // its screen lets the same person carry on, on the record.
+    if (navigator.onLine === false) {
+      useToastStore.getState().addToast('Offline — nobody could sign back in. Use Lock instead.', 'error')
+      return
+    }
+    if (serverUnreachable()) {
+      useToastStore.getState().addToast(NO_SERVER_TOAST, 'error')
+      askServer() // if it is back after all, the next tap goes through
+      return
+    }
+    setSigningOut(true)
+    const before = answersSeen()
+    const had = getStaffSession()
+    const staffId = useSessionStore.getState().activeStaff?.id
+    const told = (async () => {
+      const { signOutStaff } = await import('../lib/audit/staff')
+      await signOutStaff('sign_out') // never rejects; the server records the sign-out
+      // No answer to that — or nothing was asked, because no server
+      // session was open (after an unchecked carry-on): ask outright.
+      if (answersSeen() === before) await askServer()
+    })().catch(() => {}) // treated below as no answer
+    await Promise.race([told, new Promise(resolve => setTimeout(resolve, SIGN_OUT_WAIT_MS))])
+    setSigningOut(false)
+    if (answersSeen() === before) {
+      // The browser says online but the server did not answer (the usual
+      // outage: broadband down, Wi-Fi up). Stay signed in. Remembered, so
+      // the till also stops auto-locking until the server is back.
+      markUnreachable()
+      useToastStore.getState().addToast(NO_SERVER_TOAST, 'error')
+      // Staying signed in means keeping the sign-in: the attempt forgets the
+      // session token once it gives up, which would leave this person's
+      // next actions recorded as unverified. If the server's answer turns
+      // up late after all, the session has really ended there, so finish
+      // the sign-out they asked for instead.
+      told.then(() => {
+        const session = useSessionStore.getState()
+        if (session.activeStaff?.id !== staffId || getStaffSession()) return // someone has signed in since
+        if (answersSeen() !== before) session.clearSession()
+        else if (had) setStaffSession(had)
+      })
+      return
+    }
+    useSessionStore.getState().clearSession()
+  }
 
   const moreIsActive = moreLinks.some(l => location.pathname === l.to)
 
@@ -102,9 +191,11 @@ export default function NavBar() {
           </NavLink>
         ))}
         {activeStaff && (
-          <div className="mt-auto pt-2 flex flex-col items-center gap-1 shrink-0">
+          // Pinned to the bottom of the rail: on a short screen the links
+          // above scroll, but Lock and Sign out can never be out of reach.
+          <div className="mt-auto sticky bottom-0 -mb-3 pt-2 pb-3 bg-slate-950 flex flex-col items-center gap-1 shrink-0">
             <button
-              onClick={() => setShowDavey(true)}
+              onClick={openDavey}
               className="w-[72px] min-h-[48px] flex flex-col items-center justify-center gap-0.5 rounded-2xl text-[13px] font-semibold
                 text-slate-400 hover:bg-slate-800 hover:text-white transition-colors duration-200 cursor-pointer
                 focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -125,6 +216,30 @@ export default function NavBar() {
               </span>
               <span className="max-w-full px-1 truncate">{activeStaff.name.split(' ')[0]}</span>
             </button>
+            {/* Lock + Sign out — side by side so the rail stays short */}
+            <div className="w-[72px] flex gap-1">
+              <button
+                onClick={handleLock}
+                title="Lock"
+                className="flex-1 min-h-[48px] flex items-center justify-center rounded-2xl
+                  border border-slate-700 text-slate-100 hover:bg-slate-800 transition-colors duration-200 cursor-pointer
+                  focus:outline-none focus:ring-2 focus:ring-blue-500"
+                aria-label="Lock till"
+              >
+                <Lock size={20} aria-hidden="true" />
+              </button>
+              <button
+                onClick={handleSignOut}
+                disabled={signingOut}
+                title="Sign out"
+                className="flex-1 min-h-[48px] flex items-center justify-center rounded-2xl
+                  border border-slate-700 text-slate-100 hover:bg-slate-800 transition-colors duration-200 cursor-pointer
+                  focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                aria-label="Sign out"
+              >
+                <LogOut size={20} aria-hidden="true" />
+              </button>
+            </div>
           </div>
         )}
       </nav>
@@ -201,17 +316,46 @@ export default function NavBar() {
               </NavLink>
             ))}
             {activeStaff && (
-              <button
-                onClick={() => { setShowMore(false); setShowDavey(true) }}
-                className="w-full flex items-center gap-3 px-4 py-4 text-sm font-medium transition-colors duration-150
-                  text-slate-300 hover:bg-slate-700 hover:text-white cursor-pointer"
-              >
-                <StripesIcon size={18} />
-                Davey
-              </button>
+              <>
+                <button
+                  onClick={() => { setShowMore(false); openDavey() }}
+                  className="w-full flex items-center gap-3 px-4 py-4 text-sm font-medium transition-colors duration-150
+                    text-slate-300 hover:bg-slate-700 hover:text-white cursor-pointer"
+                >
+                  <StripesIcon size={18} />
+                  Davey
+                </button>
+                <button
+                  onClick={handleLock}
+                  className="w-full flex items-center gap-3 px-4 py-4 text-sm font-medium transition-colors duration-150
+                    text-slate-300 hover:bg-slate-700 hover:text-white cursor-pointer border-t border-slate-700"
+                >
+                  <Lock size={18} aria-hidden="true" />
+                  Lock
+                </button>
+                <button
+                  onClick={handleSignOut}
+                  disabled={signingOut}
+                  className="w-full flex items-center gap-3 px-4 py-4 text-sm font-medium transition-colors duration-150
+                    text-slate-300 hover:bg-slate-700 hover:text-white cursor-pointer disabled:opacity-50"
+                >
+                  <LogOut size={18} aria-hidden="true" />
+                  Sign out
+                </button>
+              </>
             )}
           </div>
         </>
+      )}
+
+      {/* Covers the till for the moment it takes the server to answer */}
+      {signingOut && (
+        <div
+          role="status"
+          className="fixed inset-0 z-[150] bg-[#121314] flex items-center justify-center text-slate-300 text-base font-semibold"
+        >
+          Signing out…
+        </div>
       )}
 
       {showSwitch && <SwitchUserModal onClose={() => setShowSwitch(false)} />}

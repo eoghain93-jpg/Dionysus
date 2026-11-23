@@ -1,6 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import CashPaymentModal from './CashPaymentModal'
+import { logEvent } from '../../lib/audit/log'
+
+vi.mock('../../lib/audit/log', () => ({ logEvent: vi.fn() }))
 
 describe('CashPaymentModal', () => {
   const onConfirm = vi.fn()
@@ -9,6 +12,7 @@ describe('CashPaymentModal', () => {
   beforeEach(() => {
     onConfirm.mockClear()
     onCancel.mockClear()
+    logEvent.mockClear()
   })
 
   it('displays the order total', () => {
@@ -99,5 +103,57 @@ describe('CashPaymentModal', () => {
     render(<CashPaymentModal total={7.50} onConfirm={onConfirm} onCancel={onCancel} />)
     fireEvent.click(screen.getByRole('button', { name: /cancel/i }))
     expect(onCancel).toHaveBeenCalledOnce()
+  })
+
+  // ── audit ──────────────────────────────────────────────────────────────
+
+  it('logs what was tendered and the change given, after firing the checkout', () => {
+    const order = []
+    onConfirm.mockImplementationOnce(() => { order.push('checkout') })
+    logEvent.mockImplementationOnce(() => { order.push('log') })
+    render(<CashPaymentModal total={7.50} onConfirm={onConfirm} onCancel={onCancel} />)
+    fireEvent.click(screen.getByRole('button', { name: '£10' }))
+    fireEvent.click(screen.getByRole('button', { name: /confirm/i }))
+    expect(logEvent.mock.calls).toEqual([
+      ['sale.cash_tendered', { total: 7.5, tendered: 10, change: 2.5 }],
+    ])
+    expect(order).toEqual(['checkout', 'log'])
+  })
+
+  it('logs pence exactly for a keyed amount', () => {
+    render(<CashPaymentModal total={4.35} onConfirm={onConfirm} onCancel={onCancel} />)
+    for (const key of ['5', '.', '0', '5']) fireEvent.click(screen.getByRole('button', { name: key }))
+    fireEvent.click(screen.getByRole('button', { name: /confirm/i }))
+    expect(logEvent.mock.calls[0][1]).toEqual({ total: 4.35, tendered: 5.05, change: 0.7 })
+  })
+
+  it('carries the caller\'s context (a tab payment is not a sale)', () => {
+    render(
+      <CashPaymentModal
+        total={20}
+        onConfirm={onConfirm}
+        onCancel={onCancel}
+        auditDetail={{ tab_payment: true, member_id: 'm1' }}
+      />
+    )
+    fireEvent.click(screen.getByRole('button', { name: '£20' }))
+    fireEvent.click(screen.getByRole('button', { name: /confirm/i }))
+    expect(logEvent.mock.calls[0][1]).toEqual({
+      total: 20, tendered: 20, change: 0, tab_payment: true, member_id: 'm1',
+    })
+  })
+
+  it('logs nothing when the modal is cancelled or Done is pressed', () => {
+    const { unmount } = render(<CashPaymentModal total={7.50} onConfirm={onConfirm} onCancel={onCancel} />)
+    fireEvent.click(screen.getByRole('button', { name: '£10' }))
+    fireEvent.click(screen.getByRole('button', { name: /cancel/i }))
+    expect(logEvent).not.toHaveBeenCalled()
+    unmount()
+
+    render(<CashPaymentModal total={7.50} onConfirm={onConfirm} onCancel={onCancel} />)
+    fireEvent.click(screen.getByRole('button', { name: '£10' }))
+    fireEvent.click(screen.getByRole('button', { name: /confirm/i }))
+    fireEvent.click(screen.getByRole('button', { name: /done/i }))
+    expect(logEvent).toHaveBeenCalledOnce()
   })
 })

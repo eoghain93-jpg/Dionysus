@@ -120,7 +120,14 @@ export default function RecentSalesModal({ onClose }) {
             return (
               <div key={o.id} className="flex flex-col gap-2 bg-slate-800 rounded-2xl px-3 sm:px-4 py-2.5">
                 <div className="flex items-center gap-2.5 sm:gap-3">
-                  <span className="text-slate-300 text-[15px] font-semibold w-12 shrink-0">{timeOf(o.created_at)}</span>
+                  <span className="text-slate-300 text-[15px] font-semibold w-12 shrink-0">
+                    {timeOf(o.created_at)}
+                    {o.staff_name && (
+                      <span className="block text-slate-400 text-xs font-normal leading-tight truncate" title={`Rung by ${o.staff_name}`}>
+                        {o.staff_name.split(' ')[0]}
+                      </span>
+                    )}
+                  </span>
                   <span className="text-white text-xl font-extrabold flex-1">
                     £{Number(o.total_amount).toFixed(2)}
                   </span>
@@ -167,6 +174,7 @@ export default function RecentSalesModal({ onClose }) {
       {pending && (
         <PinGate
           label={pending.type === 'undo' ? 'Undo Tab Payment' : 'Fix Payment'}
+          purpose={pending.type === 'undo' ? 'undo_tab_payment' : 'fix_payment'}
           onConfirm={applyPending}
           onCancel={() => setPending(null)}
         />

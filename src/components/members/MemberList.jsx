@@ -1,5 +1,6 @@
 import { Clock, Pencil, Lock } from '../../lib/icons'
 import BlurredAmount from '../ui/BlurredAmount'
+import { logEvent } from '../../lib/audit/log'
 
 /**
  * Returns true if the member's renewal_date is within 30 days of today.
@@ -79,9 +80,15 @@ export default function MemberList({ members, onSelect, onEdit }) {
                   {hasTab && (
                     <span className="ui-tag ui-tag-accent text-[15px] shrink-0">
                       <span>Tab:</span>
-                      <BlurredAmount className="text-blue-300 font-extrabold">
-                        £{Number(member.tab_balance).toFixed(2)}
-                      </BlurredAmount>
+                      {/* Capture phase: BlurredAmount stops the click from bubbling. */}
+                      <span
+                        className="contents"
+                        onClickCapture={() => logEvent('tab.amount_revealed', { member_id: member.id })}
+                      >
+                        <BlurredAmount className="text-blue-300 font-extrabold">
+                          £{Number(member.tab_balance).toFixed(2)}
+                        </BlurredAmount>
+                      </span>
                     </span>
                   )}
                 </div>

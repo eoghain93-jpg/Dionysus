@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useId, useRef } from 'react'
 import { Delete, X, KeyRound } from 'lucide-react'
-import { supabase } from '../../lib/supabase'
+import { setStaffPin } from '../../lib/audit/staff'
 
 const PIN_KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'back', '0', 'clear']
 
@@ -10,7 +10,8 @@ const PIN_KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'back', '0', 'cle
  * Two-step flow:
  *   Step 1: Enter new 4-digit PIN
  *   Step 2: Confirm PIN (re-enter)
- * If both match, calls verify-pin edge function in 'set' mode.
+ * If both match, calls setStaffPin (the database sets the PIN and records the
+ * change; the verify-pin edge function's 'set' mode is the fallback).
  *
  * Props:
  *   member           — member object (must be membership_tier === 'staff')
@@ -93,11 +94,10 @@ export default function SetPinModal({ member, onClose, onSaved, requireCurrentPi
     setSaving(true)
     setError(null)
     try {
-      const reqBody = { member_id: member.id, pin, mode: 'set' }
-      if (currentPin) reqBody.current_pin = currentPin
-      const { data, error: invokeError } = await supabase.functions.invoke('verify-pin', { body: reqBody })
+      // Resolves with { success: true } or { error, reason?, retryAfterSeconds? }
+      const data = await setStaffPin(member.id, pin, currentPin || undefined)
 
-      if (invokeError || !data?.success) {
+      if (!data?.success) {
         setError('Failed to set PIN. Please try again.')
         setDigits('')
         setFirstPin('')

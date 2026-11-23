@@ -15,6 +15,9 @@ vi.mock('../../stores/sessionStore', () => ({
   useSessionStore: () => ({ activeStaff: { id: 'staff-1' } }),
 }))
 
+vi.mock('../../lib/audit/log', () => ({ logEvent: vi.fn() }))
+import { logEvent } from '../../lib/audit/log'
+
 // Spend history fetch — resolve with no orders.
 vi.mock('../../lib/supabase', () => {
   const chain = {
@@ -72,5 +75,21 @@ describe('MemberProfile — adjust tab', () => {
     renderProfile({ ...EMPTY_TAB_MEMBER, tab_balance: '12.50' })
     fireEvent.click(screen.getByRole('button', { name: /adjust tab/i }))
     expect(screen.getByRole('button', { name: /reduce/i })).toHaveAttribute('aria-pressed', 'true')
+  })
+})
+
+describe('MemberProfile — tab balance', () => {
+  beforeEach(() => vi.clearAllMocks())
+
+  it('logs a tap on the blurred balance, and still reveals it', async () => {
+    renderProfile({ ...EMPTY_TAB_MEMBER, tab_balance: '12.50' })
+    await screen.findByText('No purchases recorded.')
+    // opening the profile is logged by the page that opens it, not here
+    expect(logEvent).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: /tap to reveal tab amount/i }))
+    expect(screen.getByRole('button', { name: /tab amount visible/i })).toHaveTextContent('£12.50')
+    expect(logEvent.mock.calls).toEqual([
+      ['tab.amount_revealed', { member_id: 'mem-1' }],
+    ])
   })
 })

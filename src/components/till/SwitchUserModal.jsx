@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { X, Delete, Clock } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
+import { signInStaff } from '../../lib/audit/staff'
 import { useSessionStore } from '../../stores/sessionStore'
 import { useLockoutCountdown } from '../../hooks/useLockoutCountdown'
 
@@ -58,10 +59,12 @@ export default function SwitchUserModal({ onClose }) {
     setVerifying(true)
     setError(null)
     try {
-      const { data, error: invokeError } = await supabase.functions.invoke('verify-pin', {
-        body: { member_id: selected.id, pin: digits },
-      })
-      if (invokeError || !data) {
+      // Signing in opens the new person's server session and ends the
+      // previous person's on this till; the server records both, so the
+      // till logs nothing extra for a switch. Rejects only when the server
+      // cannot be reached.
+      const data = await signInStaff(selected.id, digits)
+      if (!data) {
         setError('Something went wrong')
       } else if (data.valid) {
         setActiveStaff(data.member)

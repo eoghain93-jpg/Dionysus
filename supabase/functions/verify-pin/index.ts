@@ -110,6 +110,9 @@ serve(async (req) => {
   const supabase = createClient(
     supabaseUrl,
     Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
+    // Names this function in the audit log (auditlog.ctx reads the header),
+    // so its writes show as "fn:verify-pin" instead of an anonymous service call.
+    { global: { headers: { 'x-audit-actor': 'verify-pin' } } },
   )
 
   // --- SET MODE ---

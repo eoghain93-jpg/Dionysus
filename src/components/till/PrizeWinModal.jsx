@@ -4,6 +4,7 @@ import { recordPrizeWin } from '../../lib/prizeWins'
 import { useSessionStore } from '../../stores/sessionStore'
 import { openDrawer } from '../../lib/starPrinter'
 import { useToastStore } from '../../hooks/useToast'
+import { logEvent } from '../../lib/audit/log'
 
 /**
  * PrizeWinModal — records a fruit-machine voucher payout.
@@ -31,8 +32,10 @@ export default function PrizeWinModal({ onClose, onSaved }) {
       await recordPrizeWin(val, machine, activeStaff?.id)
       try {
         await openDrawer()
-      } catch {
+      } catch (err) {
         addToast('Drawer failed — use manual open in Settings', 'error')
+        // Explains the manual "Open Drawer" that usually follows.
+        logEvent('drawer.open_failed', { source: 'prize_win', message: String(err?.message ?? err).slice(0, 300) }, { severity: 1 })
       }
       onSaved()
     } catch (err) {

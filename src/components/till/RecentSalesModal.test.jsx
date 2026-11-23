@@ -22,8 +22,8 @@ vi.mock('../../hooks/useToast', () => ({
 
 // PinGate stub — confirm/cancel buttons so the gate flow is testable
 vi.mock('./PinGate', () => ({
-  default: ({ onConfirm, onCancel, label }) => (
-    <div data-testid="pin-gate">
+  default: ({ onConfirm, onCancel, label, purpose }) => (
+    <div data-testid="pin-gate" data-purpose={purpose}>
       <span>{label}</span>
       <button onClick={onConfirm}>Enter PIN</button>
       <button onClick={onCancel}>Cancel PIN</button>
@@ -72,6 +72,8 @@ describe('RecentSalesModal', () => {
     render(<RecentSalesModal onClose={vi.fn()} />)
     fireEvent.click(await screen.findByRole('button', { name: /switch 20:15 sale to cash/i }))
     expect(screen.getByTestId('pin-gate')).toHaveTextContent('Fix Payment')
+    // what the PIN is for travels with the check, for the audit log
+    expect(screen.getByTestId('pin-gate')).toHaveAttribute('data-purpose', 'fix_payment')
     expect(mockCorrect).not.toHaveBeenCalled()
   })
 
@@ -134,6 +136,7 @@ describe('RecentSalesModal', () => {
       render(<RecentSalesModal onClose={vi.fn()} />)
       fireEvent.click(await screen.findByRole('button', { name: /undo 18:56 tab payment/i }))
       expect(screen.getByTestId('pin-gate')).toHaveTextContent('Undo Tab Payment')
+      expect(screen.getByTestId('pin-gate')).toHaveAttribute('data-purpose', 'undo_tab_payment')
       expect(mockUndo).not.toHaveBeenCalled()
     })
 

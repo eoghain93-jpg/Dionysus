@@ -3,6 +3,7 @@ import { Download, Mail, RefreshCw, Calendar } from '../lib/icons'
 import { fetchMonthlyReportData, toCsv, monthLabel } from '../lib/monthlyReport'
 import { supabase } from '../lib/supabase'
 import { useToastStore } from '../hooks/useToast'
+import { logEvent } from '../lib/audit/log'
 
 // Default to the previous calendar month — the accountant's report is
 // almost always for the month just gone.
@@ -31,6 +32,7 @@ export default function MonthlyReportPage() {
     setError(null)
     try {
       setData(await fetchMonthlyReportData(month))
+      logEvent('report.viewed', { report: 'monthly', month })
     } catch (err) {
       setError(err.message ?? 'Failed to load monthly report')
     } finally {
@@ -48,6 +50,9 @@ export default function MonthlyReportPage() {
     a.download = `monthly-report-${data.month}.csv`
     a.click()
     URL.revokeObjectURL(url)
+    logEvent('report.exported', {
+      report: 'monthly', month: data.month, rows: Math.max(0, csv.split('\n').length - 1),
+    }, { severity: 1 })
   }
 
   async function emailReport() {
@@ -60,8 +65,12 @@ export default function MonthlyReportPage() {
       })
       if (err) throw err
       useToastStore.getState().addToast('Monthly report emailed', 'success')
+      logEvent('report.emailed', { report: 'monthly', month: data.month }, { severity: 1 })
     } catch (err) {
       useToastStore.getState().addToast(`Email failed: ${err.message}`, 'error')
+      logEvent('report.email_failed', {
+        report: 'monthly', month: data.month, message: String(err?.message ?? err).slice(0, 300),
+      }, { severity: 1 })
     } finally {
       setEmailing(false)
     }
