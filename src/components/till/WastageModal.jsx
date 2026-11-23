@@ -27,34 +27,47 @@ export default function WastageModal({ products, onClose, onSaved }) {
 
   return (
     <div
-      className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4"
+      className="ui-modal-backdrop"
       role="dialog"
       aria-modal="true"
       aria-label="Record Wastage"
     >
-      <div className="bg-[#191B1D] border border-slate-700 rounded-2xl w-full max-w-sm p-5 flex flex-col gap-4">
-        <div className="flex items-center justify-between">
-          <h2 className="text-white font-bold text-lg">Record Wastage</h2>
-          <button onClick={onClose} aria-label="Close" className="text-slate-400 hover:text-white cursor-pointer">
-            <X size={20} aria-hidden="true" />
+      <div className="ui-modal max-w-xl">
+        <div className="flex items-start justify-between gap-3">
+          <h2 className="ui-modal-title">Record Wastage</h2>
+          <button onClick={onClose} aria-label="Close" className="ui-btn ui-btn-ghost ui-btn-icon shrink-0">
+            <X size={22} aria-hidden="true" />
           </button>
         </div>
-        <form onSubmit={handleSubmit} className="flex flex-col gap-3">
-          <div className="flex flex-col gap-1">
-            <label htmlFor="wastage-product" className="text-slate-300 text-sm">Product</label>
+        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+          <div>
+            <label htmlFor="wastage-product" className="ui-label">Product</label>
             <select
               id="wastage-product"
               value={productId}
               onChange={e => setProductId(e.target.value)}
-              className="bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="sr-only"
             >
               {draughtProducts.map(p => (
                 <option key={p.id} value={p.id}>{p.name}</option>
               ))}
             </select>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 max-h-[38dvh] overflow-auto -m-1 p-1">
+              {draughtProducts.map(p => (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => setProductId(p.id)}
+                  aria-pressed={p.id === productId}
+                  className={`${PICK_TILE} ${p.id === productId ? PICK_TILE_ON : PICK_TILE_OFF}`}
+                >
+                  {p.name}
+                </button>
+              ))}
+            </div>
           </div>
-          <div className="flex flex-col gap-1">
-            <label htmlFor="wastage-quantity" className="text-slate-300 text-sm">Quantity (pints)</label>
+          <div>
+            <label htmlFor="wastage-quantity" className="ui-label">Quantity (pints)</label>
             <input
               id="wastage-quantity"
               type="number"
@@ -63,23 +76,23 @@ export default function WastageModal({ products, onClose, onSaved }) {
               value={quantity}
               onChange={e => setQuantity(e.target.value)}
               placeholder="e.g. 4"
-              className="bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="ui-input min-h-[56px] text-xl font-bold"
             />
           </div>
-          {error && <p role="alert" className="text-red-400 text-sm">{error}</p>}
-          <div className="flex gap-2 mt-1">
+          {error && <p role="alert" className="ui-error">{error}</p>}
+          <div className="ui-modal-actions">
             <button
               type="button"
               onClick={onClose}
               disabled={saving}
-              className="flex-1 min-h-[44px] rounded-xl border border-slate-600 text-slate-300 hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium cursor-pointer transition-colors"
+              className="ui-btn ui-btn-ghost ui-btn-lg flex-1"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={saving}
-              className="flex-1 min-h-[44px] rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-semibold cursor-pointer transition-colors"
+              className="ui-btn ui-btn-primary ui-btn-lg flex-1"
             >
               {saving ? 'Saving\u2026' : 'Save'}
             </button>
@@ -89,3 +102,11 @@ export default function WastageModal({ products, onClose, onSaved }) {
     </div>
   )
 }
+
+// Product tiles in the till's style. The labelled <select> stays in the DOM
+// (visually hidden) as the real form control; the tiles drive the same state.
+const PICK_TILE = `min-h-[64px] rounded-2xl border-[1.5px] px-3.5 py-2.5 text-left text-[17px] leading-tight
+  font-semibold cursor-pointer transition-transform duration-100 active:scale-[0.97]
+  focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400`
+const PICK_TILE_ON = 'bg-blue-950 border-blue-400 text-white'
+const PICK_TILE_OFF = 'bg-slate-800 border-slate-700 text-slate-100 hover:bg-slate-700'

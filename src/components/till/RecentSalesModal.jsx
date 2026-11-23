@@ -6,9 +6,9 @@ import { useToastStore } from '../../hooks/useToast'
 import PinGate from './PinGate'
 
 const METHOD_STYLE = {
-  cash: { label: 'Cash', Icon: Banknote, cls: 'bg-emerald-900/60 text-emerald-300 border-emerald-700/50' },
-  card: { label: 'Card', Icon: CreditCard, cls: 'bg-blue-900/60 text-blue-300 border-blue-700/50' },
-  tab:  { label: 'Tab',  Icon: Receipt, cls: 'bg-purple-900/60 text-purple-300 border-purple-700/50' },
+  cash: { label: 'Cash', Icon: Banknote, cls: 'ui-tag-good' },
+  card: { label: 'Card', Icon: CreditCard, cls: 'ui-tag-accent' },
+  tab:  { label: 'Tab',  Icon: Receipt, cls: 'bg-slate-700 text-slate-100' },
 }
 
 function timeOf(ts) {
@@ -90,42 +90,42 @@ export default function RecentSalesModal({ onClose }) {
 
   return (
     <div
-      className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4"
+      className="ui-modal-backdrop"
       role="dialog"
       aria-modal="true"
       aria-label="Recent sales"
     >
-      <div className="bg-[#191B1D] border border-slate-700 rounded-2xl w-full max-w-md p-5 flex flex-col gap-4 max-h-[85dvh]">
-        <div className="flex items-center justify-between">
+      <div className="ui-modal max-w-lg overflow-hidden px-4 sm:px-6">
+        <div className="flex items-start justify-between gap-3">
           <div>
-            <h2 className="text-white font-bold text-lg">Recent Sales</h2>
-            <p className="text-slate-400 text-xs">Wrong payment type or tab amount? Fix it here — today only.</p>
+            <h2 className="ui-modal-title">Recent Sales</h2>
+            <p className="ui-subtitle mt-1">Wrong payment type or tab amount? Fix it here — today only.</p>
           </div>
-          <button onClick={onClose} aria-label="Close" className="text-slate-400 hover:text-white cursor-pointer min-h-[44px] min-w-[44px] flex items-center justify-center">
-            <X size={20} aria-hidden="true" />
+          <button onClick={onClose} aria-label="Close" className="ui-btn ui-btn-ghost ui-btn-icon shrink-0">
+            <X size={22} aria-hidden="true" />
           </button>
         </div>
 
-        {loading && <p className="text-slate-400 text-sm text-center py-6">Loading today’s sales…</p>}
-        {error && <p role="alert" className="text-red-400 text-sm text-center">{error}</p>}
+        {loading && <p className="ui-empty">Loading today’s sales…</p>}
+        {error && <p role="alert" className="ui-banner ui-banner-bad">{error}</p>}
         {!loading && !error && orders.length === 0 && (
-          <p className="text-slate-500 text-sm text-center py-6">No sales yet today</p>
+          <p className="ui-empty">No sales yet today</p>
         )}
 
-        <div className="overflow-auto flex flex-col gap-2">
+        <div className="min-h-0 overflow-auto flex flex-col gap-2">
           {orders.map(o => {
             const style = METHOD_STYLE[o.payment_method] ?? METHOD_STYLE.cash
             const correctable = o.payment_method === 'cash' || o.payment_method === 'card'
             const newMethod = o.payment_method === 'cash' ? 'card' : 'cash'
             return (
-              <div key={o.id} className="flex flex-col gap-2 bg-slate-800 rounded-xl px-3 py-2">
-                <div className="flex items-center gap-3">
-                  <span className="text-slate-400 text-sm tabular-nums w-12">{timeOf(o.created_at)}</span>
-                  <span className="text-white font-semibold tabular-nums flex-1">
+              <div key={o.id} className="flex flex-col gap-2 bg-slate-800 rounded-2xl px-3 sm:px-4 py-2.5">
+                <div className="flex items-center gap-2.5 sm:gap-3">
+                  <span className="text-slate-300 text-[15px] font-semibold w-12 shrink-0">{timeOf(o.created_at)}</span>
+                  <span className="text-white text-xl font-extrabold flex-1">
                     £{Number(o.total_amount).toFixed(2)}
                   </span>
-                  <span className={`flex items-center gap-1 text-xs font-medium border rounded-lg px-2 py-1 ${style.cls}`}>
-                    <style.Icon size={12} aria-hidden="true" />
+                  <span className={`ui-tag ${style.cls}`}>
+                    <style.Icon size={15} aria-hidden="true" />
                     {style.label}
                   </span>
                   {correctable ? (
@@ -133,29 +133,27 @@ export default function RecentSalesModal({ onClose }) {
                       onClick={() => setPending({ type: 'fix', order: o, newMethod })}
                       disabled={fixingId === o.id}
                       aria-label={`Switch ${timeOf(o.created_at)} sale to ${METHOD_STYLE[newMethod].label}`}
-                      className="flex items-center gap-1.5 min-h-[40px] px-3 rounded-lg bg-slate-700 hover:bg-slate-600
-                        disabled:opacity-50 text-white text-xs font-semibold cursor-pointer transition-colors"
+                      className="ui-btn px-3 bg-slate-700 text-white hover:bg-slate-600"
                     >
-                      <ArrowLeftRight size={12} aria-hidden="true" />
+                      <ArrowLeftRight size={16} aria-hidden="true" />
                       {fixingId === o.id ? 'Fixing…' : `To ${METHOD_STYLE[newMethod].label}`}
                     </button>
                   ) : (
-                    <span className="text-slate-500 text-xs px-2">Ask manager</span>
+                    <span className="text-slate-400 text-[15px] px-1">Ask manager</span>
                   )}
                 </div>
                 {o.is_tab_settlement && (
                   <div className="flex items-center gap-3">
-                    <span className="text-slate-400 text-xs flex-1 truncate">
+                    <span className="text-slate-300 text-[15px] flex-1 min-w-0 truncate">
                       Tab payment · {o.members?.name ?? 'member'}
                     </span>
                     <button
                       onClick={() => setPending({ type: 'undo', order: o })}
                       disabled={fixingId === o.id}
                       aria-label={`Undo ${timeOf(o.created_at)} tab payment`}
-                      className="flex items-center gap-1.5 min-h-[40px] px-3 rounded-lg bg-amber-900/50 border border-amber-700/50
-                        hover:bg-amber-800/60 disabled:opacity-50 text-amber-200 text-xs font-semibold cursor-pointer transition-colors"
+                      className="ui-btn px-3 border border-amber-800 bg-amber-950 text-amber-200 hover:bg-amber-900"
                     >
-                      <Undo2 size={12} aria-hidden="true" />
+                      <Undo2 size={16} aria-hidden="true" />
                       Undo
                     </button>
                   </div>

@@ -53,29 +53,27 @@ export default function DeviceLoginScreen() {
   }
 
   return (
-    <div className="fixed inset-0 bg-slate-900 flex items-center justify-center z-50 p-4">
-      <div className="w-full max-w-sm space-y-6">
-        <div className="text-center space-y-2">
-          <div className="flex items-center justify-center">
-            <Monitor size={32} className="text-slate-400" aria-hidden="true" />
-          </div>
-          <h1 className="text-white text-2xl font-bold">Connect This Till</h1>
-          <p className="text-slate-400 text-sm">
+    <div className="fixed inset-0 bg-[#121314] flex items-center justify-center z-50 p-4 overflow-auto">
+      <div className="ui-card w-full max-w-md p-6 md:p-8 flex flex-col gap-6 my-auto">
+        <div className="flex flex-col gap-2">
+          <Monitor size={32} className="text-slate-400" aria-hidden="true" />
+          <h1 className="text-white text-3xl font-extrabold tracking-tight leading-tight">Connect This Till</h1>
+          <p className="ui-subtitle">
             One-time setup — enter this till's device login. Staff PINs are
             entered on the next screen, as usual.
           </p>
         </div>
 
         {!isOnline && (
-          <p role="status" className="flex items-center justify-center gap-2 text-amber-300 text-sm text-center bg-amber-400/10 px-4 py-3 rounded-xl">
-            <WifiOff size={14} aria-hidden="true" />
+          <p role="status" className="ui-banner ui-banner-warn flex-nowrap">
+            <WifiOff size={18} className="shrink-0" aria-hidden="true" />
             No connection — first-time setup needs the internet.
           </p>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-3">
-          <div className="space-y-1">
-            <label htmlFor="device-email" className="block text-sm font-medium text-slate-300">
+        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+          <div>
+            <label htmlFor="device-email" className="ui-label">
               Device email
             </label>
             <input
@@ -85,11 +83,11 @@ export default function DeviceLoginScreen() {
               value={email}
               onChange={e => setEmail(e.target.value)}
               required
-              className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 text-white min-h-[44px] focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="ui-input"
             />
           </div>
-          <div className="space-y-1">
-            <label htmlFor="device-password" className="block text-sm font-medium text-slate-300">
+          <div>
+            <label htmlFor="device-password" className="ui-label">
               Device password
             </label>
             <input
@@ -99,12 +97,12 @@ export default function DeviceLoginScreen() {
               value={password}
               onChange={e => setPassword(e.target.value)}
               required
-              className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 text-white min-h-[44px] focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="ui-input"
             />
           </div>
 
           {error && (
-            <p role="alert" className="text-red-400 text-sm text-center bg-red-400/10 px-4 py-2 rounded-xl">
+            <p role="alert" className="ui-banner ui-banner-bad">
               {error}
             </p>
           )}
@@ -112,7 +110,7 @@ export default function DeviceLoginScreen() {
           <button
             type="submit"
             disabled={submitting || !email || !password}
-            className="w-full bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold py-3 rounded-xl transition-colors cursor-pointer min-h-[48px]"
+            className="ui-btn ui-btn-primary ui-btn-lg w-full mt-1"
           >
             {submitting ? 'Connecting…' : 'Connect Till'}
           </button>

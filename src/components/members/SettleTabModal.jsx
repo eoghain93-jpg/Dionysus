@@ -142,7 +142,7 @@ export default function SettleTabModal({ member, onClose, onSettled }) {
   return (
     <div
       ref={overlayRef}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
+      className="ui-modal-backdrop"
       onClick={handleOverlayClick}
     >
       <div
@@ -151,139 +151,143 @@ export default function SettleTabModal({ member, onClose, onSettled }) {
         aria-modal="true"
         aria-labelledby={titleId}
         tabIndex={-1}
-        className="w-full max-w-sm bg-[#191B1D] border border-slate-700 rounded-2xl shadow-xl flex flex-col focus:outline-none"
+        className="ui-modal focus:outline-none"
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-slate-700">
+        <div className="flex items-center justify-between gap-3">
           <h2
             id={titleId}
-            className="text-lg font-bold text-white"
+            className="ui-modal-title"
           >
             Settle Tab
           </h2>
           <button
             onClick={() => { if (!lockedClosed) onClose() }}
             aria-label="Close settle tab modal"
-            className="text-slate-400 hover:text-white transition-colors cursor-pointer min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#121314]"
+            className="ui-btn ui-btn-ghost ui-btn-icon shrink-0"
           >
-            <X size={20} aria-hidden="true" />
+            <X size={22} aria-hidden="true" />
           </button>
         </div>
 
-        {/* Body */}
-        <div className="px-5 py-5 flex flex-col gap-5">
-          <div className="text-center">
-            <p className="text-slate-400 text-sm mb-1">{member.name}</p>
-            <p className="text-white text-3xl font-bold">
-              £{balance.toFixed(2)}
+        {/* Balance */}
+        <div className="rounded-2xl bg-slate-800 px-5 py-4">
+          <p className="text-slate-100 text-lg font-bold">{member.name}</p>
+          <p className="text-white text-5xl leading-tight font-extrabold tracking-tight">
+            £{balance.toFixed(2)}
+          </p>
+          <p className="text-slate-400 text-[15px] font-semibold">outstanding tab balance</p>
+        </div>
+
+        {step === 'choice' && (
+          <div className="flex flex-col gap-3">
+            <p className="text-white text-lg font-bold">
+              How much is {member.name.split(' ')[0]} paying?
             </p>
-            <p className="text-slate-400 text-xs mt-1">outstanding tab balance</p>
+            <button
+              onClick={() => choose('partial')}
+              className="flex items-center justify-between gap-3 min-h-[76px] px-5 rounded-2xl bg-slate-800 border-[1.5px] border-slate-700
+                hover:bg-slate-700 text-white text-left transition-colors cursor-pointer
+                focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400"
+            >
+              <span className="flex flex-col items-start">
+                <span className="text-lg font-extrabold">Part payment</span>
+                <span className="text-slate-400 text-[15px]">enter the amount handed over</span>
+              </span>
+              <ChevronRight size={22} className="shrink-0" aria-hidden="true" />
+            </button>
+            <button
+              onClick={() => choose('full')}
+              className="flex items-center justify-between gap-3 min-h-[76px] px-5 rounded-2xl bg-slate-800 border-[1.5px] border-amber-800
+                hover:bg-slate-700 text-white text-left transition-colors cursor-pointer
+                focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400"
+            >
+              <span className="flex flex-col items-start">
+                <span className="text-lg font-extrabold">Full balance</span>
+                <span className="text-slate-400 text-[15px]">clears the whole tab</span>
+              </span>
+              <span className="flex items-center gap-1.5 text-xl font-extrabold text-amber-300 shrink-0">
+                £{balance.toFixed(2)}
+                <ChevronRight size={22} aria-hidden="true" />
+              </span>
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              className="ui-btn ui-btn-ghost ui-btn-lg"
+            >
+              Cancel
+            </button>
           </div>
+        )}
 
-          {step === 'choice' && (
-            <div className="flex flex-col gap-3">
-              <p className="text-slate-300 text-sm text-center font-medium">
-                How much is {member.name.split(' ')[0]} paying?
+        {step === 'pay' && (
+          <>
+            {mode === 'full' ? (
+              <div className="rounded-2xl border-[1.5px] border-amber-800 px-5 py-3">
+                <p className="text-amber-300 text-[15px] font-bold">Paying full balance</p>
+                <p className="text-white text-3xl font-extrabold">£{balance.toFixed(2)}</p>
+              </div>
+            ) : (
+              <div>
+                <label htmlFor="settle-amount" className="ui-label">
+                  Amount handed over (£)
+                </label>
+                <input
+                  ref={amountInputRef}
+                  id="settle-amount"
+                  type="number"
+                  inputMode="decimal"
+                  min="0.01"
+                  step="0.01"
+                  max={balance}
+                  placeholder="0.00"
+                  value={amount}
+                  onChange={e => setAmount(e.target.value)}
+                  aria-invalid={error ? 'true' : undefined}
+                  aria-describedby={error ? `${hintId} ${errorId}` : hintId}
+                  className="ui-input min-h-[72px] text-center text-4xl font-extrabold"
+                />
+                <p id={hintId} className="ui-help mt-1.5 text-center">of £{balance.toFixed(2)} outstanding</p>
+              </div>
+            )}
+
+            {error && (
+              <p id={errorId} role="alert" className="ui-banner ui-banner-bad">
+                {error}
               </p>
-              <button
-                onClick={() => choose('partial')}
-                className="flex items-center justify-between gap-2 min-h-[56px] px-4 rounded-xl bg-slate-800 border border-slate-600 hover:border-blue-500 hover:bg-slate-700 text-white transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#121314]"
-              >
-                <span className="flex flex-col items-start">
-                  <span className="font-bold text-sm">Part payment</span>
-                  <span className="text-slate-400 text-xs">enter the amount handed over</span>
-                </span>
-                <ChevronRight size={18} aria-hidden="true" />
-              </button>
-              <button
-                onClick={() => choose('full')}
-                className="flex items-center justify-between gap-2 min-h-[56px] px-4 rounded-xl bg-slate-800 border border-amber-500/40 hover:border-amber-400 hover:bg-slate-700 text-white transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-amber-400 focus:ring-offset-2 focus:ring-offset-[#121314]"
-              >
-                <span className="flex flex-col items-start">
-                  <span className="font-bold text-sm">Full balance</span>
-                  <span className="text-slate-400 text-xs">clears the whole tab</span>
-                </span>
-                <span className="flex items-center gap-1 font-bold text-amber-400">
-                  £{balance.toFixed(2)}
-                  <ChevronRight size={18} aria-hidden="true" />
-                </span>
-              </button>
-              <button
-                type="button"
-                onClick={onClose}
-                className="min-h-[44px] rounded-xl border border-slate-600 text-slate-300 hover:bg-slate-700 hover:text-white transition-colors cursor-pointer text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#121314]"
-              >
-                Cancel
-              </button>
-            </div>
-          )}
+            )}
 
-          {step === 'pay' && (
-            <>
-              {mode === 'full' ? (
-                <div className="text-center bg-slate-800 border border-slate-600 rounded-xl px-4 py-3">
-                  <p className="text-slate-400 text-xs mb-1">Paying full balance</p>
-                  <p className="text-white text-2xl font-bold">£{balance.toFixed(2)}</p>
-                </div>
-              ) : (
-                <div className="flex flex-col gap-1">
-                  <label htmlFor="settle-amount" className="text-slate-400 text-xs text-center">
-                    Amount handed over (£)
-                  </label>
-                  <input
-                    ref={amountInputRef}
-                    id="settle-amount"
-                    type="number"
-                    inputMode="decimal"
-                    min="0.01"
-                    step="0.01"
-                    max={balance}
-                    placeholder="0.00"
-                    value={amount}
-                    onChange={e => setAmount(e.target.value)}
-                    aria-invalid={error ? 'true' : undefined}
-                    aria-describedby={error ? `${hintId} ${errorId}` : hintId}
-                    className="bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-white text-center text-xl font-bold focus:outline-none focus:ring-2 focus:ring-blue-500 w-full"
-                  />
-                  <p id={hintId} className="text-slate-500 text-xs text-center">of £{balance.toFixed(2)} outstanding</p>
-                </div>
-              )}
-
-              {error && (
-                <p id={errorId} role="alert" className="text-red-400 text-sm bg-red-400/10 px-3 py-2 rounded-lg text-center">
-                  {error}
-                </p>
-              )}
-
-              <div className="flex flex-col gap-3">
+            <div className="flex flex-col gap-3">
+              <div className="grid grid-cols-2 gap-3">
                 <button
                   onClick={() => handleSettle('cash')}
                   disabled={settling}
-                  className="flex items-center justify-center gap-2 min-h-[44px] rounded-xl bg-[#22C55E] hover:bg-green-400 disabled:opacity-50 disabled:cursor-not-allowed text-slate-900 font-bold text-sm transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#121314]"
+                  className="ui-btn ui-btn-pay ui-btn-lg min-h-[72px] px-3"
                 >
-                  <Banknote size={18} aria-hidden="true" />
+                  <Banknote size={22} aria-hidden="true" />
                   Settle by Cash
                 </button>
                 <button
                   onClick={() => handleSettle('card')}
                   disabled={settling}
-                  className="flex items-center justify-center gap-2 min-h-[44px] rounded-xl bg-[#3B82F6] hover:bg-blue-400 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold text-sm transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#121314]"
+                  className="ui-btn ui-btn-primary ui-btn-lg min-h-[72px] px-3"
                 >
-                  <CreditCard size={18} aria-hidden="true" />
+                  <CreditCard size={22} aria-hidden="true" />
                   Settle by Card
                 </button>
-                <button
-                  type="button"
-                  onClick={goBack}
-                  disabled={settling}
-                  className="min-h-[44px] rounded-xl border border-slate-600 text-slate-300 hover:bg-slate-700 hover:text-white transition-colors cursor-pointer text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#121314] disabled:opacity-50"
-                >
-                  Back
-                </button>
               </div>
-            </>
-          )}
-        </div>
+              <button
+                type="button"
+                onClick={goBack}
+                disabled={settling}
+                className="ui-btn ui-btn-ghost ui-btn-lg"
+              >
+                Back
+              </button>
+            </div>
+          </>
+        )}
       </div>
       {cashAmount !== null && (
         <CashPaymentModal

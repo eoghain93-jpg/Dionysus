@@ -75,44 +75,43 @@ export default function PinGate({ onConfirm, onCancel, label }) {
   }
 
   return (
-    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-      <div className="bg-slate-800 rounded-2xl p-6 w-full max-w-sm space-y-4">
+    <div className="ui-modal-backdrop">
+      <div className="ui-modal">
         {/* Header */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <ShieldCheck size={20} className="text-slate-400" aria-hidden="true" />
-            <h2 className="text-white text-lg font-bold">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <ShieldCheck size={24} className="text-slate-400 shrink-0" aria-hidden="true" />
+            <h2 className="ui-modal-title">
               {label ?? 'Confirm Identity'}
             </h2>
           </div>
           <button
             onClick={onCancel}
             aria-label="Dismiss"
-            className="text-slate-400 hover:text-white transition-colors cursor-pointer
-              min-h-[44px] min-w-[44px] flex items-center justify-center"
+            className="ui-btn ui-btn-ghost ui-btn-icon shrink-0"
           >
-            <X size={20} aria-hidden="true" />
+            <X size={22} aria-hidden="true" />
           </button>
         </div>
 
         {/* Staff name */}
         {activeStaff && (
-          <p className="text-slate-400 text-sm">
-            Enter PIN for <span className="text-white font-semibold">{activeStaff.name}</span>
+          <p className="text-slate-300 text-base">
+            Enter PIN for <span className="text-white font-extrabold">{activeStaff.name}</span>
           </p>
         )}
 
         {/* PIN dot display */}
         <div
           aria-label="PIN display"
-          className="flex justify-center gap-4 py-2"
+          className="flex justify-center gap-3.5 py-2"
         >
           {[0, 1, 2, 3].map(i => (
             <span
               key={i}
               data-filled={i < digits.length ? 'true' : 'false'}
-              className={`w-4 h-4 rounded-full transition-colors duration-150 ${
-                i < digits.length ? 'bg-white' : 'bg-slate-600'
+              className={`w-6 h-6 rounded-full border-2 transition-colors duration-150 ${
+                i < digits.length ? 'bg-slate-100 border-slate-100' : 'border-slate-400'
               }`}
               aria-hidden="true"
             />
@@ -121,7 +120,7 @@ export default function PinGate({ onConfirm, onCancel, label }) {
 
         {/* Verifying */}
         {verifying && (
-          <p className="text-center text-slate-400 text-sm">Verifying…</p>
+          <p className="text-center text-slate-400 text-base">Verifying…</p>
         )}
 
         {/* Locked — calm countdown, not an error: the lock protects the PIN
@@ -129,10 +128,10 @@ export default function PinGate({ onConfirm, onCancel, label }) {
         {isLocked && (
           <div
             role="status"
-            className="text-amber-300 text-sm text-center bg-amber-400/10 px-4 py-3 rounded-xl space-y-1"
+            className="text-amber-300 text-base bg-amber-400/10 px-4 py-3 rounded-xl space-y-1"
           >
-            <p className="flex items-center justify-center gap-1.5 font-semibold">
-              <Clock size={14} aria-hidden="true" />
+            <p className="flex items-center gap-1.5 font-bold">
+              <Clock size={16} aria-hidden="true" />
               PIN locked after too many attempts
             </p>
             <p>Try again in {remainingLabel}, or cancel and ask another staff member.</p>
@@ -141,13 +140,13 @@ export default function PinGate({ onConfirm, onCancel, label }) {
 
         {/* Error */}
         {!isLocked && error && (
-          <p role="alert" className="text-red-400 text-sm text-center bg-red-400/10 px-4 py-2 rounded-xl">
+          <p role="alert" className="text-red-300 text-base font-semibold bg-red-400/10 px-4 py-3 rounded-xl">
             {error}
           </p>
         )}
 
         {/* Numpad */}
-        <div className="grid grid-cols-3 gap-2">
+        <div className="grid grid-cols-3 gap-2.5">
           {PIN_KEYS.map(key => (
             <button
               key={key}
@@ -158,12 +157,12 @@ export default function PinGate({ onConfirm, onCancel, label }) {
                 key === 'clear' ? 'Clear PIN' :
                 key
               }
-              className="bg-slate-700 hover:bg-slate-600 active:scale-95 disabled:opacity-40
-                disabled:cursor-not-allowed text-white font-semibold py-4 rounded-xl text-xl
+              className="min-h-[72px] rounded-2xl bg-slate-800 hover:bg-slate-700 active:scale-95
+                disabled:opacity-40 disabled:cursor-not-allowed text-white text-3xl font-bold
                 transition-all duration-150 cursor-pointer flex items-center justify-center"
             >
-              {key === 'back' && <Delete size={20} aria-hidden="true" />}
-              {key === 'clear' && <X size={20} aria-hidden="true" />}
+              {key === 'back' && <Delete size={26} aria-hidden="true" />}
+              {key === 'clear' && <X size={26} aria-hidden="true" />}
               {key !== 'back' && key !== 'clear' && key}
             </button>
           ))}
@@ -172,8 +171,7 @@ export default function PinGate({ onConfirm, onCancel, label }) {
         {/* Cancel button */}
         <button
           onClick={onCancel}
-          className="w-full bg-slate-700 hover:bg-slate-600 text-white font-semibold
-            py-3 rounded-xl transition-colors cursor-pointer"
+          className="ui-btn ui-btn-ghost ui-btn-lg w-full"
         >
           Cancel
         </button>

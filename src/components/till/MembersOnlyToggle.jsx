@@ -38,16 +38,16 @@ export default function MembersOnlyToggle() {
         <div
           role="status"
           aria-live="polite"
-          className="rounded-2xl bg-emerald-600 border-2 border-emerald-400 px-4 py-3
-            flex items-center justify-between gap-3 shadow-lg"
+          className="rounded-2xl bg-blue-600 border-2 border-blue-300 px-4 py-3
+            flex items-center justify-between gap-3 flex-wrap"
         >
           <div className="flex items-center gap-3 min-w-0">
-            <Users size={22} className="text-white shrink-0" aria-hidden="true" />
+            <Users size={28} className="text-white shrink-0" aria-hidden="true" />
             <div className="min-w-0">
-              <div className="text-white font-bold text-sm uppercase tracking-wider">
+              <div className="text-white text-xl leading-tight font-extrabold">
                 Members pricing — event mode
               </div>
-              <div className="text-emerald-100 text-xs truncate">
+              <div className="text-white text-[15px] font-semibold">
                 Every sale is using member pricing. Tap to end.
               </div>
             </div>
@@ -55,9 +55,7 @@ export default function MembersOnlyToggle() {
           <button
             type="button"
             onClick={requestToggle}
-            className="shrink-0 min-h-[44px] px-4 rounded-xl bg-white text-emerald-700
-              hover:bg-emerald-50 font-bold text-sm cursor-pointer transition-colors
-              focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-emerald-600"
+            className="ui-btn ui-btn-primary shrink-0 focus-visible:ring-white"
           >
             End event mode
           </button>
@@ -93,39 +91,33 @@ function ConfirmModal({ pendingChange, onConfirm, onCancel }) {
       role="dialog"
       aria-modal="true"
       aria-labelledby="members-mode-confirm-title"
-      className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4"
+      className="ui-modal-backdrop"
       onClick={onCancel}
     >
       <div
-        className="bg-[#191B1D] border border-slate-700 rounded-2xl w-full max-w-sm p-5 flex flex-col gap-4"
+        className="ui-modal"
         onClick={e => e.stopPropagation()}
       >
-        <h2 id="members-mode-confirm-title" className="text-white text-lg font-bold">
+        <h2 id="members-mode-confirm-title" className="ui-modal-title">
           {turningOn ? 'Start event mode?' : 'End event mode?'}
         </h2>
-        <p className="text-slate-300 text-sm">
+        <p className="text-slate-300 text-base">
           {turningOn
             ? 'Every sale will apply members-only pricing without needing to identify each person individually. Use only when the door has confirmed everyone in the building is a member.'
             : 'New sales will return to standard pricing unless an individual member is identified.'}
         </p>
-        <div className="flex gap-2 mt-1">
+        <div className="ui-modal-actions">
           <button
             type="button"
             onClick={onCancel}
-            className="flex-1 min-h-[44px] rounded-xl border border-slate-600 text-slate-300
-              hover:bg-slate-700 cursor-pointer text-sm font-medium transition-colors"
+            className="ui-btn ui-btn-ghost ui-btn-lg flex-1"
           >
             Cancel
           </button>
           <button
             type="button"
             onClick={onConfirm}
-            className={`flex-1 min-h-[44px] rounded-xl text-white text-sm font-semibold
-              cursor-pointer transition-colors ${
-              turningOn
-                ? 'bg-emerald-600 hover:bg-emerald-500'
-                : 'bg-slate-600 hover:bg-slate-500'
-            }`}
+            className={`ui-btn ui-btn-lg flex-1 ${turningOn ? 'ui-btn-accent' : 'ui-btn-primary'}`}
           >
             {turningOn ? 'Start event mode' : 'End event mode'}
           </button>

@@ -58,46 +58,49 @@ export default function BusiestHours() {
 
   if (loading) {
     return (
-      <p className="text-slate-400 text-sm text-center py-8">Loading busiest hours…</p>
+      <p className="ui-empty">Loading busiest hours…</p>
     )
   }
 
   if (error) {
     return (
-      <p className="text-red-400 text-sm text-center py-8">Error: {error}</p>
+      <p className="ui-banner ui-banner-bad">Error: {error}</p>
     )
   }
 
   return (
     <div role="img" aria-label="Busiest hours bar chart, last 7 days">
-      <ResponsiveContainer width="100%" height={220}>
+      <ResponsiveContainer width="100%" height={260}>
         <BarChart data={chartData} margin={{ top: 4, right: 8, left: -16, bottom: 0 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#1E293B" vertical={false} />
+          <CartesianGrid strokeDasharray="3 3" stroke="#363A3F" vertical={false} />
           <XAxis
             dataKey="hour"
-            tick={{ fill: '#94A3B8', fontSize: 11 }}
+            tick={{ fill: '#A9AFB6', fontSize: 13 }}
             axisLine={false}
             tickLine={false}
             interval={2}
           />
           <YAxis
             allowDecimals={false}
-            tick={{ fill: '#94A3B8', fontSize: 11 }}
+            tick={{ fill: '#A9AFB6', fontSize: 13 }}
             axisLine={false}
             tickLine={false}
           />
           <Tooltip
             contentStyle={{
-              backgroundColor: '#191B1D',
-              border: '1px solid #1E293B',
-              borderRadius: 8,
-              color: '#F8FAFC',
-              fontSize: 12,
+              backgroundColor: '#232629',
+              border: '1px solid #363A3F',
+              borderRadius: 12,
+              color: '#F2F3F4',
+              fontSize: 15,
+              fontWeight: 700,
             }}
-            cursor={{ fill: '#1E293B' }}
+            labelStyle={{ color: '#A9AFB6', fontWeight: 600 }}
+            itemStyle={{ color: '#F2F3F4' }}
+            cursor={{ fill: '#232629' }}
             formatter={v => [v, 'Orders']}
           />
-          <Bar dataKey="orders" fill="#22C55E" radius={[4, 4, 0, 0]} />
+          <Bar dataKey="orders" fill="#7FAEFF" radius={[6, 6, 0, 0]} />
         </BarChart>
       </ResponsiveContainer>
     </div>
