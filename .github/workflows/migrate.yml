@@ -6,6 +6,10 @@ on:
       - master
     paths:
       - 'supabase/migrations/**'
+      # A fix to this workflow must run too, or migrations that failed to
+      # deploy stay undeployed until the next migration is merged.
+      - '.github/workflows/migrate.yml'
+  workflow_dispatch:
 
 jobs:
   migrate:
@@ -29,8 +33,12 @@ jobs:
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
 
+      # --remote: since the CLI release picked up by `version: latest` around
+      # 20 Nov 2026, a bare `db push` targets the local Docker stack and fails
+      # with ECONNREFUSED 127.0.0.1:54322 instead of pushing to the linked
+      # project.
       - name: Run migrations
-        run: supabase db push
+        run: supabase db push --remote
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
