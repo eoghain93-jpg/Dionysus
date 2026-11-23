@@ -68,7 +68,7 @@ export async function fetchPopularProductIds(now = new Date()) {
  * buy. A product has to appear in at least two orders to count as a habit.
  * Pure: rows are order_items ({ order_id, product_id, quantity }).
  */
-export function usualFromItems(rows, maxProducts = 2) {
+export function usualFromItems(rows, maxProducts = 3) {
   const byProduct = new Map()
   for (const row of rows ?? []) {
     if (!row.product_id || row.staff_credit_for) continue
@@ -119,4 +119,39 @@ export async function fetchMemberUsual(memberId) {
     console.error('Failed to load member usual:', err)
     return []
   }
+}
+
+/**
+ * Work out how to put a member's usual on the order so the deals they would
+ * get at the bar still apply. Eligible shots are grouped into fours for the
+ * 4-for-£10 deal, and (when that deal is running) eligible bottles into fives
+ * for 5-for-4; anything left over goes on as ordinary lines.
+ * Pure: lines are [{ product, quantity }].
+ *
+ * @returns {{ shotBundles: object[][], bottleBundles: object[][], singles: {product: object, quantity: number}[] }}
+ */
+export function planUsual(lines, { isShot, isBottle, shotSize = 4, bottleSize = 5, bottleDealOn = false }) {
+  const shots = []
+  const bottles = []
+  const singles = []
+  for (const { product, quantity } of lines ?? []) {
+    const units = Array.from({ length: quantity }, () => product)
+    if (isShot(product)) shots.push(...units)
+    else if (bottleDealOn && isBottle(product)) bottles.push(...units)
+    else singles.push({ product, quantity })
+  }
+
+  const group = (units, size) => {
+    const bundles = []
+    while (units.length >= size) bundles.push(units.splice(0, size))
+    // What does not make a full deal is sold normally, one line per product.
+    for (const product of units) {
+      const line = singles.find(s => s.product.id === product.id)
+      if (line) line.quantity++
+      else singles.push({ product, quantity: 1 })
+    }
+    return bundles
+  }
+
+  return { shotBundles: group(shots, shotSize), bottleBundles: group(bottles, bottleSize), singles }
 }

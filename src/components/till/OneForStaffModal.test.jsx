@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import OneForStaffModal from './OneForStaffModal'
+import { useTillStore } from '../../stores/tillStore'
 
 const { mockFetchStaff } = vi.hoisted(() => ({ mockFetchStaff: vi.fn() }))
 
@@ -40,6 +41,15 @@ describe('OneForStaffModal', () => {
   it('loads the staff list and defaults to the logged-in staff member', async () => {
     renderModal()
     await waitFor(() => expect(screen.getByLabelText(/for staff member/i)).toHaveValue('s2'))
+  })
+
+  it('shows the member price when a member is on the sale', async () => {
+    useTillStore.setState({ activeMember: { id: 'm1', name: 'Ian' } })
+    renderModal({ products: [{ id: 'p1', name: 'Guinness', standard_price: 5.5, member_price: 4.8 }] })
+    await waitFor(() => expect(mockFetchStaff).toHaveBeenCalled())
+    expect(screen.getByText(/£4\.80/)).toBeInTheDocument()
+    expect(screen.getByText('Member price')).toBeInTheDocument()
+    useTillStore.setState({ activeMember: null })
   })
 
   it('shows the standard price of the selected drink', async () => {

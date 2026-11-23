@@ -6,7 +6,8 @@ import { isBundleEnabled } from '../lib/promos'
 import { newOrderId, saveOrder } from '../lib/orders'
 import { getTillId } from '../lib/till'
 import { fetchTabAges, isTabBlocked } from '../lib/tabs'
-import { fetchPopularProductIds, fetchMemberUsual } from '../lib/favourites'
+import { fetchPopularProductIds, fetchMemberUsual, planUsual } from '../lib/favourites'
+import { SHOT_BUNDLE_QTY, SHOT_BUNDLE_TOTAL, isShotBundleEligible } from '../lib/shotBundle'
 import { findMemberByNumber } from '../lib/members'
 import { printReceipt } from '../lib/starPrinter'
 import { useToastStore } from '../hooks/useToast'
@@ -28,7 +29,7 @@ import MembersOnlyToggle from '../components/till/MembersOnlyToggle'
 import ShotBundleModal from '../components/till/ShotBundleModal'
 import BottleBundleModal from '../components/till/BottleBundleModal'
 import GuestSignInModal from '../components/guests/GuestSignInModal'
-import { BOTTLE_BUNDLE_PROMO_NAME } from '../lib/bottleBundle'
+import { BOTTLE_BUNDLE_PROMO_NAME, isBottleBundleEligible } from '../lib/bottleBundle'
 
 // How long the Undo prompt stays up after a tile tap.
 const UNDO_MS = 5000
@@ -250,8 +251,18 @@ export default function TillPage() {
     .filter(u => u.product)
 
   function handleAddUsual() {
-    const { addItem } = useTillStore.getState()
-    for (const { product, quantity } of usualLines) {
+    const { addItem, addBundleItems, addBottleBundle } = useTillStore.getState()
+    // The usual gets the same deals the member would get ordering it at the
+    // bar: four eligible shots go on as 4-for-£10, not four single shots.
+    const plan = planUsual(usualLines, {
+      isShot: isShotBundleEligible,
+      isBottle: isBottleBundleEligible,
+      shotSize: SHOT_BUNDLE_QTY,
+      bottleDealOn: bottleBundleEnabled,
+    })
+    for (const bundle of plan.shotBundles) addBundleItems(bundle, SHOT_BUNDLE_TOTAL)
+    for (const bundle of plan.bottleBundles) addBottleBundle(bundle)
+    for (const { product, quantity } of plan.singles) {
       for (let n = 0; n < quantity; n++) addItem(product)
     }
     setUsual([])

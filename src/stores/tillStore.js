@@ -66,6 +66,20 @@ export function resolveSalePrice({ product, memberPrice, promo }) {
   return { price, promo_price_applied, member_price_applied }
 }
 
+/**
+ * What a drink bought for staff costs on the current sale: the member price
+ * when a member is on the sale or members-only mode is on, else standard.
+ * Shared by the store (what is charged) and the One for Staff pop-up (what is
+ * shown) so the two cannot disagree.
+ */
+export function staffCreditPrice(product, { activeMember, membersOnlyMode }) {
+  const useMember = !!(activeMember || membersOnlyMode) && product.member_price != null
+  return {
+    price: useMember ? product.member_price : product.standard_price,
+    member_price_applied: useMember,
+  }
+}
+
 const newParkId = () =>
   (globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.round(Math.random() * 1e9)}`)
 
@@ -223,9 +237,10 @@ export const useTillStore = create((set, get) => ({
 
   /**
    * Add a drink bought FOR a staff member ("one in for yourself" tip).
-   * Always charged at standard price — member/promo discounts are for the
-   * buyer's own drinks, not gifts — and never merged with the buyer's own
-   * line for the same product, so the receipt and the order_items flag stay
+   * Priced like the rest of the sale: the member price when a member is on
+   * the sale (individually or via members-only mode), otherwise standard.
+   * Promos do not apply to gifts. Never merged with the buyer's own line for
+   * the same product, so the receipt and the order_items flag stay
    * unambiguous. The line carries staff_credit_for; the
    * create_order_with_items RPC banks one staff_drink_credits row per unit
    * and skips the sale stock movement (stock leaves when the drink is
@@ -233,14 +248,15 @@ export const useTillStore = create((set, get) => ({
    */
   addStaffCreditItem: (product, staffMember) => {
     const line_id = `credit:${staffMember.id}:${product.id}`
-    const price = product.standard_price
+    const { price, member_price_applied } = staffCreditPrice(product, get())
     set(state => {
       const existing = state.orderItems.find(i => i.line_id === line_id)
       if (existing) {
+        // Keep the line at the price it was first added at.
         return {
           orderItems: state.orderItems.map(i =>
             i.line_id === line_id
-              ? { ...i, quantity: i.quantity + 1, subtotal: (i.quantity + 1) * price }
+              ? { ...i, quantity: i.quantity + 1, subtotal: (i.quantity + 1) * i.unit_price }
               : i
           )
         }
@@ -252,7 +268,7 @@ export const useTillStore = create((set, get) => ({
           name: product.name,
           quantity: 1,
           unit_price: price,
-          member_price_applied: false,
+          member_price_applied,
           promo_price_applied: false,
           staff_credit_for: staffMember.id,
           staff_credit_name: staffMember.name,
