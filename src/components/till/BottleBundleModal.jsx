@@ -66,7 +66,7 @@ export default function BottleBundleModal({ products, onClose }) {
             <h2 id="bottle-bundle-title" className="ui-modal-title">5 Bottles for the Price of 4</h2>
             <p className="ui-subtitle mt-1">
               {isReady
-                ? 'Ready — tap Confirm to add to the order.'
+                ? 'Ready — tap Add to Order.'
                 : `Pick ${remaining} more ${remaining === 1 ? 'bottle' : 'bottles'} — San Miguel, Carlsberg or Budweiser.`}
             </p>
           </div>

@@ -8,6 +8,7 @@ import MemberFormModal from '../components/members/MemberFormModal'
 export default function MembersPage() {
   const [members, setMembers] = useState([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState(false)
   const [search, setSearch] = useState('')
 
   // null = closed, undefined = open (add), object = open (edit)
@@ -17,9 +18,14 @@ export default function MembersPage() {
 
   const loadMembers = useCallback(() => {
     setLoading(true)
+    setLoadError(false)
     fetchMembers()
       .then(setMembers)
-      .catch(console.error)
+      .catch(err => {
+        // Say so, rather than showing an empty list that reads as "no members".
+        console.error(err)
+        setLoadError(true)
+      })
       .finally(() => setLoading(false))
   }, [])
 
@@ -110,6 +116,11 @@ export default function MembersPage() {
       <div className="ui-card flex-1 min-h-[160px] overflow-auto">
         {loading ? (
           <p className="ui-empty">Loading members…</p>
+        ) : loadError ? (
+          <div role="alert" className="ui-banner ui-banner-bad m-4">
+            <span className="flex-1">Could not load members. Check the connection and try again.</span>
+            <button onClick={loadMembers} className="ui-btn ui-btn-secondary">Try again</button>
+          </div>
         ) : (
           <MemberList
             members={filtered}

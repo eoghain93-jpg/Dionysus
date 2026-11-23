@@ -75,7 +75,7 @@ export default function ShotBundleModal({ products, onClose }) {
             <h2 id="shot-bundle-title" className="ui-modal-title">4 Shots for £10</h2>
             <p className="ui-subtitle mt-1">
               {isReady
-                ? 'Ready — tap Confirm to add to the order.'
+                ? 'Ready — tap Add to Order.'
                 : `Pick ${remaining} more ${remaining === 1 ? 'spirit' : 'spirits'} — Sambuca, Fireball or Tequila.`}
             </p>
           </div>
