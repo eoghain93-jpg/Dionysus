@@ -9,8 +9,8 @@ vi.mock('../../../lib/products', () => ({
 // PinGate talks to the verify-pin edge function; stand in a button that
 // confirms, so these tests cover when the gate appears and what happens after.
 vi.mock('../../till/PinGate', () => ({
-  default: ({ onConfirm, onCancel, label }) => (
-    <div data-testid="pin-gate">
+  default: ({ onConfirm, onCancel, label, purpose }) => (
+    <div data-testid="pin-gate" data-purpose={purpose}>
       <span>{label}</span>
       <button onClick={onConfirm}>Mock PIN OK</button>
       <button onClick={onCancel}>Mock PIN Cancel</button>
@@ -55,6 +55,8 @@ describe('ProductFormModal — price changes are PIN-confirmed and attributed', 
     save()
 
     expect(screen.getByTestId('pin-gate')).toBeInTheDocument()
+    // what the PIN is for travels with the check, for the audit log
+    expect(screen.getByTestId('pin-gate')).toHaveAttribute('data-purpose', 'price_change')
     expect(mockUpsertProduct).not.toHaveBeenCalled()
 
     fireEvent.click(screen.getByText('Mock PIN OK'))
@@ -112,6 +114,7 @@ describe('ProductFormModal — price changes are PIN-confirmed and attributed', 
     save()
 
     expect(screen.getByTestId('pin-gate')).toBeInTheDocument()
+    expect(screen.getByTestId('pin-gate')).toHaveAttribute('data-purpose', 'price_change')
     expect(mockUpsertProduct).not.toHaveBeenCalled()
   })
 })

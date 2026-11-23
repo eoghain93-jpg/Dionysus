@@ -10,6 +10,7 @@ import TopProducts from '../components/reports/TopProducts'
 import ZReportModal from '../components/reports/ZReportModal'
 import PinGate from '../components/till/PinGate'
 import { attachStaffNames } from '../lib/orders'
+import { logEvent } from '../lib/audit/log'
 
 // Trading day, not calendar day: at 1am on a match night this is still
 // "yesterday", so the Z report defaults to the session being closed.
@@ -61,6 +62,8 @@ export default function ReportsPage() {
       a.download = `orders-${date}.csv`
       a.click()
       URL.revokeObjectURL(url)
+      // Every order of the day, with member names, has left the till.
+      logEvent('report.exported', { report: 'daily', date, rows: orders.length }, { severity: 1 })
     } finally {
       setExporting(false)
     }
@@ -169,6 +172,7 @@ export default function ReportsPage() {
       </section>
       {showPinGate && (
         <PinGate
+          purpose="z_report"
           onConfirm={() => { setShowPinGate(false); setShowZReport(true) }}
           onCancel={() => setShowPinGate(false)}
         />

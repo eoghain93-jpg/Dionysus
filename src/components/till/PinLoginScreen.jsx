@@ -1,13 +1,25 @@
-import { useState, useEffect, useCallback } from 'react'
-import { Delete, X, Lock, Clock } from 'lucide-react'
+import { useState, useEffect, useCallback, useRef } from 'react'
+import { Delete, X, Lock, Clock, ArrowLeft } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
+import { signInStaff } from '../../lib/audit/staff'
 import { useSessionStore } from '../../stores/sessionStore'
 import { useLockoutCountdown } from '../../hooks/useLockoutCountdown'
 import SetPinModal from '../members/SetPinModal'
 
 const PIN_KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'back', '0', 'clear']
 
-export default function PinLoginScreen() {
+/**
+ * PinLoginScreen — the staff sign-in. Shown by StaffGate on every route
+ * while nobody is signed in, and by the lock screen's "Someone else".
+ *
+ * The PIN is checked by signInStaff (database first, verify-pin as the
+ * fallback), which also opens the server-side staff session.
+ *
+ * Props (all optional):
+ *   onBack     — () => void. When given, a "Back" button is shown.
+ *   onSignedIn — (member) => void, called after a successful sign-in.
+ */
+export default function PinLoginScreen({ onBack, onSignedIn } = {}) {
   const [staffList, setStaffList] = useState([])
   const [loadingStaff, setLoadingStaff] = useState(true)
   const [selectedId, setSelectedId] = useState('')
@@ -19,6 +31,11 @@ export default function PinLoginScreen() {
   const { isLocked, remainingLabel, lock } = useLockoutCountdown()
 
   const { setActiveStaff } = useSessionStore()
+
+  // Kept in a ref so a parent re-render (a new inline callback) can never
+  // re-run the auto-submit effect and send the same PIN twice.
+  const onSignedInRef = useRef(onSignedIn)
+  useEffect(() => { onSignedInRef.current = onSignedIn }, [onSignedIn])
 
   useEffect(() => {
     supabase
@@ -56,16 +73,17 @@ export default function PinLoginScreen() {
     setVerifying(true)
     setError(null)
     try {
-      const { data, error: invokeError } = await supabase.functions.invoke('verify-pin', {
-        body: { member_id: memberId, pin },
-      })
-      if (invokeError || !data) {
+      // Resolves with the verify-pin response shape; rejects only when the
+      // server could not be reached at all.
+      const data = await signInStaff(memberId, pin)
+      if (!data) {
         setError('Something went wrong. Please try again.')
         setDigits('')
         return
       }
       if (data.valid) {
         setActiveStaff(data.member)
+        onSignedInRef.current?.(data.member)
       } else if (data.reason === 'no_pin') {
         setDigits('')
         setShowSetPin(true)
@@ -106,6 +124,16 @@ export default function PinLoginScreen() {
         />
       )}
       <div className="w-full max-w-sm space-y-6">
+        {onBack && (
+          <button
+            onClick={onBack}
+            className="flex items-center gap-2 text-slate-400 hover:text-white text-sm cursor-pointer
+              min-h-[44px] px-1 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <ArrowLeft size={16} aria-hidden="true" />
+            Back
+          </button>
+        )}
         <div className="text-center space-y-2">
           <div className="flex items-center justify-center">
             <Lock size={32} className="text-slate-400" aria-hidden="true" />

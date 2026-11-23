@@ -1165,8 +1165,11 @@ begin
 end;
 $$;
 
--- End the session whose token is on this request.
-create or replace function public.staff_sign_out(p_reason text default 'sign_out')
+-- End a staff session on this till. The till passes the token explicitly
+-- (p_token) because it forgets the token the instant someone signs out —
+-- usually before the request carrying it in a header has even been built.
+-- With no p_token, the session on this request's header is ended.
+create or replace function public.staff_sign_out(p_reason text default 'sign_out', p_token text default null)
 returns boolean
 language plpgsql
 security definer
@@ -1174,15 +1177,35 @@ set search_path = public, auditlog, extensions
 as $$
 declare
   c auditlog.context := auditlog.ctx();
+  s record;
 begin
-  if c.actor is distinct from 'till' or c.staff_session_id is null then
+  if c.actor is distinct from 'till' then
     return false;
   end if;
+
+  if nullif(p_token, '') is not null then
+    select ss.id, ss.staff_id, ss.trust into s
+      from auditlog.staff_sessions ss
+     where ss.token_hash = sha256(convert_to(p_token, 'utf8'))
+       and ss.device = c.auth_uid and ss.ended_at is null;
+    if not found then
+      return false;
+    end if;
+    -- The entry belongs to the person signing out, whatever the header says.
+    c.staff_id := s.staff_id;
+    c.staff_trust := s.trust;
+    c.staff_session_id := s.id;
+  elsif c.staff_session_id is null then
+    return false;
+  end if;
+
   perform auditlog.try_write(c, 'auth', 'staff.sign_out', 0, 'members', c.staff_id::text, null, null, null,
     jsonb_build_object('reason', left(coalesce(p_reason, 'sign_out'), 40)));
   update auditlog.staff_sessions
      set ended_at = now(), end_reason = left(coalesce(p_reason, 'sign_out'), 40)
    where id = c.staff_session_id and ended_at is null;
+  -- Later statements in this request must not be attributed to an ended session.
+  perform set_config('auditlog.ctx_cache', '', true);
   return true;
 end;
 $$;
@@ -1668,6 +1691,8 @@ $$;
 --   tables          ["products", ...]
 --   table, pk       history of one record
 --   action_prefix   e.g. "cart." or "pin."
+--   actors          ["till","member","service","database","anon"]
+--   flag            entries carrying this flag, e.g. "outside_the_till"
 --   min_severity    0..3
 --   unchecked       true = only alerts nobody has marked as checked
 --   q               free text, matched against the whole entry
@@ -1687,6 +1712,8 @@ declare
                          then array(select jsonb_array_elements_text(f -> 'kinds')) end;
   v_tables text[] := case when jsonb_typeof(f -> 'tables') = 'array'
                           then array(select jsonb_array_elements_text(f -> 'tables')) end;
+  v_actors text[] := case when jsonb_typeof(f -> 'actors') = 'array'
+                          then array(select jsonb_array_elements_text(f -> 'actors')) end;
   v_q text := nullif(trim(f ->> 'q'), '');
   v_entries jsonb;
   v_last bigint;
@@ -1727,6 +1754,8 @@ begin
         and (f ->> 'till_id' is null or l.till_id = f ->> 'till_id')
         and (v_kinds is null or l.kind = any (v_kinds))
         and (v_tables is null or l.table_name = any (v_tables))
+        and (v_actors is null or l.actor = any (v_actors))
+        and (f ->> 'flag' is null or coalesce(l.detail -> 'flags' ? (f ->> 'flag'), false))
         and (f ->> 'table' is null or l.table_name = f ->> 'table')
         and (f ->> 'pk' is null or l.row_pk = f ->> 'pk')
         and (f ->> 'action_prefix' is null or l.action like replace(replace(f ->> 'action_prefix', '%', ''), '_', '\_') || '%')
@@ -2057,7 +2086,7 @@ revoke all on all sequences in schema auditlog from public, anon, authenticated,
 revoke execute on function public.staff_sign_in(uuid, text) from public, anon;
 revoke execute on function public.staff_verify_pin(uuid, text, text) from public, anon;
 revoke execute on function public.staff_session_claim(uuid) from public, anon;
-revoke execute on function public.staff_sign_out(text) from public, anon;
+revoke execute on function public.staff_sign_out(text, text) from public, anon;
 revoke execute on function public.staff_set_pin(uuid, text, text) from public, anon;
 revoke execute on function public.audit_log_events(jsonb) from public, anon;
 revoke execute on function public.audit_ping() from public, anon;
@@ -2070,7 +2099,7 @@ revoke execute on function public.audit_ack(bigint, text) from public, anon;
 grant execute on function public.staff_sign_in(uuid, text) to authenticated;
 grant execute on function public.staff_verify_pin(uuid, text, text) to authenticated;
 grant execute on function public.staff_session_claim(uuid) to authenticated;
-grant execute on function public.staff_sign_out(text) to authenticated;
+grant execute on function public.staff_sign_out(text, text) to authenticated;
 grant execute on function public.staff_set_pin(uuid, text, text) to authenticated;
 grant execute on function public.audit_log_events(jsonb) to authenticated;
 grant execute on function public.audit_ping() to authenticated;
@@ -2129,7 +2158,7 @@ begin
     execute format('select count(*) from public.%I', t.relname) into v_n;
     v_counts := v_counts || jsonb_build_object(t.relname, v_n);
   end loop;
-  perform auditlog.try_write(c, 'system', 'auditlog.installed', 1, null, null, null, null, null,
+  perform auditlog.try_write(c, 'system', 'audit.installed', 1, null, null, null, null, null,
     jsonb_build_object('rows_at_install', v_counts, 'coverage', auditlog.coverage(),
       'note', 'Recording starts here. Nothing before this entry was captured.'));
   perform auditlog.seal();

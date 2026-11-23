@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { X, Delete } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
+import { signInStaff } from '../../lib/audit/staff'
 import { useSessionStore } from '../../stores/sessionStore'
 
 const PIN_KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'back', '0', 'clear']
@@ -49,9 +50,11 @@ export default function SwitchUserModal({ onClose }) {
     setVerifying(true)
     setError(null)
     try {
-      const { data } = await supabase.functions.invoke('verify-pin', {
-        body: { member_id: selected.id, pin: digits },
-      })
+      // Signing in opens the new person's server session and ends the
+      // previous person's on this till; the server records both, so the
+      // till logs nothing extra for a switch. Rejects only when the server
+      // cannot be reached.
+      const data = await signInStaff(selected.id, digits)
       if (data?.valid) {
         setActiveStaff(data.member)
         onClose()

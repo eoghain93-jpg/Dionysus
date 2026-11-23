@@ -96,9 +96,12 @@ export async function verifyStaffPin(memberId, pin, purpose) {
  * @param {'sign_out'|'switch_user'|'idle_lock'|'close_day'|string} reason
  */
 export async function signOutStaff(reason = 'sign_out') {
+  // Captured NOW and sent in the request body: callers clear the local
+  // session straight after calling this, which is before supabase-js has
+  // even built the request — a header read at send time would be empty.
   const had = getStaffSession()
   try {
-    if (had) await supabase.rpc('staff_sign_out', { p_reason: reason })
+    if (had) await supabase.rpc('staff_sign_out', { p_reason: reason, p_token: had.token })
   } catch { /* offline or old database */ }
   // Only forget the session we ended: a new sign-in may have replaced it
   // while the request was in flight.

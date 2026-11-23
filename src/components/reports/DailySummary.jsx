@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
 import { tradingDayRange } from '../../lib/tradingDay'
 import { CreditCard, Banknote } from '../../lib/icons'
+import { logEvent } from '../../lib/audit/log'
 
 export default function DailySummary({ date }) {
   const [loading, setLoading] = useState(true)
@@ -41,6 +42,7 @@ export default function DailySummary({ date }) {
           cashTotal,
           cardTotal,
         })
+        logEvent('report.viewed', { report: 'daily', date })
       })
       .finally(() => setLoading(false))
   }, [date])

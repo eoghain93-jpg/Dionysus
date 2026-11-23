@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
+import { logEvent } from '../../lib/audit/log'
 import DeviceLoginScreen from './DeviceLoginScreen'
+import { useSessionStore } from '../../stores/sessionStore'
 
 /**
  * DeviceGate — the till runs as an authenticated device, not as anon.
@@ -21,7 +23,18 @@ export default function DeviceGate({ children }) {
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setSession(data.session))
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (_event, newSession) => setSession(newSession)
+      (event, newSession) => {
+        // The device login is meant to last for good, so losing it (revoked,
+        // expired, or signed out some other way) is worth a look. Queued
+        // until this till is connected again — it cannot be sent before.
+        if (event === 'SIGNED_OUT') {
+          logEvent('device.signed_out', {}, { severity: 2 })
+          // Whoever reconnects the till must not inherit the last person's
+          // sign-in: the next action needs a PIN again.
+          useSessionStore.getState().clearSession()
+        }
+        setSession(newSession)
+      }
     )
     return () => subscription.unsubscribe()
   }, [])

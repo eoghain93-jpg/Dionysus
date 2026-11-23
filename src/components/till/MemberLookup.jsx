@@ -4,6 +4,8 @@ import { Camera, X } from '../../lib/icons'
 import { Html5QrcodeScanner } from 'html5-qrcode'
 import { findMemberByNumber, searchMembersByName } from '../../lib/members'
 import { useTillStore } from '../../stores/tillStore'
+import { logEvent } from '../../lib/audit/log'
+import { useSessionStore } from '../../stores/sessionStore'
 
 export default function MemberLookup() {
   const [query, setQuery] = useState('')
@@ -14,6 +16,8 @@ export default function MemberLookup() {
   const { activeMember, setActiveMember } = useTillStore()
   const inputRef = useRef(null)
   const scannerRef = useRef(null)
+  // When the last scanner burst was seen (audit: tells a scan from typing).
+  const scanAtRef = useRef(0)
 
   const hasNfc = typeof NDEFReader !== 'undefined'
 
@@ -41,7 +45,8 @@ export default function MemberLookup() {
       }
 
       if (e.key === 'Enter' && buffer.length > 3) {
-        handleLookup(buffer.trim())
+        scanAtRef.current = Date.now()
+        handleLookup(buffer.trim(), 'scan')
         buffer = ''
         clearTimeout(timer)
         return
@@ -65,10 +70,13 @@ export default function MemberLookup() {
       reader = new window.NDEFReader()
       reader.scan().then(() => {
         reader.onreading = ({ message }) => {
+          // A locked till keeps this page mounted underneath the lock
+          // screen; a card tapped then must not attach a member to the order.
+          if (useSessionStore.getState().locked) return
           for (const record of message.records) {
             if (record.recordType === 'text') {
               const decoder = new TextDecoder(record.encoding || 'utf-8')
-              handleLookup(decoder.decode(record.data))
+              handleLookup(decoder.decode(record.data), 'scan')
             }
           }
         }
@@ -92,7 +100,7 @@ export default function MemberLookup() {
     scanner.render(
       (decodedText) => {
         stopScanner()
-        handleLookup(decodedText)
+        handleLookup(decodedText, 'scan')
       },
       (errorMessage) => {
         // scan errors are expected while scanning — ignore
@@ -126,18 +134,31 @@ export default function MemberLookup() {
     }, 250)
   }
 
-  function handleSelectSuggestion(member) {
+  // How the member got onto the sale: a scanned card is evidence they were
+  // there; a typed number or a name picked from a list is the staff member's
+  // word. A scanner types into the focused box AND presses Enter, so one scan
+  // arrives twice (scan burst + form submit): the submit that follows a burst
+  // counts as the same scan, and only the first to attach the member is logged.
+  function attachMember(member, method) {
+    const already = useTillStore.getState().activeMember?.id === member.id
     setActiveMember(member)
+    if (!already) {
+      logEvent('cart.member_attached', { member_id: member.id, member_name: member.name, method })
+    }
+  }
+
+  function handleSelectSuggestion(member) {
+    attachMember(member, 'search')
     setQuery('')
     setSuggestions([])
   }
 
-  async function handleLookup(value) {
+  async function handleLookup(value, method = 'number') {
     setError(null)
     setSuggestions([])
     const member = await findMemberByNumber(value.trim())
     if (member) {
-      setActiveMember(member)
+      attachMember(member, method)
       setQuery('')
     } else {
       setError(`No member found: "${value.trim()}"`)
@@ -164,7 +185,7 @@ export default function MemberLookup() {
       }
       return
     }
-    await handleLookup(query)
+    await handleLookup(query, Date.now() - scanAtRef.current < 500 ? 'scan' : 'number')
   }
 
   if (activeMember) return null

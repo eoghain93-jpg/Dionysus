@@ -5,7 +5,8 @@ import { fetchActivePromotions } from '../lib/promotions'
 import { isBundleEnabled } from '../lib/promos'
 import { newOrderId, saveOrder } from '../lib/orders'
 import { getTillId } from '../lib/till'
-import { printReceipt } from '../lib/starPrinter'
+import { printReceipt, getPrinterIp } from '../lib/starPrinter'
+import { logEvent } from '../lib/audit/log'
 import { useToastStore } from '../hooks/useToast'
 import { useTillStore } from '../stores/tillStore'
 import { useSyncStore } from '../stores/syncStore'
@@ -54,7 +55,12 @@ export default function TillPage() {
   // Auto-clear event-wide members pricing on staff change so the next staff
   // member doesn't unknowingly inherit a previous shift's pricing mode.
   useEffect(() => {
-    if (!activeStaff) setMembersOnlyMode(false)
+    if (activeStaff) return
+    // The log saw the mode go on; it must also see it go off by itself.
+    if (useTillStore.getState().membersOnlyMode) {
+      logEvent('pricing.members_only_mode_off', { reason: 'staff_signed_out' }, { severity: 1 })
+    }
+    setMembersOnlyMode(false)
   }, [activeStaff?.id, setMembersOnlyMode])
 
   useEffect(() => {
@@ -106,14 +112,36 @@ export default function TillPage() {
       useToastStore.getState().addToast('Order save failed — check sync', 'error')
     }
 
+    // printed: a receipt actually went to the printer (with no printer IP
+    // the job is silently skipped, and so is the drawer kick).
+    let printed = false
     try {
       await printReceipt({ orderId: order.id, total, paymentMethod, createdAt: order.created_at })
+      printed = !!getPrinterIp()
     } catch (err) {
       console.error('Print failed:', err)
       useToastStore.getState().addToast('Print failed — check printer connection', 'error')
+      logEvent('receipt.print_failed', { what: 'receipt', message: String(err?.message ?? err).slice(0, 300), order_id: order.id }, { severity: 1 })
     }
 
     clearOrder()
+
+    // Logged last, once the till is ready for the next customer. The order
+    // row says what was sold; this says how the sale ended up (stored online,
+    // queued on this till, or not stored at all) and whether a receipt came
+    // out. A sale that could not be stored anywhere has no row and never
+    // will, so its lines travel with the event.
+    logEvent('sale.completed', {
+      order_id: order.id,
+      total: Number(total.toFixed(2)),
+      method: paymentMethod,
+      lines: items.length,
+      saved,
+      printed,
+      ...(saved === 'failed'
+        ? { member_id: order.member_id, items: items.slice(0, 40).map(i => ({ product_id: i.product_id, quantity: i.quantity, unit_price: i.unit_price })) }
+        : {}),
+    }, { severity: saved === 'failed' ? 2 : saved === 'online' ? 0 : 1 })
   }, [isOnline, clearOrder])
 
   if (!activeStaff) { return <PinLoginScreen /> }
@@ -181,7 +209,7 @@ export default function TillPage() {
               Sign In Guest
             </button>
             <button
-              onClick={() => setShowRecentSales(true)}
+              onClick={() => { setShowRecentSales(true); logEvent('sales.recent_viewed') }}
               className="px-3 min-h-[36px] rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-400 text-xs font-medium cursor-pointer transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#020617]"
             >
               Fix Payment
@@ -256,6 +284,12 @@ export default function TillPage() {
           onAdd={(product, staffMember) => {
             useTillStore.getState().addStaffCreditItem(product, staffMember)
             setShowOneForStaff(false)
+            // The credit itself is a row once the sale is paid; the line can
+            // still be taken off before then, so note who it was rung for.
+            const self = staffMember.id === useSessionStore.getState().activeStaff?.id
+            logEvent('cart.staff_credit_added', {
+              product: product.name, for_staff_id: staffMember.id, for_staff_name: staffMember.name, self_award: self,
+            }, { severity: self ? 1 : 0 })
           }}
           onClose={() => setShowOneForStaff(false)}
         />

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { X } from '../../lib/icons'
 import { fetchPriceChanges } from '../../lib/priceChanges'
+import { logEvent } from '../../lib/audit/log'
 
 const money = v => `£${Number(v).toFixed(2)}`
 
@@ -31,7 +32,11 @@ export default function PriceChangesModal({ onClose }) {
 
   useEffect(() => {
     fetchPriceChanges()
-      .then(setChanges)
+      .then(rows => {
+        setChanges(rows)
+        // Shows who went looking at the price log.
+        logEvent('report.viewed', { report: 'price_changes' })
+      })
       .catch(err => setError(err.message ?? 'Could not load price changes'))
       .finally(() => setLoading(false))
   }, [])

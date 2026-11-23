@@ -2,6 +2,9 @@ import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, it, expect, vi } from 'vitest'
 import MemberList, { isRenewalDueSoon } from '../MemberList'
+import { logEvent } from '../../../lib/audit/log'
+
+vi.mock('../../../lib/audit/log', () => ({ logEvent: vi.fn() }))
 
 // Mock the members data layer (not used directly by MemberList, kept for completeness)
 vi.mock('../../../lib/members', () => ({
@@ -119,5 +122,20 @@ describe('MemberList', () => {
     render(<MemberList members={members} onSelect={noop} onEdit={noop} />)
     expect(screen.getByText('Alice Brennan')).toBeInTheDocument()
     expect(screen.getByText('Bob Murphy')).toBeInTheDocument()
+  })
+})
+
+describe('MemberList — tab balance', () => {
+  it('logs a tap on a blurred balance without opening the profile', async () => {
+    logEvent.mockClear()
+    const onSelect = vi.fn()
+    const member = { ...baseMember, tab_balance: 12.5 }
+    render(<MemberList members={[member]} onSelect={onSelect} onEdit={noop} />)
+    await userEvent.click(screen.getByRole('button', { name: /tap to reveal tab amount/i }))
+    expect(screen.getByRole('button', { name: /tab amount visible/i })).toBeInTheDocument()
+    expect(onSelect).not.toHaveBeenCalled()
+    expect(logEvent.mock.calls).toEqual([
+      ['tab.amount_revealed', { member_id: '1' }],
+    ])
   })
 })

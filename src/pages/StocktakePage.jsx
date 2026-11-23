@@ -4,6 +4,7 @@ import { fetchStocktakeData, toCsv } from '../lib/stocktake'
 import { supabase } from '../lib/supabase'
 import { tradingTodayISO, addDaysISO } from '../lib/tradingDay'
 import { useToastStore } from '../hooks/useToast'
+import { logEvent } from '../lib/audit/log'
 
 // Trading day, matching the Reports page: before 6am "today" is still
 // last night's session.
@@ -33,6 +34,7 @@ export default function StocktakePage() {
     try {
       const d = await fetchStocktakeData(startDate, endDate)
       setData(d)
+      logEvent('report.viewed', { report: 'stocktake', from: startDate, to: endDate })
     } catch (err) {
       setError(err.message ?? 'Failed to load stocktake')
     } finally {
@@ -50,6 +52,9 @@ export default function StocktakePage() {
     a.download = `stocktake-${data.startDate}-to-${data.endDate}.csv`
     a.click()
     URL.revokeObjectURL(url)
+    logEvent('report.exported', {
+      report: 'stocktake', from: data.startDate, to: data.endDate, rows: Math.max(0, csv.split('\n').length - 1),
+    }, { severity: 1 })
   }
 
   async function emailReport() {
@@ -62,8 +67,12 @@ export default function StocktakePage() {
       })
       if (err) throw err
       useToastStore.getState().addToast('Stocktake report emailed', 'success')
+      logEvent('report.emailed', { report: 'stocktake', from: data.startDate, to: data.endDate }, { severity: 1 })
     } catch (err) {
       useToastStore.getState().addToast(`Email failed: ${err.message}`, 'error')
+      logEvent('report.email_failed', {
+        report: 'stocktake', from: data.startDate, to: data.endDate, message: String(err?.message ?? err).slice(0, 300),
+      }, { severity: 1 })
     } finally {
       setEmailing(false)
     }

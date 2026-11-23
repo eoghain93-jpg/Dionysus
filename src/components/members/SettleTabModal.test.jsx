@@ -24,12 +24,15 @@ vi.mock('../../hooks/useToast', () => ({
   },
 }))
 
+vi.mock('../../lib/audit/log', () => ({ logEvent: vi.fn() }))
+import { logEvent } from '../../lib/audit/log'
+
 // Stub the cash tender/change flow — its own behaviour is covered by
 // CashPaymentModal.test.jsx. Here we only care what total it receives and
 // that confirming fires the settle.
 vi.mock('../till/CashPaymentModal', () => ({
-  default: ({ total, onConfirm, onCancel }) => (
-    <div data-testid="cash-modal">
+  default: ({ total, onConfirm, onCancel, auditDetail }) => (
+    <div data-testid="cash-modal" data-audit={JSON.stringify(auditDetail ?? null)}>
       <span data-testid="cash-modal-total">{total.toFixed(2)}</span>
       <button onClick={onConfirm}>Mock Confirm Cash</button>
       <button onClick={onCancel}>Mock Cancel Cash</button>
@@ -312,5 +315,51 @@ describe('SettleTabModal — failure handling', () => {
     fireEvent.click(screen.getByRole('button', { name: /settle by card/i }))
     await waitFor(() => expect(onSettled).toHaveBeenCalled())
     expect(mockAddToast).toHaveBeenCalledWith(expect.stringMatching(/print failed/i), 'error')
+  })
+})
+
+describe('SettleTabModal — audit', () => {
+  it('logs a receipt that failed to print for a tab payment', async () => {
+    const onSettled = vi.fn()
+    mockPrintReceipt.mockRejectedValue(new Error('printer offline'))
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    renderModal({ onSettled })
+    chooseFull()
+    fireEvent.click(screen.getByRole('button', { name: /settle by card/i }))
+    await waitFor(() => expect(onSettled).toHaveBeenCalled())
+    expect(logEvent.mock.calls).toEqual([
+      ['receipt.print_failed', {
+        what: 'receipt', message: 'printer offline', member_id: 'mem-1', tab_payment: true,
+      }, { severity: 1 }],
+    ])
+    vi.restoreAllMocks()
+  })
+
+  it('logs nothing itself for a settle that prints fine (the payment is a row)', async () => {
+    const onSettled = vi.fn()
+    renderModal({ onSettled })
+    chooseFull()
+    fireEvent.click(screen.getByRole('button', { name: /settle by card/i }))
+    await waitFor(() => expect(onSettled).toHaveBeenCalled())
+    expect(logEvent).not.toHaveBeenCalled()
+  })
+
+  it('logs nothing when the settle itself fails', async () => {
+    mockSettleTab.mockRejectedValue(new Error('network down'))
+    renderModal()
+    chooseFull()
+    fireEvent.click(screen.getByRole('button', { name: /settle by card/i }))
+    await screen.findByRole('alert')
+    expect(mockPrintReceipt).not.toHaveBeenCalled()
+    expect(logEvent).not.toHaveBeenCalled()
+  })
+
+  it('tells the cash screen the tender is for a tab payment, and whose', () => {
+    renderModal()
+    chooseFull()
+    fireEvent.click(screen.getByRole('button', { name: /settle by cash/i }))
+    expect(JSON.parse(screen.getByTestId('cash-modal').dataset.audit)).toEqual({
+      tab_payment: true, member_id: 'mem-1',
+    })
   })
 })

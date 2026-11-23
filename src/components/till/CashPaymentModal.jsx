@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Delete } from 'lucide-react'
+import { logEvent } from '../../lib/audit/log'
 
 const QUICK_AMOUNTS = [5, 10, 20, 50]
 const NUMPAD_KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '.', '0', 'back']
@@ -8,7 +9,9 @@ function formatPence(pence) {
   return `£${(pence / 100).toFixed(2)}`
 }
 
-export default function CashPaymentModal({ total, onConfirm, onCancel, onDone }) {
+// auditDetail — optional extra context for the audit event (e.g. a tab
+//               payment rather than a sale); never affects behaviour
+export default function CashPaymentModal({ total, onConfirm, onCancel, onDone, auditDetail }) {
   const [digits, setDigits] = useState('')
   const [confirmed, setConfirmed] = useState(false)
 
@@ -49,6 +52,14 @@ export default function CashPaymentModal({ total, onConfirm, onCancel, onDone })
     setConfirmed(true)   // show "give change" screen immediately
     onConfirm()          // and fire the checkout (print + drawer) right now,
                          // so staff can give change while the drawer is open
+    // The order row records the total and "cash"; what was handed over and
+    // the change given exist only here.
+    logEvent('sale.cash_tendered', {
+      total: totalPence / 100,
+      tendered: tenderedPence / 100,
+      change: changePence / 100,
+      ...auditDetail,
+    })
   }
 
   if (confirmed) {

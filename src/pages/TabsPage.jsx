@@ -5,7 +5,8 @@ import { fetchOpenTabs, fetchTabOrders } from '../lib/tabs'
 import SettleTabModal from '../components/members/SettleTabModal'
 import AdjustTabModal from '../components/members/AdjustTabModal'
 import { removeOrderFromTab } from '../lib/tabs'
-import { printTabsList, printTabStatement } from '../lib/starPrinter'
+import { printTabsList, printTabStatement, getPrinterIp } from '../lib/starPrinter'
+import { logEvent } from '../lib/audit/log'
 import { useToastStore } from '../hooks/useToast'
 import BlurredAmount from '../components/ui/BlurredAmount'
 
@@ -45,7 +46,11 @@ export default function TabsPage() {
     if (next) {
       setExpandedLoading(l => ({ ...l, [id]: true }))
       fetchTabOrders(id)
-        .then(orders => setExpandedOrders(o => ({ ...o, [id]: orders })))
+        .then(orders => {
+          setExpandedOrders(o => ({ ...o, [id]: orders }))
+          // What one member drank and when is now on screen.
+          logEvent('tab.orders_viewed', { member_id: id, member_name: tabs.find(m => m.id === id)?.name ?? null })
+        })
         .catch(err => {
           console.error(err)
           setExpandedOrders(o => ({ ...o, [id]: { fetchError: true } }))
@@ -88,6 +93,11 @@ export default function TabsPage() {
           ? { ...m, tab_balance: Math.max(0, Number(m.tab_balance) - order.total_amount) }
           : m
       ).filter(m => Number(m.tab_balance) > 0))
+      // The rows show an order voided and a tab reduced; this ties them to
+      // one tap of "Remove" and names whose tab it came off.
+      logEvent('tab.order_removed', {
+        order_id: order.id, member_id: member.id, member_name: member.name, value: Number(order.total_amount),
+      }, { severity: 1 })
     } catch (err) {
       console.error('Failed to remove order:', err)
       // Previously silent — staff had no idea a removal failed. Most likely
@@ -105,9 +115,14 @@ export default function TabsPage() {
     setPrinting(true)
     try {
       await printTabsList(tabs)
+      // Every member's debt on paper. (No printer IP = nothing was printed.)
+      if (getPrinterIp()) {
+        logEvent('tab.summary_printed', { tabs: tabs.length, total: Number(total.toFixed(2)) })
+      }
     } catch (err) {
       console.error('Print failed:', err)
       useToastStore.getState().addToast('Print failed — check printer connection', 'error')
+      logEvent('receipt.print_failed', { what: 'tab_summary', message: String(err?.message ?? err).slice(0, 300) }, { severity: 1 })
     } finally {
       setPrinting(false)
     }
@@ -120,9 +135,15 @@ export default function TabsPage() {
       // reflects the live tab, even if an order was removed on another till.
       const orders = await fetchTabOrders(member.id)
       await printTabStatement({ member, orders })
+      if (getPrinterIp()) {
+        logEvent('tab.statement_printed', { member_id: member.id, member_name: member.name })
+      }
     } catch (err) {
       console.error('Print failed:', err)
       useToastStore.getState().addToast('Print failed — check printer connection', 'error')
+      logEvent('receipt.print_failed', {
+        what: 'tab_statement', message: String(err?.message ?? err).slice(0, 300), member_id: member.id,
+      }, { severity: 1 })
     } finally {
       setPrintingStatementId(null)
     }
@@ -151,9 +172,15 @@ export default function TabsPage() {
             </button>
             <div className="text-right">
               <p className="text-slate-400 text-xs">Total outstanding</p>
-              <BlurredAmount className="text-white font-bold text-lg">
-                £{total.toFixed(2)}
-              </BlurredAmount>
+              {/* Capture phase: BlurredAmount stops the click from bubbling. */}
+              <span
+                className="contents"
+                onClickCapture={() => logEvent('tab.amount_revealed', { member_id: null, what: 'total_outstanding' })}
+              >
+                <BlurredAmount className="text-white font-bold text-lg">
+                  £{total.toFixed(2)}
+                </BlurredAmount>
+              </span>
             </div>
           </div>
         )}
@@ -192,9 +219,14 @@ export default function TabsPage() {
                         <p className="text-slate-400 text-xs">{member.membership_number}</p>
                       </div>
                     </button>
-                    <BlurredAmount className="text-white font-bold text-sm shrink-0">
-                      £{Number(member.tab_balance).toFixed(2)}
-                    </BlurredAmount>
+                    <span
+                      className="contents"
+                      onClickCapture={() => logEvent('tab.amount_revealed', { member_id: member.id })}
+                    >
+                      <BlurredAmount className="text-white font-bold text-sm shrink-0">
+                        £{Number(member.tab_balance).toFixed(2)}
+                      </BlurredAmount>
+                    </span>
                     <button
                       onClick={() => setSettlingMember(member)}
                       aria-label={`Settle tab for ${member.name}`}

@@ -1,7 +1,10 @@
 import { useState } from 'react'
 import { NavLink, useLocation } from 'react-router-dom'
-import { ShoppingCart, Package, Users, BarChart2, Tag, Receipt, ArrowLeftRight, Settings, MoreHorizontal, X, UserPlus, ScrollText } from 'lucide-react'
+import { ShoppingCart, Package, Users, BarChart2, Tag, Receipt, ArrowLeftRight, Settings, MoreHorizontal, X, UserPlus, ScrollText, Lock, LogOut } from 'lucide-react'
 import { useSessionStore } from '../stores/sessionStore'
+import { useToastStore } from '../hooks/useToast'
+import { lockTill } from '../hooks/useIdleLock'
+import { logEvent } from '../lib/audit/log'
 import SwitchUserModal from './till/SwitchUserModal'
 import DaveyMode from './ui/DaveyMode'
 
@@ -36,12 +39,57 @@ function StripesIcon({ size }) {
   )
 }
 
+// Signing out tells the server first (it ends the session whose token is on
+// the request), so the token must still be attached when that request leaves.
+// But a slow connection must not hold the till: after this long the till
+// signs out regardless and the server session is left to expire.
+const SIGN_OUT_WAIT_MS = 3000
+
 export default function NavBar() {
   const { activeStaff } = useSessionStore()
   const [showSwitch, setShowSwitch] = useState(false)
   const [showMore, setShowMore] = useState(false)
   const [showDavey, setShowDavey] = useState(false)
+  const [signingOut, setSigningOut] = useState(false)
   const location = useLocation()
+
+  function openDavey() {
+    logEvent('app.davey_mode')
+    setShowDavey(true)
+  }
+
+  // Lock: the till keeps the person and the open order; a PIN carries on.
+  function handleLock() {
+    setShowMore(false)
+    lockTill('manual')
+  }
+
+  async function handleSignOut() {
+    if (signingOut) return
+    setShowMore(false)
+    // Nobody can sign back in without a connection (a PIN cannot be checked
+    // offline), so signing out now would leave the till unusable. Lock
+    // still works offline.
+    if (navigator.onLine === false) {
+      useToastStore.getState().addToast('Offline — nobody could sign back in. Use Lock instead.', 'error')
+      return
+    }
+    setSigningOut(true)
+    try {
+      // Loaded on demand (as log.js loads the client) so the nav bar itself
+      // never drags the Supabase client into a module that has no need of it.
+      const { signOutStaff } = await import('../lib/audit/staff')
+      await Promise.race([
+        signOutStaff('sign_out'), // never rejects; the server records the sign-out
+        new Promise(resolve => setTimeout(resolve, SIGN_OUT_WAIT_MS)),
+      ])
+    } catch {
+      // signing out on this till must happen whatever went wrong above
+    } finally {
+      setSigningOut(false)
+      useSessionStore.getState().clearSession()
+    }
+  }
 
   const moreIsActive = moreLinks.some(l => location.pathname === l.to)
 
@@ -52,7 +100,7 @@ export default function NavBar() {
   return (
     <>
       {/* Sidebar — tablet/desktop (shows all links) */}
-      <nav className="hidden md:flex flex-col w-20 lg:w-52 bg-slate-900 border-r border-slate-800 p-3 gap-1 shrink-0">
+      <nav className="hidden md:flex flex-col w-20 lg:w-52 bg-slate-900 border-r border-slate-800 p-3 gap-1 shrink-0 overflow-y-auto">
         <div className="px-1 py-3 hidden lg:flex justify-center">
           <img src="/fairmile-logo.png" alt="The Fairmile Pub & Kitchen"
             className="w-28 h-auto" />
@@ -77,7 +125,7 @@ export default function NavBar() {
         {activeStaff && (
           <div className="mt-auto pt-3 border-t border-slate-800 flex flex-col gap-1">
             <button
-              onClick={() => setShowDavey(true)}
+              onClick={openDavey}
               className="w-full flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium
                 text-slate-400 hover:bg-slate-800 hover:text-white transition-colors duration-200 cursor-pointer
                 focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -99,6 +147,30 @@ export default function NavBar() {
               <span className="hidden lg:block truncate flex-1 text-left">{activeStaff.name}</span>
               <ArrowLeftRight size={14} className="hidden lg:block shrink-0" aria-hidden="true" />
             </button>
+            {/* Lock + Sign out — one compact row on wide sidebars, stacked icons on narrow */}
+            <div className="flex flex-col lg:flex-row gap-1">
+              <button
+                onClick={handleLock}
+                className="flex-1 flex items-center justify-center gap-2 px-2 py-3 rounded-xl text-xs font-medium min-h-[44px]
+                  text-slate-400 hover:bg-slate-800 hover:text-white transition-colors duration-200 cursor-pointer
+                  focus:outline-none focus:ring-2 focus:ring-blue-500"
+                aria-label="Lock till"
+              >
+                <Lock size={18} className="shrink-0" aria-hidden="true" />
+                <span className="hidden lg:block">Lock</span>
+              </button>
+              <button
+                onClick={handleSignOut}
+                disabled={signingOut}
+                className="flex-1 flex items-center justify-center gap-2 px-2 py-3 rounded-xl text-xs font-medium min-h-[44px]
+                  text-slate-400 hover:bg-slate-800 hover:text-white transition-colors duration-200 cursor-pointer
+                  focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                aria-label="Sign out"
+              >
+                <LogOut size={18} className="shrink-0" aria-hidden="true" />
+                <span className="hidden lg:block whitespace-nowrap">Sign out</span>
+              </button>
+            </div>
           </div>
         )}
       </nav>
@@ -158,14 +230,33 @@ export default function NavBar() {
               </NavLink>
             ))}
             {activeStaff && (
-              <button
-                onClick={() => { setShowMore(false); setShowDavey(true) }}
-                className="w-full flex items-center gap-3 px-4 py-4 text-sm font-medium transition-colors duration-150
-                  text-slate-300 hover:bg-slate-700 hover:text-white cursor-pointer"
-              >
-                <StripesIcon size={18} />
-                Davey
-              </button>
+              <>
+                <button
+                  onClick={() => { setShowMore(false); openDavey() }}
+                  className="w-full flex items-center gap-3 px-4 py-4 text-sm font-medium transition-colors duration-150
+                    text-slate-300 hover:bg-slate-700 hover:text-white cursor-pointer"
+                >
+                  <StripesIcon size={18} />
+                  Davey
+                </button>
+                <button
+                  onClick={handleLock}
+                  className="w-full flex items-center gap-3 px-4 py-4 text-sm font-medium transition-colors duration-150
+                    text-slate-300 hover:bg-slate-700 hover:text-white cursor-pointer border-t border-slate-700"
+                >
+                  <Lock size={18} aria-hidden="true" />
+                  Lock
+                </button>
+                <button
+                  onClick={handleSignOut}
+                  disabled={signingOut}
+                  className="w-full flex items-center gap-3 px-4 py-4 text-sm font-medium transition-colors duration-150
+                    text-slate-300 hover:bg-slate-700 hover:text-white cursor-pointer disabled:opacity-50"
+                >
+                  <LogOut size={18} aria-hidden="true" />
+                  Sign out
+                </button>
+              </>
             )}
           </div>
         </>
@@ -181,6 +272,16 @@ export default function NavBar() {
         >
           {initials(activeStaff.name)}
         </button>
+      )}
+
+      {/* Covers the till for the moment it takes the server to end the session */}
+      {signingOut && (
+        <div
+          role="status"
+          className="fixed inset-0 z-[150] bg-slate-900 flex items-center justify-center text-slate-400 text-sm"
+        >
+          Signing out…
+        </div>
       )}
 
       {showSwitch && <SwitchUserModal onClose={() => setShowSwitch(false)} />}

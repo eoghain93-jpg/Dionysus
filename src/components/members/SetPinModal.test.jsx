@@ -2,14 +2,12 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import SetPinModal from './SetPinModal'
 
-// ── Supabase mock ──────────────────────────────────────────────────────────────
-const { mockInvoke } = vi.hoisted(() => ({ mockInvoke: vi.fn() }))
+// ── Mock ───────────────────────────────────────────────────────────────────────
+// setStaffPin sets the PIN in the database (verify-pin 'set' mode is its
+// fallback) and resolves with { success: true } or { error, reason? }.
+const { mockSetPin } = vi.hoisted(() => ({ mockSetPin: vi.fn() }))
 
-vi.mock('../../lib/supabase', () => ({
-  supabase: {
-    functions: { invoke: mockInvoke },
-  },
-}))
+vi.mock('../../lib/audit/staff', () => ({ setStaffPin: mockSetPin }))
 
 const STAFF_MEMBER = { id: 'staff-1', name: 'Alice', membership_tier: 'staff' }
 
@@ -19,6 +17,7 @@ function renderModal(props = {}) {
       member={props.member ?? STAFF_MEMBER}
       onClose={props.onClose ?? vi.fn()}
       onSaved={props.onSaved ?? vi.fn()}
+      requireCurrentPin={props.requireCurrentPin}
     />
   )
 }
@@ -106,9 +105,9 @@ describe('SetPinModal', () => {
     })
   })
 
-  // ── Matching PINs — calls edge function ────────────────────────────────────
-  it('calls verify-pin with set mode when PINs match', async () => {
-    mockInvoke.mockResolvedValue({ data: { success: true }, error: null })
+  // ── Matching PINs — sets the PIN ───────────────────────────────────────────
+  it('calls setStaffPin when PINs match (no current PIN for a first PIN)', async () => {
+    mockSetPin.mockResolvedValue({ success: true })
     renderModal()
     ;['1', '2', '3', '4'].forEach(d =>
       fireEvent.click(screen.getByRole('button', { name: d }))
@@ -118,15 +117,42 @@ describe('SetPinModal', () => {
       fireEvent.click(screen.getByRole('button', { name: d }))
     )
     await waitFor(() => {
-      expect(mockInvoke).toHaveBeenCalledWith('verify-pin', {
-        body: { member_id: 'staff-1', pin: '1234', mode: 'set' },
-      })
+      expect(mockSetPin).toHaveBeenCalledWith('staff-1', '1234', undefined)
     })
+    expect(mockSetPin).toHaveBeenCalledTimes(1)
+  })
+
+  it('sends the current PIN when changing an existing one', async () => {
+    mockSetPin.mockResolvedValue({ success: true })
+    renderModal({ requireCurrentPin: true })
+    expect(screen.getByText(/enter current pin/i)).toBeInTheDocument()
+    ;['9', '8', '7', '6'].forEach(d => fireEvent.click(screen.getByRole('button', { name: d })))
+    await waitFor(() => screen.getByText(/enter new pin/i))
+    ;['1', '2', '3', '4'].forEach(d => fireEvent.click(screen.getByRole('button', { name: d })))
+    await waitFor(() => screen.getByText(/confirm new pin/i))
+    ;['1', '2', '3', '4'].forEach(d => fireEvent.click(screen.getByRole('button', { name: d })))
+    await waitFor(() => {
+      expect(mockSetPin).toHaveBeenCalledWith('staff-1', '1234', '9876')
+    })
+  })
+
+  it('shows the error and starts again when the current PIN is refused', async () => {
+    const onSaved = vi.fn()
+    mockSetPin.mockResolvedValue({ error: 'Incorrect current PIN' })
+    renderModal({ requireCurrentPin: true, onSaved })
+    ;['0', '0', '0', '0'].forEach(d => fireEvent.click(screen.getByRole('button', { name: d })))
+    await waitFor(() => screen.getByText(/enter new pin/i))
+    ;['1', '2', '3', '4'].forEach(d => fireEvent.click(screen.getByRole('button', { name: d })))
+    await waitFor(() => screen.getByText(/confirm new pin/i))
+    ;['1', '2', '3', '4'].forEach(d => fireEvent.click(screen.getByRole('button', { name: d })))
+    expect(await screen.findByRole('alert')).toHaveTextContent(/failed to set pin/i)
+    expect(screen.getByText(/enter current pin/i)).toBeInTheDocument()
+    expect(onSaved).not.toHaveBeenCalled()
   })
 
   it('shows success message and calls onSaved after successful set', async () => {
     const onSaved = vi.fn()
-    mockInvoke.mockResolvedValue({ data: { success: true }, error: null })
+    mockSetPin.mockResolvedValue({ success: true })
     renderModal({ onSaved })
     ;['1', '2', '3', '4'].forEach(d =>
       fireEvent.click(screen.getByRole('button', { name: d }))
@@ -139,8 +165,21 @@ describe('SetPinModal', () => {
     await waitFor(() => expect(onSaved).toHaveBeenCalledOnce(), { timeout: 2500 })
   })
 
-  it('shows error message on edge function failure', async () => {
-    mockInvoke.mockResolvedValue({ data: null, error: { message: 'Server error' } })
+  it('shows error message when the PIN could not be set', async () => {
+    mockSetPin.mockResolvedValue({ error: 'Server error' })
+    renderModal()
+    ;['1', '2', '3', '4'].forEach(d =>
+      fireEvent.click(screen.getByRole('button', { name: d }))
+    )
+    await waitFor(() => screen.getByText(/confirm new pin/i))
+    ;['1', '2', '3', '4'].forEach(d =>
+      fireEvent.click(screen.getByRole('button', { name: d }))
+    )
+    expect(await screen.findByRole('alert')).toHaveTextContent(/failed to set pin/i)
+  })
+
+  it('shows error message when setStaffPin rejects', async () => {
+    mockSetPin.mockRejectedValue(new Error('Failed to fetch'))
     renderModal()
     ;['1', '2', '3', '4'].forEach(d =>
       fireEvent.click(screen.getByRole('button', { name: d }))

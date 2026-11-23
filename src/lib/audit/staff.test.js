@@ -131,8 +131,17 @@ describe('signOutStaff', () => {
     setStaffSession({ id: 'sess-1', token: 'tok-1', staffId: 'm1', trust: 'pin' })
     supabase.rpc.mockResolvedValueOnce({ data: true, error: null })
     await signOutStaff('idle_lock')
-    expect(supabase.rpc).toHaveBeenCalledWith('staff_sign_out', { p_reason: 'idle_lock' })
+    expect(supabase.rpc).toHaveBeenCalledWith('staff_sign_out', { p_reason: 'idle_lock', p_token: 'tok-1' })
     expect(getStaffSession()).toBeNull()
+  })
+
+  it('sends the token it held when called, even if the session is cleared straight after', async () => {
+    setStaffSession({ id: 'sess-1', token: 'tok-1', staffId: 'm1', trust: 'pin' })
+    supabase.rpc.mockResolvedValueOnce({ data: true, error: null })
+    const pending = signOutStaff('sign_out')
+    clearStaffSession() // what clearSession() does synchronously after the call
+    await pending
+    expect(supabase.rpc).toHaveBeenCalledWith('staff_sign_out', { p_reason: 'sign_out', p_token: 'tok-1' })
   })
 
   it('never throws and still forgets the token when the server cannot be reached', async () => {

@@ -4,6 +4,7 @@ import { settleTab } from '../../lib/members'
 import { printReceipt } from '../../lib/starPrinter'
 import { useToastStore } from '../../hooks/useToast'
 import { useSessionStore } from '../../stores/sessionStore'
+import { logEvent } from '../../lib/audit/log'
 import CashPaymentModal from '../till/CashPaymentModal'
 
 /**
@@ -133,6 +134,9 @@ export default function SettleTabModal({ member, onClose, onSettled }) {
     } catch (err) {
       console.error('Print failed:', err)
       useToastStore.getState().addToast('Print failed — check printer connection', 'error')
+      logEvent('receipt.print_failed', {
+        what: 'receipt', message: String(err?.message ?? err).slice(0, 300), member_id: member.id, tab_payment: true,
+      }, { severity: 1 })
     }
 
     // Pass the amount up so parents can distinguish a partial settle from a
@@ -290,6 +294,7 @@ export default function SettleTabModal({ member, onClose, onSettled }) {
         <CashPaymentModal
           total={cashAmount}
           onConfirm={() => doSettle(cashAmount, 'cash')}
+          auditDetail={{ tab_payment: true, member_id: member.id }}
           onCancel={() => setCashAmount(null)}
           onDone={() => setCashAmount(null)}
         />

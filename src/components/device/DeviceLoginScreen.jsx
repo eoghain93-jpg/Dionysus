@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Monitor, WifiOff } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
+import { logEvent } from '../../lib/audit/log'
 import { setTillId } from '../../lib/till'
 import { useSyncStore } from '../../stores/syncStore'
 
@@ -13,6 +14,10 @@ import { useSyncStore } from '../../stores/syncStore'
  * localStorage and auto-refreshes, so bar staff never see this screen
  * again. Day-to-day staff identity stays on the PIN screen.
  */
+function failureMessage(err) {
+  return String(err?.message ?? err ?? 'unknown').slice(0, 300)
+}
+
 export default function DeviceLoginScreen() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -24,28 +29,42 @@ export default function DeviceLoginScreen() {
     e.preventDefault()
     setSubmitting(true)
     setError(null)
+    // Audit events here never carry the password. A failed attempt is kept
+    // in the till's queue and sent once the till is connected.
+    const attemptedEmail = email.trim().slice(0, 120)
+    let signedIn = false
     try {
       const { data, error: signInError } = await supabase.auth.signInWithPassword({
         email: email.trim(),
         password,
       })
       if (signInError) {
+        logEvent('device.sign_in_failed', { message: failureMessage(signInError), email: attemptedEmail }, { severity: 2 })
         setError(signInError.message === 'Invalid login credentials'
           ? 'Wrong email or password for this till.'
           : signInError.message)
         return
       }
-      // Learn which till this device is from its till_devices row, so the
-      // audit trail (orders, movements, cashback) is stamped correctly
-      // without staff having to configure tillId separately.
-      const { data: device } = await supabase
-        .from('till_devices')
-        .select('till_id')
-        .eq('auth_user_id', data.user.id)
-        .maybeSingle()
-      if (device?.till_id) setTillId(device.till_id)
+      signedIn = true
+      try {
+        // Learn which till this device is from its till_devices row, so the
+        // audit trail (orders, movements, cashback) is stamped correctly
+        // without staff having to configure tillId separately.
+        const { data: device } = await supabase
+          .from('till_devices')
+          .select('till_id')
+          .eq('auth_user_id', data.user.id)
+          .maybeSingle()
+        if (device?.till_id) setTillId(device.till_id)
+      } finally {
+        // After the till id is known, so the event is stamped with it.
+        logEvent('device.signed_in', {}, { severity: 1 })
+      }
       // DeviceGate's onAuthStateChange listener takes it from here.
     } catch (err) {
+      if (!signedIn) {
+        logEvent('device.sign_in_failed', { message: failureMessage(err), email: attemptedEmail }, { severity: 2 })
+      }
       setError(err.message ?? 'Could not sign in. Check the connection and try again.')
     } finally {
       setSubmitting(false)

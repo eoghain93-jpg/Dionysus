@@ -4,6 +4,7 @@ import { recordCashback } from '../../lib/cashback'
 import { useSessionStore } from '../../stores/sessionStore'
 import { openDrawer } from '../../lib/starPrinter'
 import { useToastStore } from '../../hooks/useToast'
+import { logEvent } from '../../lib/audit/log'
 
 export default function CashbackModal({ onClose, onSaved }) {
   const { activeStaff } = useSessionStore()
@@ -22,8 +23,10 @@ export default function CashbackModal({ onClose, onSaved }) {
       await recordCashback(val, activeStaff?.id)
       try {
         await openDrawer()
-      } catch {
+      } catch (err) {
         addToast('Drawer failed — use manual open in Settings', 'error')
+        // Explains the manual "Open Drawer" that usually follows.
+        logEvent('drawer.open_failed', { source: 'cashback', message: String(err?.message ?? err).slice(0, 300) }, { severity: 1 })
       }
       onSaved()
     } catch (err) {

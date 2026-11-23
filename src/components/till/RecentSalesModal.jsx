@@ -176,6 +176,7 @@ export default function RecentSalesModal({ onClose }) {
       {pending && (
         <PinGate
           label={pending.type === 'undo' ? 'Undo Tab Payment' : 'Fix Payment'}
+          purpose={pending.type === 'undo' ? 'undo_tab_payment' : 'fix_payment'}
           onConfirm={applyPending}
           onCancel={() => setPending(null)}
         />

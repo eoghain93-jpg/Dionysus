@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { X, RotateCcw } from 'lucide-react'
 import { useTillStore } from '../../stores/tillStore'
+import { logEvent } from '../../lib/audit/log'
 
 const BUNDLE_QTY = 4
 const BUNDLE_TOTAL = 10.00
@@ -51,6 +52,12 @@ export default function ShotBundleModal({ products, onClose }) {
   function handleConfirm() {
     addBundleItems(selected, BUNDLE_TOTAL)
     onClose()
+    logEvent('cart.bundle_added', {
+      bundle: 'shots_4_for_10',
+      lines: summary.length,
+      value: BUNDLE_TOTAL,
+      items: summary.map(s => ({ product: s.name, quantity: s.qty })),
+    })
   }
 
   // Show selected as a compact summary (collapse duplicates of same product)

@@ -13,7 +13,10 @@ vi.mock('../lib/tabs', () => ({
 vi.mock('../lib/starPrinter', () => ({
   printTabsList: vi.fn(),
   printTabStatement: vi.fn(),
+  getPrinterIp: vi.fn(),
 }))
+
+vi.mock('../lib/audit/log', () => ({ logEvent: vi.fn() }))
 
 vi.mock('../components/members/SettleTabModal', () => ({
   default: ({ member, onClose, onSettled }) => (
@@ -36,8 +39,11 @@ vi.mock('../components/members/AdjustTabModal', () => ({
   ),
 }))
 
-import { fetchOpenTabs, fetchTabOrders } from '../lib/tabs'
-import { printTabsList, printTabStatement } from '../lib/starPrinter'
+import { fetchOpenTabs, fetchTabOrders, removeOrderFromTab } from '../lib/tabs'
+import { printTabsList, printTabStatement, getPrinterIp } from '../lib/starPrinter'
+import { logEvent } from '../lib/audit/log'
+
+const eventsOfType = type => logEvent.mock.calls.filter(c => c[0] === type)
 
 const mockTabs = [
   { id: 'm1', name: 'Alice', tab_balance: 15.50, membership_number: 'M0001' },
@@ -62,6 +68,8 @@ beforeEach(() => {
   fetchTabOrders.mockResolvedValue(mockOrders)
   printTabsList.mockResolvedValue(undefined)
   printTabStatement.mockResolvedValue(undefined)
+  getPrinterIp.mockReturnValue('192.168.1.100')
+  removeOrderFromTab.mockResolvedValue(undefined)
 })
 
 describe('TabsPage', () => {
@@ -284,5 +292,143 @@ describe('TabsPage', () => {
     fireEvent.click(screen.getByText('Alice'))
     await waitFor(() => screen.getByText('Guinness'))
     expect(screen.getByRole('button', { name: /remove order/i })).toBeInTheDocument()
+  })
+})
+
+describe('TabsPage — audit events', () => {
+  async function expandAlice() {
+    render(<TabsPage />)
+    await waitFor(() => screen.getByText('Alice'))
+    fireEvent.click(screen.getByText('Alice'))
+    await waitFor(() => screen.getByText('Guinness'))
+  }
+
+  it('logs nothing just for listing the open tabs', async () => {
+    render(<TabsPage />)
+    await waitFor(() => screen.getByText('Alice'))
+    expect(logEvent).not.toHaveBeenCalled()
+  })
+
+  it('logs whose drinks were opened up', async () => {
+    await expandAlice()
+    expect(logEvent.mock.calls).toEqual([
+      ['tab.orders_viewed', { member_id: 'm1', member_name: 'Alice' }],
+    ])
+  })
+
+  it('logs nothing when the drinks fail to load', async () => {
+    fetchTabOrders.mockRejectedValue(new Error('Network error'))
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    render(<TabsPage />)
+    await waitFor(() => screen.getByText('Alice'))
+    fireEvent.click(screen.getByText('Alice'))
+    await waitFor(() => screen.getByText(/failed to load orders/i))
+    expect(logEvent).not.toHaveBeenCalled()
+    vi.restoreAllMocks()
+  })
+
+  it('logs tab.order_removed once the order is off the tab', async () => {
+    await expandAlice()
+    logEvent.mockClear()
+    let finish
+    removeOrderFromTab.mockReturnValue(new Promise(resolve => { finish = resolve }))
+    fireEvent.click(screen.getByRole('button', { name: /remove order/i }))
+    await waitFor(() => expect(removeOrderFromTab).toHaveBeenCalledWith('o1', 'm1', 15.50))
+    // not on the tap — only once it has actually been removed
+    expect(logEvent).not.toHaveBeenCalled()
+    finish()
+    await waitFor(() => expect(screen.queryByText('Alice')).not.toBeInTheDocument())
+    expect(logEvent.mock.calls).toEqual([
+      ['tab.order_removed', { order_id: 'o1', member_id: 'm1', member_name: 'Alice', value: 15.5 }, { severity: 1 }],
+    ])
+  })
+
+  it('logs nothing when removing the order fails', async () => {
+    await expandAlice()
+    logEvent.mockClear()
+    removeOrderFromTab.mockRejectedValue(new Error('Tab already settled'))
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    fireEvent.click(screen.getByRole('button', { name: /remove order/i }))
+    await waitFor(() => expect(fetchOpenTabs).toHaveBeenCalledTimes(2))
+    await waitFor(() => screen.getByText('Alice'))
+    expect(eventsOfType('tab.order_removed')).toEqual([])
+    vi.restoreAllMocks()
+  })
+
+  it('logs tab.summary_printed with how many tabs and their total', async () => {
+    render(<TabsPage />)
+    await waitFor(() => screen.getByRole('button', { name: /print tabs/i }))
+    fireEvent.click(screen.getByRole('button', { name: /print tabs/i }))
+    await waitFor(() => expect(logEvent).toHaveBeenCalled())
+    expect(logEvent.mock.calls).toEqual([
+      ['tab.summary_printed', { tabs: 2, total: 23.5 }],
+    ])
+  })
+
+  it('logs the failure, not a print, when the tab list does not print', async () => {
+    printTabsList.mockRejectedValue(new Error('Bridge returned 502'))
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    render(<TabsPage />)
+    await waitFor(() => screen.getByRole('button', { name: /print tabs/i }))
+    fireEvent.click(screen.getByRole('button', { name: /print tabs/i }))
+    await waitFor(() => expect(logEvent).toHaveBeenCalled())
+    expect(logEvent.mock.calls).toEqual([
+      ['receipt.print_failed', { what: 'tab_summary', message: 'Bridge returned 502' }, { severity: 1 }],
+    ])
+    vi.restoreAllMocks()
+  })
+
+  it('logs no print when no printer is configured (nothing came out)', async () => {
+    getPrinterIp.mockReturnValue(null)
+    render(<TabsPage />)
+    await waitFor(() => screen.getByRole('button', { name: /print tabs/i }))
+    fireEvent.click(screen.getByRole('button', { name: /print tabs/i }))
+    await waitFor(() => expect(printTabsList).toHaveBeenCalled())
+    await waitFor(() => expect(screen.getByRole('button', { name: /print tabs/i })).not.toBeDisabled())
+    expect(logEvent).not.toHaveBeenCalled()
+  })
+
+  it('logs tab.statement_printed for the member whose statement was printed', async () => {
+    await expandAlice()
+    logEvent.mockClear()
+    fireEvent.click(screen.getByRole('button', { name: /print tab statement/i }))
+    await waitFor(() => expect(logEvent).toHaveBeenCalled())
+    expect(logEvent.mock.calls).toEqual([
+      ['tab.statement_printed', { member_id: 'm1', member_name: 'Alice' }],
+    ])
+  })
+
+  it('logs the failure when a statement does not print', async () => {
+    await expandAlice()
+    logEvent.mockClear()
+    printTabStatement.mockRejectedValue(new Error('Bridge returned 502'))
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    fireEvent.click(screen.getByRole('button', { name: /print tab statement/i }))
+    await waitFor(() => expect(logEvent).toHaveBeenCalled())
+    expect(logEvent.mock.calls).toEqual([
+      ['receipt.print_failed', { what: 'tab_statement', message: 'Bridge returned 502', member_id: 'm1' }, { severity: 1 }],
+    ])
+    vi.restoreAllMocks()
+  })
+
+  it('logs a tap on a member\'s blurred balance, and still reveals it', async () => {
+    render(<TabsPage />)
+    await waitFor(() => screen.getByText('Bob'))
+    // [0] is the total outstanding, then one per member row
+    const amounts = screen.getAllByRole('button', { name: /tap to reveal tab amount/i })
+    fireEvent.click(amounts[2])
+    expect(screen.getByRole('button', { name: /tab amount visible/i })).toHaveTextContent('£8.00')
+    expect(logEvent.mock.calls).toEqual([
+      ['tab.amount_revealed', { member_id: 'm2' }],
+    ])
+  })
+
+  it('logs a tap on the total outstanding', async () => {
+    render(<TabsPage />)
+    await waitFor(() => screen.getByText('Bob'))
+    fireEvent.click(screen.getAllByRole('button', { name: /tap to reveal tab amount/i })[0])
+    expect(logEvent.mock.calls).toEqual([
+      ['tab.amount_revealed', { member_id: null, what: 'total_outstanding' }],
+    ])
   })
 })

@@ -3,6 +3,12 @@ import { supabase } from '../../lib/supabase'
 import { fetchZReportData } from '../../lib/zReport'
 import { useSessionStore } from '../../stores/sessionStore'
 import { X, Download, Lock, CreditCard, Banknote } from '../../lib/icons'
+import { logEvent } from '../../lib/audit/log'
+import { signOutStaff } from '../../lib/audit/staff'
+import { rememberedSeal } from '../../lib/audit/seal'
+
+// Longest Close Day waits for the server-side sign-out before locking anyway.
+const SIGN_OUT_WAIT_MS = 1500
 
 function fmt(n) {
   if (n === undefined || n === null) return '£0.00'
@@ -27,7 +33,11 @@ export default function ZReportModal({ date, onClose, onDayClose }) {
     setLoading(true)
     setError(null)
     fetchZReportData(date)
-      .then(setData)
+      .then(d => {
+        setData(d)
+        // Expected cash is on screen from here on, before anything is counted.
+        logEvent('report.viewed', { report: 'z_report', date })
+      })
       .catch(err => setError(err.message ?? 'Failed to load report'))
       .finally(() => setLoading(false))
   }, [date])
@@ -128,12 +138,14 @@ export default function ZReportModal({ date, onClose, onDayClose }) {
     a.download = `z-report-${date}.csv`
     a.click()
     URL.revokeObjectURL(url)
+    logEvent('report.exported', { report: 'z_report', date, rows: lines.length }, { severity: 1 })
   }
 
   async function handleCloseDay() {
     if (!data) return
     setClosing(true)
     setCloseError(null)
+    let step = 'save'
     try {
       const { salesSummary: s, topProducts } = data
       const reconciliation = {
@@ -180,33 +192,93 @@ export default function ZReportModal({ date, onClose, onDayClose }) {
           opening_float: combinedFloat,
           actual_cash: actualCash,
           closed_at: new Date().toISOString(),
+          // Who closed the day: the staff member signed in at this till.
+          closed_by: useSessionStore.getState().activeStaff?.id ?? null,
         }, { onConflict: 'report_date' })
 
       if (dbErr) throw new Error(dbErr.message)
 
-      // 2. Email report
-      const { error: emailErr } = await supabase.functions.invoke('send-z-report', {
-        body: {
-          reportDate: date,
-          salesSummary: s,
-          topProducts,
-          cashReconciliation: reconciliation,
-          wastage: data.wastage ?? [],
-          staffDrinks: data.staffDrinks ?? [],
-          prizeWins: data.prizeWins ?? { total: 0, machine1: 0, machine2: 0 },
-          weekToDateRevenue: data.weekToDateRevenue ?? 0,
-          outstandingTabs: data.outstandingTabs ?? 0,
-          weekSummary: data.weekSummary ?? null,
+      // The day is closed from here on as far as the database is concerned
+      // (payment fixes for it are refused), whatever happens to the email.
+      // The row holds only the combined float and count; the per-till
+      // figures as typed are recorded here.
+      const money = n => Number(Number(n).toFixed(2))
+      logEvent('day.closed', {
+        date,
+        opening_float: money(combinedFloat),
+        actual_cash: money(actualCash),
+        expected_cash: money(expectedInTill),
+        variance: money(variance),
+        tills: {
+          'till-1': { opening_float: money(openingFloat), expected_cash: money(till1Expected), actual_cash: money(till1Actual), variance: money(till1Variance) },
+          'till-2': { opening_float: money(till2OpeningFloat), expected_cash: money(till2Expected), actual_cash: money(till2Actual), variance: money(till2Variance) },
         },
-      })
+      }, { severity: 1 })
+
+      // 2. Email report. When this till remembers an audit-log seal, its
+      // short code rides in the subject (the email function prints
+      // reportDate verbatim): a copy of the seal in an inbox, outside the
+      // database. `date` itself is never changed — only this one field.
+      step = 'email'
+      const sendReport = async reportDate => {
+        const { error } = await supabase.functions.invoke('send-z-report', {
+          body: {
+            reportDate,
+            salesSummary: s,
+            topProducts,
+            cashReconciliation: reconciliation,
+            wastage: data.wastage ?? [],
+            staffDrinks: data.staffDrinks ?? [],
+            prizeWins: data.prizeWins ?? { total: 0, machine1: 0, machine2: 0 },
+            weekToDateRevenue: data.weekToDateRevenue ?? 0,
+            outstandingTabs: data.outstandingTabs ?? 0,
+            weekSummary: data.weekSummary ?? null,
+          },
+        })
+        return error ?? null
+      }
+
+      let sealCode = null
+      try { sealCode = rememberedSeal()?.code || null } catch { /* no seal: send as always */ }
+
+      let emailErr = null
+      let sealSent = false
+      if (sealCode) {
+        try {
+          emailErr = await sendReport(`${date} · log seal ${sealCode}`)
+        } catch (err) {
+          emailErr = err
+        }
+        sealSent = !emailErr
+      }
+      // No seal — or the sealed send failed, and a seal problem must never
+      // cost the owner their Z report: send it exactly as it always was.
+      if (!sealSent) emailErr = await sendReport(date)
 
       if (emailErr) throw new Error(emailErr.message)
+      logEvent('report.emailed', { report: 'z_report', date, seal: sealSent ? sealCode : null }, { severity: 1 })
 
-      // 3. Lock the till
+      // 3. Lock the till. End the staff session on the server first: that
+      // request is recognised by the session token, and clearSession()
+      // forgets the token, so the request has to have left before we clear
+      // (supabase-js builds it a few ticks after the call, not during it).
+      // Bounded: a slow or dead network holds the lock up by SIGN_OUT_WAIT_MS
+      // at most, and nothing here can stop the till locking.
+      step = 'lock'
+      try {
+        await Promise.race([
+          Promise.resolve(signOutStaff('close_day')).catch(() => {}),
+          new Promise(resolve => setTimeout(resolve, SIGN_OUT_WAIT_MS)),
+        ])
+      } catch { /* locking comes first */ }
       useSessionStore.getState().clearSession()
 
       onDayClose()
     } catch (err) {
+      if (step === 'email') {
+        // The day is closed in the database but the report never left.
+        logEvent('report.email_failed', { report: 'z_report', date, message: String(err?.message ?? err).slice(0, 300) }, { severity: 1 })
+      }
       setCloseError(err.message ?? 'Failed to close day')
     } finally {
       setClosing(false)

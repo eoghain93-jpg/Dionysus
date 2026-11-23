@@ -599,8 +599,32 @@ begin;
 select t.req('till2', 'POST', '/rpc/staff_sign_out', :'claim_token');
 select t.put('out', to_jsonb(staff_sign_out('idle_lock')));
 commit;
+
 select t.ok((t.get('out'))::boolean and (t.entry('auth', 'staff.sign_out') -> 'detail' ->> 'reason') = 'idle_lock', 'sign-out recorded with its reason');
 select t.ok(exists (select 1 from auditlog.staff_sessions where end_reason = 'idle_lock'), 'session ended');
+
+-- Sign-out by explicit token: works with NO session header on the request
+-- (the till has already forgotten the token by the time the request goes).
+begin;
+select t.req('till2', 'POST', '/rpc/staff_sign_in');
+select t.put('sam2', staff_sign_in(:'sam', '4821'));
+commit;
+select t.get('sam2') -> 'session' ->> 'token' as sam2_token \gset
+begin;
+select t.req('till1', 'POST', '/rpc/staff_sign_out');
+select t.put('out_wrong_till', to_jsonb(staff_sign_out('sign_out', :'sam2_token')));
+commit;
+begin;
+select t.req('till2', 'POST', '/rpc/staff_sign_out');
+select t.put('out_bad', to_jsonb(staff_sign_out('sign_out', 'not-a-token')));
+select t.put('out_tok', to_jsonb(staff_sign_out('switch_user', :'sam2_token')));
+select t.put('out_again', to_jsonb(staff_sign_out('switch_user', :'sam2_token')));
+commit;
+select t.ok(not (t.get('out_wrong_till'))::boolean and not (t.get('out_bad'))::boolean, 'a token cannot be ended from another till, nor a made-up one');
+select t.ok((t.get('out_tok'))::boolean and not (t.get('out_again'))::boolean, 'sign-out by token works once');
+select t.put('e', t.entry('auth', 'staff.sign_out'));
+select t.ok((t.get('e') ->> 'staff_id') = :'sam' and (t.get('e') -> 'detail' ->> 'reason') = 'switch_user'
+            and (t.get('e') ->> 'staff_trust') = 'pin', 'the sign-out entry names the person whose session ended');
 
 -- An over-age session is ignored.
 insert into auditlog.staff_sessions (staff_id, device, till_id, token_hash, trust, started_at)
@@ -718,7 +742,13 @@ select t.put('v5', audit_view(jsonb_build_object('kinds', jsonb_build_array('aut
 select t.put('v6', audit_view(jsonb_build_object('limit', 3)));
 select t.put('v7', audit_view(jsonb_build_object('limit', 3, 'before_seq', (t.get('v6') ->> 'next_before_seq')::bigint)));
 select t.put('v8', audit_view(jsonb_build_object('unchecked', true, 'limit', 500)));
+select t.put('v10', audit_view(jsonb_build_object('actors', jsonb_build_array('database', 'service'), 'limit', 500)));
+select t.put('v11', audit_view(jsonb_build_object('flag', 'member_discount_removed')));
 commit;
+select t.ok((select bool_and(e ->> 'actor' in ('database', 'service')) and count(*) > 5 from jsonb_array_elements(t.get('v10') -> 'entries') e),
+  'actor filter: everything done outside the till');
+select t.ok((select bool_and(e -> 'detail' -> 'flags' ? 'member_discount_removed') and count(*) = 1 from jsonb_array_elements(t.get('v11') -> 'entries') e),
+  'flag filter');
 select t.ok(jsonb_array_length(t.get('v1') -> 'entries') = 100, 'default page is 100 entries');
 select t.ok((select bool_and(e ->> 'table' = 'products') and count(*) >= 4 from jsonb_array_elements(t.get('v2') -> 'entries') e),
   'history of one record');
@@ -886,6 +916,7 @@ select t.ok(exists (select 1 from auditlog.log l where l.table_name = 'members' 
                       and l.new_data ? 'tab_balance'), 'non-personal history (tab balance) is kept');
 select t.ok((auditlog.verify() ->> 'ok')::boolean, 'the log still verifies after an erasure');
 select t.ok((t.entry('system', 'privacy.erased') -> 'detail' ->> 'reason') = 'erasure request', 'the erasure is itself recorded');
+select t.ok(t.n('system', 'audit.installed') = 1, 'the first entry marks where recording began');
 
 -- ── Done ─────────────────────────────────────────────────────────────────
 

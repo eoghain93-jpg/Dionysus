@@ -9,6 +9,9 @@ vi.mock('../../../lib/supabase', async () => {
   return { supabase: createSupabaseMock() }
 })
 import { supabase } from '../../../lib/supabase'
+import { logEvent } from '../../../lib/audit/log'
+
+vi.mock('../../../lib/audit/log', () => ({ logEvent: vi.fn() }))
 
 // Helper to configure the mock to resolve with specific orders
 function setupMock(orders) {
@@ -26,6 +29,7 @@ describe('DailySummary', () => {
   beforeEach(() => {
     // Reset to empty orders before each test
     supabase.__reset()
+    logEvent.mockClear()
     setupMock([])
   })
 
@@ -121,5 +125,37 @@ describe('DailySummary', () => {
       expect(screen.getByTestId('cash-total')).toHaveTextContent('£12.50')
       expect(screen.getByTestId('card-total')).toHaveTextContent('£0.00')
     })
+  })
+})
+
+describe('DailySummary — audit', () => {
+  beforeEach(() => {
+    supabase.__reset()
+    logEvent.mockClear()
+  })
+
+  it('logs report.viewed for the date once the figures are on screen', async () => {
+    supabase.__configure({ orders: { data: [paidCash] } })
+    render(<DailySummary date={DATE} />)
+    await waitFor(() => expect(screen.getByTestId('total-revenue')).toHaveTextContent('£10.00'))
+    expect(logEvent.mock.calls).toEqual([
+      ['report.viewed', { report: 'daily', date: DATE }],
+    ])
+  })
+
+  it('logs again when another date is shown', async () => {
+    supabase.__configure({ orders: { data: [paidCash] } })
+    const { rerender } = render(<DailySummary date={DATE} />)
+    await waitFor(() => expect(logEvent).toHaveBeenCalledTimes(1))
+    rerender(<DailySummary date="2026-03-08" />)
+    await waitFor(() => expect(logEvent).toHaveBeenCalledTimes(2))
+    expect(logEvent.mock.calls[1]).toEqual(['report.viewed', { report: 'daily', date: '2026-03-08' }])
+  })
+
+  it('logs nothing when the report fails to load', async () => {
+    supabase.__configure({ orders: { data: null, error: { message: 'permission denied' } } })
+    render(<DailySummary date={DATE} />)
+    await waitFor(() => expect(screen.getByText(/permission denied/i)).toBeInTheDocument())
+    expect(logEvent).not.toHaveBeenCalled()
   })
 })

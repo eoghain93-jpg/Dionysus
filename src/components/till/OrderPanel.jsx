@@ -1,8 +1,23 @@
 import { useState } from 'react'
 import { Banknote, CreditCard, Receipt, LogOut, Plus, Minus, X, Trash2, ChevronDown } from 'lucide-react'
 import { useTillStore } from '../../stores/tillStore'
+import { logEvent } from '../../lib/audit/log'
 import CashPaymentModal from './CashPaymentModal'
 import BlurredAmount from '../ui/BlurredAmount'
+
+const money = n => Number(Number(n).toFixed(2))
+
+// What an auditor needs to know about a line that left the order.
+function lineDetail(line) {
+  return {
+    product: line.name,
+    quantity: line.quantity,
+    unit_price: line.unit_price,
+    value: money(line.quantity * line.unit_price),
+    ...(line.bundle_price_applied ? { bundle: true } : {}),
+    ...(line.staff_credit_for ? { for_staff: line.staff_credit_name } : {}),
+  }
+}
 
 export default function OrderPanel({ onCheckout, onClose }) {
   const { orderItems, activeMember, clearMember, updateQuantity, removeItem, getTotal, clearOrder } = useTillStore()
@@ -14,6 +29,73 @@ export default function OrderPanel({ onCheckout, onClose }) {
     setPaying(true)
     try { await onCheckout(method) }
     finally { setPaying(false) }
+  }
+
+  // ── Audit ───────────────────────────────────────────────────────────────
+  // Order edits never reach the database (the cart lives in memory), so each
+  // one is logged here. The store keys lines on line_id ?? product_id and a
+  // shot-bundle line shares its key with a plain line for the same product,
+  // so one tap can change two lines: read the affected lines BEFORE the
+  // store action and log what actually happened to each.
+  const linesFor = key =>
+    useTillStore.getState().orderItems.filter(i => (i.line_id ?? i.product_id) === key)
+
+  function handleRemove(lineKey) {
+    const lines = linesFor(lineKey)
+    removeItem(lineKey)
+    lines.forEach(l => logEvent('cart.line_removed', lineDetail(l), { severity: 1 }))
+  }
+
+  function handleQuantity(lineKey, to) {
+    const lines = linesFor(lineKey)
+    updateQuantity(lineKey, to)
+    lines.forEach(l => {
+      if (to <= 0) {
+        logEvent('cart.line_removed', lineDetail(l), { severity: 1 })
+      } else if (to < l.quantity) {
+        logEvent('cart.quantity_reduced', {
+          product: l.name,
+          from: l.quantity,
+          to,
+          value_removed: money((l.quantity - to) * l.unit_price),
+          ...(l.bundle_price_applied ? { bundle: true } : {}),
+          ...(l.staff_credit_for ? { for_staff: l.staff_credit_name } : {}),
+        }, { severity: 1 })
+      } else if (to > l.quantity && l.bundle_price_applied) {
+        // More units at the deal price than the deal allows.
+        logEvent('cart.bundle_quantity_increased', {
+          product: l.name, from: l.quantity, to, unit_price: l.unit_price,
+        }, { severity: 1 })
+      }
+    })
+  }
+
+  function handleVoidOrder() {
+    const { orderItems: lines, activeMember: member } = useTillStore.getState()
+    clearOrder()
+    if (lines.length === 0) return
+    logEvent('cart.order_voided', {
+      lines: lines.length,
+      value: money(lines.reduce((sum, l) => sum + l.subtotal, 0)),
+      member: member?.name ?? null,
+      member_id: member?.id ?? null,
+      items: lines.slice(0, 30).map(l => ({ product: l.name, quantity: l.quantity, value: money(l.subtotal) })),
+    }, { severity: 1 })
+  }
+
+  function handleClearMember() {
+    const { orderItems: lines, activeMember: member, membersOnlyMode } = useTillStore.getState()
+    clearMember()
+    if (!member) return
+    // Nothing is repriced when a member is cleared: lines already rung keep
+    // the member price, and the sale then completes with no member on it.
+    const kept = lines.filter(l => l.member_price_applied).length
+    logEvent('cart.member_cleared', {
+      member_id: member.id,
+      member_name: member.name,
+      lines_at_member_price: kept,
+      ...(membersOnlyMode ? { members_only_mode: true } : {}),
+    }, { severity: kept > 0 ? 1 : 0 })
   }
 
   return (
@@ -39,14 +121,20 @@ export default function OrderPanel({ onCheckout, onClose }) {
             {Number(activeMember.tab_balance) > 0 && (
               <div className="text-blue-300 text-xs mt-0.5 flex items-center gap-1">
                 <span>Tab:</span>
-                <BlurredAmount className="text-blue-300">
-                  £{Number(activeMember.tab_balance).toFixed(2)}
-                </BlurredAmount>
+                {/* Capture phase: BlurredAmount stops the click from bubbling. */}
+                <span
+                  className="contents"
+                  onClickCapture={() => logEvent('tab.amount_revealed', { member_id: activeMember.id })}
+                >
+                  <BlurredAmount className="text-blue-300">
+                    £{Number(activeMember.tab_balance).toFixed(2)}
+                  </BlurredAmount>
+                </span>
               </div>
             )}
           </div>
           <button
-            onClick={clearMember}
+            onClick={handleClearMember}
             aria-label="Clear member"
             className="flex items-center gap-1 text-slate-400 hover:text-white text-xs
               transition-colors duration-200 cursor-pointer min-h-[44px] px-2"
@@ -76,7 +164,7 @@ export default function OrderPanel({ onCheckout, onClose }) {
               </div>
               <div className="flex items-center gap-2">
                 <button
-                  onClick={() => updateQuantity(lineKey, item.quantity - 1)}
+                  onClick={() => handleQuantity(lineKey, item.quantity - 1)}
                   aria-label="Decrease quantity"
                   className="w-11 h-11 rounded-lg bg-slate-700 hover:bg-slate-600 active:scale-95
                     text-white flex items-center justify-center transition-all duration-150 cursor-pointer"
@@ -85,7 +173,7 @@ export default function OrderPanel({ onCheckout, onClose }) {
                 </button>
                 <span className="w-6 text-center text-white text-sm font-medium">{item.quantity}</span>
                 <button
-                  onClick={() => updateQuantity(lineKey, item.quantity + 1)}
+                  onClick={() => handleQuantity(lineKey, item.quantity + 1)}
                   aria-label="Increase quantity"
                   className="w-11 h-11 rounded-lg bg-slate-700 hover:bg-slate-600 active:scale-95
                     text-white flex items-center justify-center transition-all duration-150 cursor-pointer"
@@ -94,7 +182,7 @@ export default function OrderPanel({ onCheckout, onClose }) {
                 </button>
               </div>
               <button
-                onClick={() => removeItem(lineKey)}
+                onClick={() => handleRemove(lineKey)}
                 aria-label={`Remove ${item.name}`}
                 className="w-11 h-11 flex items-center justify-center text-slate-500
                   hover:text-red-400 transition-colors duration-200 cursor-pointer rounded-lg"
@@ -133,7 +221,7 @@ export default function OrderPanel({ onCheckout, onClose }) {
         </div>
         {orderItems.length > 0 && (
           <button
-            onClick={clearOrder}
+            onClick={handleVoidOrder}
             className="w-full text-slate-500 hover:text-red-400 text-sm py-2
               transition-colors duration-200 cursor-pointer flex items-center justify-center gap-1"
           >

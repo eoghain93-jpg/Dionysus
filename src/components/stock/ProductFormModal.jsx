@@ -365,6 +365,7 @@ export default function ProductFormModal({ product, onClose, onSaved }) {
     {showPinGate && (
       <PinGate
         label={isEditing ? `Change price — ${product.name}` : 'Set price'}
+        purpose="price_change"
         onConfirm={() => save(activeStaff.id)}
         onCancel={() => setShowPinGate(false)}
       />
