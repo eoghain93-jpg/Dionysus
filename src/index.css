@@ -143,3 +143,87 @@ h1, h2, h3 {
 @media (prefers-reduced-motion: reduce) {
   .davey-overlay { animation-name: none !important; }
 }
+
+/* ───────────────────────────────────────────────────────────────────────────
+   Shared UI kit — the till redesign's look, for every page and pop-up.
+   Use these instead of re-typing long utility strings, so buttons, fields,
+   cards and modals stay identical across the app. Touch targets are 48px+.
+   ─────────────────────────────────────────────────────────────────────────── */
+@layer components {
+  /* Page scaffolding */
+  .ui-page { @apply flex flex-col h-full min-h-0 overflow-auto gap-4 px-4 md:px-6 pt-4 pb-6; }
+  .ui-page-header { @apply flex items-center justify-between gap-3 flex-wrap; }
+  .ui-title { @apply text-white text-[28px] leading-tight font-extrabold tracking-tight; }
+  .ui-subtitle { @apply text-slate-400 text-[15px]; }
+  .ui-section-title { @apply text-white text-lg font-extrabold; }
+
+  /* Buttons. .ui-btn is the base; add ONE variant. */
+  .ui-btn {
+    @apply inline-flex items-center justify-center gap-2 min-h-[48px] px-4 rounded-xl
+      text-[15px] font-bold whitespace-nowrap cursor-pointer transition-colors duration-150
+      focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400
+      disabled:opacity-35 disabled:cursor-not-allowed;
+  }
+  .ui-btn-primary { @apply bg-slate-100 text-[#121314] hover:bg-white; }          /* the main action on a screen */
+  .ui-btn-pay { @apply bg-emerald-700 text-white hover:bg-emerald-600; }           /* taking money / settling / confirming a sale */
+  .ui-btn-accent { @apply bg-blue-600 text-white hover:bg-blue-500; }              /* member / tab / selected things */
+  .ui-btn-secondary { @apply bg-slate-800 text-slate-100 hover:bg-slate-700; }     /* ordinary secondary action */
+  .ui-btn-ghost { @apply border border-slate-700 text-slate-100 hover:bg-slate-800; } /* low-key: cancel, back */
+  .ui-btn-danger { @apply border border-slate-700 text-red-300 hover:bg-slate-800; }  /* delete, void, block */
+  .ui-btn-warn { @apply bg-amber-500 text-[#1A1205] hover:bg-amber-400; }          /* attention: overdue, low stock */
+  .ui-btn-lg { @apply min-h-[56px] px-6 rounded-2xl text-[17px] font-extrabold; }  /* modal confirm / big actions */
+  .ui-btn-icon { @apply w-12 px-0; }                                               /* square icon-only button */
+
+  /* Form fields */
+  .ui-label { @apply block text-slate-300 text-sm font-bold mb-1.5; }
+  .ui-input {
+    @apply w-full min-h-[48px] px-4 rounded-xl bg-slate-800 border border-slate-700 text-white text-base
+      placeholder-slate-400 transition-colors
+      focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent
+      disabled:opacity-50;
+  }
+  .ui-select { @apply min-h-[48px] px-4 rounded-xl bg-slate-800 border border-slate-700 text-white text-base
+      cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500; }
+  .ui-help { @apply text-slate-400 text-sm; }
+  .ui-error { @apply text-red-300 text-sm font-semibold; }
+
+  /* Surfaces */
+  .ui-card { @apply bg-slate-900 border border-slate-800 rounded-2xl; }
+  .ui-row { @apply flex items-center gap-3 px-4 min-h-[64px] border-b border-slate-800 last:border-b-0; }
+  .ui-stat { @apply bg-slate-900 border border-slate-800 rounded-2xl px-5 py-4; }
+  .ui-stat-label { @apply text-slate-400 text-sm font-semibold; }
+  .ui-stat-value { @apply text-white text-[32px] leading-tight font-extrabold tracking-tight; }
+  .ui-empty { @apply text-slate-400 text-base text-center py-10; }
+
+  /* Tables */
+  .ui-th { @apply text-left text-slate-400 text-[13px] font-bold uppercase tracking-wide px-4 py-3; }
+  .ui-td { @apply text-slate-100 text-[15px] px-4 py-3.5; }
+
+  /* Segmented filters / tabs (same as the till's category row) */
+  .ui-tab {
+    @apply min-h-[48px] px-4 rounded-xl border border-slate-700 text-slate-100 text-[15px] font-bold
+      whitespace-nowrap cursor-pointer transition-colors hover:bg-slate-800
+      focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400;
+  }
+  .ui-tab-active { @apply bg-slate-100 border-slate-100 text-[#121314] hover:bg-slate-100; }
+
+  /* Status tags */
+  .ui-tag { @apply inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[13px] font-bold whitespace-nowrap; }
+  .ui-tag-neutral { @apply bg-slate-800 text-slate-300; }
+  .ui-tag-good { @apply bg-emerald-950 text-emerald-300; }
+  .ui-tag-warn { @apply bg-amber-950 text-amber-300; }
+  .ui-tag-bad { @apply bg-red-950 text-red-300; }
+  .ui-tag-accent { @apply bg-blue-950 text-blue-300; }
+
+  /* Banners (a full-width note above content) */
+  .ui-banner { @apply flex items-center gap-3 flex-wrap rounded-2xl px-4 py-3 text-[15px] font-semibold; }
+  .ui-banner-warn { @apply bg-amber-950 text-amber-200 border border-amber-800; }
+  .ui-banner-bad { @apply bg-red-950 text-red-200 border border-red-900; }
+  .ui-banner-good { @apply bg-emerald-950 text-emerald-200 border border-emerald-900; }
+
+  /* Modals */
+  .ui-modal-backdrop { @apply fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4; }
+  .ui-modal { @apply w-full max-w-md max-h-[92dvh] overflow-auto bg-slate-900 border border-slate-700 rounded-3xl p-6 flex flex-col gap-4; }
+  .ui-modal-title { @apply text-white text-[22px] leading-tight font-extrabold; }
+  .ui-modal-actions { @apply flex gap-3 mt-1; }
+}
