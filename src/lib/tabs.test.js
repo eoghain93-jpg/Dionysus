@@ -78,7 +78,7 @@ describe('fetchOpenTabs', () => {
 
 describe('fetchTabOrders', () => {
   // The function makes TWO calls: from('members').select(last_settled_at)
-  // then from('orders').select(...).eq().eq().neq().gt('created_at', since).order().
+  // then from('orders').select(...).eq().eq().neq().or(rung or recorded after since).order().
   function setupMocks({ lastSettledAt = null, orders = [], ordersError = null, memberError = null } = {}) {
     supabase.__configure({
       members: { data: memberError ? null : { last_settled_at: lastSettledAt }, error: memberError },
@@ -107,20 +107,52 @@ describe('fetchTabOrders', () => {
     expect(ordersChain.eq).toHaveBeenCalledWith('payment_method', 'tab')
     expect(ordersChain.neq).toHaveBeenCalledWith('status', 'voided')
     expect(ordersChain.order).toHaveBeenCalledWith('created_at', { ascending: false })
-    expect(result).toEqual(orders)
+    expect(result).toEqual(orders.map(o => ({ ...o, recorded_late: false })))
   })
 
-  it('filters by created_at > last_settled_at when set', async () => {
+  it('lists drinks rung OR recorded after last_settled_at', async () => {
     const since = '2026-04-15T10:00:00Z'
     setupMocks({ lastSettledAt: since })
     await fetchTabOrders('m1')
-    expect(supabase.__chain('orders').gt).toHaveBeenCalledWith('created_at', since)
+    expect(supabase.__chain('orders').or).toHaveBeenCalledWith(
+      `created_at.gt."${since}",recorded_at.gt."${since}"`
+    )
   })
 
   it('uses epoch as fallback when last_settled_at is null', async () => {
     setupMocks({ lastSettledAt: null })
     await fetchTabOrders('m1')
-    expect(supabase.__chain('orders').gt).toHaveBeenCalledWith('created_at', '1970-01-01')
+    expect(supabase.__chain('orders').or).toHaveBeenCalledWith(
+      'created_at.gt."1970-01-01",recorded_at.gt."1970-01-01"'
+    )
+  })
+
+  it('flags a drink that reached the database long after it was rung', async () => {
+    // 23 Nov: an 18 Nov drink was replayed from the till's offline queue
+    setupMocks({
+      lastSettledAt: '2026-11-21T16:14:40Z',
+      orders: [
+        { id: 'late', created_at: '2026-11-18T16:33:26Z', recorded_at: '2026-11-23T16:49:27Z', order_items: [] },
+        { id: 'ontime', created_at: '2026-11-25T14:08:47Z', recorded_at: '2026-11-25T14:08:48Z', order_items: [] },
+        { id: 'old', created_at: '2026-11-25T14:53:12Z', recorded_at: null, order_items: [] },
+      ],
+    })
+    const result = await fetchTabOrders('m1')
+    expect(result.map(o => [o.id, o.recorded_late])).toEqual([['late', true], ['ontime', false], ['old', false]])
+  })
+
+  it('falls back to rung-time only on a database without recorded_at', async () => {
+    const since = '2026-04-15T10:00:00Z'
+    supabase.__configure({
+      members: { data: { last_settled_at: since } },
+      orders: [
+        { data: null, error: { code: '42703', message: 'column orders.recorded_at does not exist' } },
+        { data: [{ id: 'o1', created_at: '2026-04-16T10:00:00Z', order_items: [] }], error: null },
+      ],
+    })
+    const result = await fetchTabOrders('m1')
+    expect(supabase.__chain('orders', 1).gt).toHaveBeenCalledWith('created_at', since)
+    expect(result).toEqual([{ id: 'o1', created_at: '2026-04-16T10:00:00Z', order_items: [], recorded_late: false }])
   })
 
   it('returns empty array when member has no tab orders', async () => {
@@ -192,6 +224,26 @@ describe('removeOrderFromTab', () => {
     await expect(removeOrderFromTab('order-1', 'member-1', 5)).rejects.toThrow(/already been paid off/)
     expect(supabase.from).not.toHaveBeenCalledWith('stock_movements')
     expect(supabase.rpc).not.toHaveBeenCalled()
+  })
+
+  it('lets a drink come off when it only reached the database after the settlement', async () => {
+    // Rung 18 Nov, tab paid off 21 Nov, replayed from the offline queue 23 Nov
+    supabase.__configure({
+      order_items: { data: [{ product_id: 'prod-a', quantity: 1 }] },
+      stock_movements: { error: null },
+      orders: [
+        { data: { status: 'paid', payment_method: 'tab', created_at: '2026-11-18T16:33:26Z', recorded_at: '2026-11-23T16:49:27Z' } },
+        { error: null },
+      ],
+      members: { data: { last_settled_at: '2026-11-21T16:14:40Z' } },
+      staff_drink_credits: { error: null },
+    })
+    supabase.rpc.mockResolvedValue({ data: 0, error: null })
+
+    await removeOrderFromTab('order-1', 'member-1', 5.4)
+
+    expect(supabase.__chain('orders', 1).update).toHaveBeenCalledWith({ status: 'voided' })
+    expect(supabase.rpc).toHaveBeenCalledWith('adjust_tab_balance', { p_member_id: 'member-1', p_delta: -5.4 })
   })
 
   it('refuses when the order is already voided (removed on the other till)', async () => {

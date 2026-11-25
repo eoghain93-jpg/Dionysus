@@ -120,6 +120,25 @@ export async function isTabBlocked(member_id) {
   }
 }
 
+// How long after it was rung a sale may reach the database before the Tabs
+// page points it out. Online sales arrive within a second or two; anything
+// this late was replayed from a till's offline queue.
+export const LATE_ORDER_MS = 10 * 60 * 1000
+
+// PostgREST / Postgres answers for a column this database does not have yet.
+function isMissingColumn(error) {
+  return !!error && (error.code === '42703' || error.code === 'PGRST204'
+    || /column .* does not exist|could not find the .* column/i.test(error.message ?? ''))
+}
+
+// When the order counts as having joined the tab: the later of when it was
+// rung and when it reached the database (see fetchTabOrders).
+function onTabSince(order) {
+  const rung = new Date(order.created_at).getTime()
+  const recorded = order.recorded_at ? new Date(order.recorded_at).getTime() : rung
+  return Math.max(rung, recorded)
+}
+
 export async function fetchTabOrders(member_id) {
   if (!member_id) return []
 
@@ -135,16 +154,37 @@ export async function fetchTabOrders(member_id) {
   if (memErr) throw memErr
   const since = member?.last_settled_at ?? '1970-01-01'
 
-  const { data, error } = await supabase
+  const query = columns => supabase
     .from('orders')
-    .select('id, created_at, total_amount, order_items(id, product_id, quantity, unit_price, products(name))')
+    .select(columns)
     .eq('member_id', member_id)
     .eq('payment_method', 'tab')
     .neq('status', 'voided')
-    .gt('created_at', since)
+  const base = 'id, created_at, total_amount, order_items(id, product_id, quantity, unit_price, products(name))'
+
+  // "Since the last settlement" has to count a drink that was RUNG before
+  // it but only REACHED the database after it (a sale replayed from a
+  // till's offline queue). Its total went onto the balance when it
+  // arrived, so it belongs to this tab — filtering on created_at alone
+  // left staff looking at a balance bigger than the drinks listed under it
+  // (23 Nov 2026: six such drinks, the oldest a week old).
+  let { data, error } = await query(`${base}, recorded_at`)
+    .or(`created_at.gt."${since}",recorded_at.gt."${since}"`)
     .order('created_at', { ascending: false })
+  // Bundle ahead of the database update: no recorded_at column yet.
+  if (isMissingColumn(error)) {
+    ({ data, error } = await query(base)
+      .gt('created_at', since)
+      .order('created_at', { ascending: false }))
+  }
   if (error) throw error
-  return data ?? []
+  return (data ?? []).map(order => ({
+    ...order,
+    // Flagged so staff can see why an old drink is on a new tab, and check
+    // it against a double ring before charging for it.
+    recorded_late: !!order.recorded_at
+      && new Date(order.recorded_at).getTime() - new Date(order.created_at).getTime() > LATE_ORDER_MS,
+  }))
 }
 
 // Apply a delta to a member's tab balance in one atomic UPDATE via the
@@ -179,16 +219,23 @@ export async function removeOrderFromTab(order_id, member_id, order_total) {
   //    drink needs a refund, not a tab removal. The DB trigger
   //    orders_refuse_void_settled_tab_order enforces the same rule; this
   //    check runs first so we fail before any restock is written.
-  const [{ data: order, error: ordErr }, { data: member, error: memErr }] = await Promise.all([
-    supabase.from('orders').select('status, payment_method, created_at').eq('id', order_id).single(),
+  const selectOrder = columns => supabase.from('orders').select(columns).eq('id', order_id).single()
+  const [first, { data: member, error: memErr }] = await Promise.all([
+    selectOrder('status, payment_method, created_at, recorded_at'),
     supabase.from('members').select('last_settled_at').eq('id', member_id).single(),
   ])
+  // Bundle ahead of the database update: no recorded_at column yet.
+  const { data: order, error: ordErr } = isMissingColumn(first.error)
+    ? await selectOrder('status, payment_method, created_at')
+    : first
   if (ordErr) throw ordErr
   if (memErr) throw memErr
   if (!order || order.status !== 'paid' || order.payment_method !== 'tab') {
     throw new Error('This drink is no longer on the tab — refresh the Tabs page.')
   }
-  if (member?.last_settled_at && new Date(order.created_at) <= new Date(member.last_settled_at)) {
+  // A drink that only reached the database after the settlement was not
+  // part of what the member paid, so it can still come off.
+  if (member?.last_settled_at && onTabSince(order) <= new Date(member.last_settled_at).getTime()) {
     throw new Error('This tab has already been paid off — that drink can\'t be removed. Refresh the Tabs page; if the customer was overcharged, refund them instead.')
   }
 
