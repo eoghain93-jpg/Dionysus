@@ -389,6 +389,16 @@ export default function TabsPage() {
                                 </button>
                               )}
                             </div>
+                            {order.recorded_late && (
+                              <p className="ui-tag ui-tag-warn mb-1.5">
+                                <Clock size={14} aria-hidden="true" />
+                                Rung on this date but only added to the tab on{' '}
+                                {new Date(order.recorded_at).toLocaleString('en-GB', {
+                                  day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
+                                })}
+                                {' '}— check it isn't a double before charging
+                              </p>
+                            )}
                             <ul className="flex flex-col gap-1 pr-2 pb-1.5 mt-1">
                               {order.order_items.map(item => (
                                 <li key={item.id} className="flex justify-between gap-3 text-[15px] text-slate-100">
